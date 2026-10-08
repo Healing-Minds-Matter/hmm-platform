@@ -7,9 +7,13 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { writeAuditLog } from '@/lib/audit'
 import { isAllowedCategory, isResourceCategory } from '@/lib/resource-categories'
 import { todayDateString } from '@/lib/org-date'
+import { checkResourceFile } from '@/lib/resource-file-types'
 
 const BUCKET = 'resources'
-const RESOURCE_TYPES = ['video', 'article', 'document', 'other'] as const
+// No separate "Other" type (Story 4.1): other file formats are Documents —
+// see lib/resource-file-types.ts. The database enum still contains 'other',
+// but nothing can create one any more and none exist.
+const RESOURCE_TYPES = ['video', 'article', 'document'] as const
 type ResourceType = (typeof RESOURCE_TYPES)[number]
 
 // Matches this Supabase project's actual configured Storage file size limit
@@ -43,6 +47,7 @@ const UPLOADED_PATH_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-
 export async function createResourceUploadAction(input: {
   fileName: string
   fileSize: number
+  resourceType: string
 }): Promise<{ path: string; token: string } | { error: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -55,6 +60,8 @@ export async function createResourceUploadAction(input: {
   if (input.fileSize > MAX_FILE_SIZE_BYTES) {
     return { error: `File is too large (${(input.fileSize / (1024 * 1024)).toFixed(1)}MB). Maximum allowed is 50MB.` }
   }
+  const fileTypeError = checkResourceFile(input.resourceType, input.fileName)
+  if (fileTypeError) return { error: fileTypeError }
 
   const rawExt = input.fileName.includes('.') ? input.fileName.split('.').pop() ?? '' : ''
   const ext = /^[A-Za-z0-9]{1,10}$/.test(rawExt) ? rawExt.toLowerCase() : ''
@@ -165,6 +172,8 @@ export async function createResourceAction(
   const hasFile = !!fields.uploadedPath
 
   if (fields.uploadedPath) {
+    const fileTypeError = checkResourceFile(fields.type, fields.uploadedPath)
+    if (fileTypeError) return fail(fileTypeError)
     const uploadError = await verifyUploadedPath(fields.uploadedPath)
     if (uploadError) return { error: uploadError }
     contentUrl = fields.uploadedPath
@@ -294,6 +303,8 @@ export async function updateResourceAction(
   let durationSeconds: number | null | undefined
 
   if (fields.uploadedPath) {
+    const fileTypeError = checkResourceFile(fields.type, fields.uploadedPath)
+    if (fileTypeError) return fail(fileTypeError)
     const uploadError = await verifyUploadedPath(fields.uploadedPath)
     if (uploadError) return { error: uploadError }
     contentUrl = fields.uploadedPath

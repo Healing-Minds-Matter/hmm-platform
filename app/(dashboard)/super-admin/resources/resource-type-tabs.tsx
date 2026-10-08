@@ -4,7 +4,6 @@ const RESOURCE_TYPE_LABEL_PLURAL: Record<string, string> = {
   video: 'Videos',
   article: 'Articles',
   document: 'Documents',
-  other: 'Other',
 }
 
 function buildHref(basePath: string, params: { q?: string; category?: string; sort?: string; type?: string }) {

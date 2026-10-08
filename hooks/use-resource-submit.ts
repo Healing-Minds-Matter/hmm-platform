@@ -3,6 +3,7 @@
 import { startTransition, useState, type FormEvent } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { createResourceUploadAction } from '@/actions/resources'
+import { checkResourceFile } from '@/lib/resource-file-types'
 
 const BUCKET = 'resources'
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024
@@ -30,6 +31,11 @@ export function useResourceSubmit(formAction: (formData: FormData) => void) {
     formData.delete('file')
 
     if (file instanceof File && file.size > 0) {
+      const fileTypeError = checkResourceFile(String(formData.get('type') ?? ''), file.name)
+      if (fileTypeError) {
+        setUploadError(fileTypeError)
+        return
+      }
       if (file.size > MAX_FILE_SIZE_BYTES) {
         setUploadError(`File is too large (${(file.size / (1024 * 1024)).toFixed(1)}MB). Maximum allowed is 50MB.`)
         return
@@ -37,7 +43,11 @@ export function useResourceSubmit(formAction: (formData: FormData) => void) {
 
       setUploading(true)
       try {
-        const ticket = await createResourceUploadAction({ fileName: file.name, fileSize: file.size })
+        const ticket = await createResourceUploadAction({
+          fileName: file.name,
+          fileSize: file.size,
+          resourceType: String(formData.get('type') ?? ''),
+        })
         if ('error' in ticket) throw new Error(ticket.error)
 
         const { error } = await createClient()
