@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { updateResourceAction, type ResourceActionState } from '@/actions/resources'
 import { RESOURCE_CATEGORIES, isResourceCategory } from '@/lib/resource-categories'
 import { todayDateString } from '@/lib/org-date'
+import { RESOURCE_FILE_RULES } from '@/lib/resource-file-types'
 import { formatPublicationDate, needsRescheduleConfirmation, publicationMessage } from './publication-message'
 
 interface ResourceValues {
@@ -156,7 +157,6 @@ export function EditResourceForm({ resource, onClose }: { resource: ResourceValu
                 <option value="video">Video</option>
                 <option value="article">Article</option>
                 <option value="document">Document</option>
-                <option value="other">Other</option>
               </select>
             </div>
             <div>
@@ -259,10 +259,12 @@ export function EditResourceForm({ resource, onClose }: { resource: ResourceValu
                   id="file"
                   name="file"
                   type="file"
-                  accept={type === 'video' ? 'video/*' : undefined}
+                  accept={(type === 'video' ? RESOURCE_FILE_RULES.video : RESOURCE_FILE_RULES.document).accept}
                   className={inputClass}
                 />
-                <p className="mt-1.5 text-[12px] text-[#64748B]">Max 50MB.</p>
+                <p className="mt-1.5 text-[12px] text-[#64748B]">
+                  Supports {(type === 'video' ? RESOURCE_FILE_RULES.video : RESOURCE_FILE_RULES.document).label} (Max 50MB).
+                </p>
                 {resource.content_url && !/^https?:\/\//i.test(resource.content_url) && (
                   <p className="mt-1.5 text-[12px] text-[#64748B]">
                     A file is already attached. Uploading a new one replaces it.

@@ -5,6 +5,7 @@ import { useResourceSubmit } from '@/hooks/use-resource-submit'
 import { useRouter } from 'next/navigation'
 import { createResourceAction } from '@/actions/resources'
 import { RESOURCE_CATEGORIES } from '@/lib/resource-categories'
+import { RESOURCE_FILE_RULES } from '@/lib/resource-file-types'
 
 const RESOURCE_TYPE_TABS = [
   { value: 'video', label: 'Video', icon: '/icons/resource-tab-video.svg', iconClass: 'h-[15px] w-[15px]' },
@@ -35,7 +36,8 @@ function CheckboxRow({ name, label, defaultChecked }: { name: string; label: str
   )
 }
 
-function FileDropZone() {
+function FileDropZone({ type }: { type: string }) {
+  const rule = type === 'video' ? RESOURCE_FILE_RULES.video : RESOURCE_FILE_RULES.document
   const [fileName, setFileName] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -64,7 +66,7 @@ function FileDropZone() {
         ref={inputRef}
         type="file"
         name="file"
-        accept="video/mp4,application/pdf,.docx,.doc"
+        accept={rule.accept}
         className="hidden"
         onChange={e => setFileName(e.target.files?.[0]?.name ?? null)}
       />
@@ -75,7 +77,7 @@ function FileDropZone() {
       <p className="text-[12px] font-semibold tracking-[0.24px] text-[#0F172A]">
         {fileName ?? 'Or drag & drop source file'}
       </p>
-      <p className="text-[12px] text-[#64748B]">Supports MP4, PDF, DOCX (Max 50MB)</p>
+      <p className="text-[12px] text-[#64748B]">Supports {rule.label} (Max 50MB)</p>
     </div>
   )
 }
@@ -244,7 +246,7 @@ export function CreateResourceForm({ onClose }: { onClose?: () => void }) {
                     className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                   />
                 </div>
-                <FileDropZone />
+                <FileDropZone type={type} />
               </>
             )}
 
