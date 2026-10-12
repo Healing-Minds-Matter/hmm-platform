@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { useEffect, useRef, useState } from 'react'
 import { monthGridRange, weekRange, gridDays, dayKey, MONTH_NAMES, WEEKDAY_LABELS } from './date-grid'
 import { formatOrgDate, formatOrgTime, toOrgWallClock } from '@/lib/org-date'
 import { eventTypeStyle, EVENT_TYPE_STYLES } from './event-type'
@@ -277,6 +278,79 @@ function weekLabel(year: number, month: number, day: number) {
   return `${startLabel} – ${endLabel}`
 }
 
+// "+N more" in a Month view day box: opens a small list of all that day's
+// events, each opening its details like any other event. Closes on Escape,
+// on a click outside, or when an event is chosen. Opens towards the left for
+// the right-hand columns so it doesn't run off the calendar.
+function DayEventsList({
+  dayDate, events, hrefWith, alignRight, open, onOpenChange,
+}: {
+  dayDate: Date
+  events: EventItem[]
+  hrefWith: (o: Partial<{ event: string }>) => string
+  alignRight: boolean
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function onPointerDown(e: MouseEvent) {
+      if (!containerRef.current?.contains(e.target as Node)) onOpenChange(false)
+    }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') onOpenChange(false)
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [open, onOpenChange])
+
+  // dayDate is a calendar ("wall-clock") day, so it's formatted as UTC.
+  const dayLabel = dayDate.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' })
+
+  return (
+    <div ref={containerRef}>
+      <button
+        type="button"
+        onClick={() => onOpenChange(!open)}
+        aria-expanded={open}
+        className="text-[10px] font-semibold text-[#64748B] hover:underline"
+      >
+        +{events.length - 1} more
+      </button>
+      {open && (
+        <div
+          role="dialog"
+          aria-label={`Events on ${dayLabel}`}
+          className={`absolute top-full z-30 mt-1 w-64 rounded-lg bg-white p-3 shadow-[0_10px_30px_-8px_rgba(0,0,0,0.25)] ring-1 ring-[#E2E8F0] ${
+            alignRight ? 'right-0' : 'left-0'
+          }`}
+        >
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <p className="text-[12px] font-bold text-[#0F172A]">{dayLabel}</p>
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              aria-label="Close"
+              className="flex h-5 w-5 items-center justify-center rounded text-[#64748B] hover:bg-[#F1F5F9]"
+            >
+              ×
+            </button>
+          </div>
+          <div className="flex max-h-64 flex-col gap-1 overflow-y-auto" onClick={() => onOpenChange(false)}>
+            {events.map(ev => <EventPill key={ev.id} event={ev} href={hrefWith({ event: ev.id })} />)}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function EventPill({ event, href, compact }: { event: EventItem; href: string; compact?: boolean }) {
   const style = eventTypeStyle(event.type)
   const time = formatOrgTime(event.starts_at, { hour: 'numeric', minute: '2-digit' }).replace(' ', '')
@@ -304,6 +378,8 @@ function MonthGrid({
 }) {
   const { gridStart, gridEnd, firstOfMonth, lastOfMonth } = monthGridRange(year, month)
   const days = gridDays(gridStart, gridEnd)
+  // Which day's "+N more" list is open (only one at a time).
+  const [openDayKey, setOpenDayKey] = useState<string | null>(null)
 
   const eventsByDay: Record<string, EventItem[]> = {}
   for (const ev of events) {
@@ -313,14 +389,16 @@ function MonthGrid({
   }
 
   return (
-    <div className="overflow-hidden rounded-lg bg-white">
+    // No overflow-hidden here: the "+N more" day list must be able to extend
+    // past the bottom row. The header and grid below keep their own rounding.
+    <div className="rounded-lg bg-white">
       <div className="flex gap-1 rounded-t-lg bg-[#F8FAFC] p-1">
         {WEEKDAY_LABELS.map(w => (
           <div key={w} className="flex-1 py-1 text-center text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">{w}</div>
         ))}
       </div>
       <div className="grid grid-cols-7 gap-1 rounded-b-lg bg-[#F8FAFC] p-1">
-        {days.map(dayDate => {
+        {days.map((dayDate, index) => {
           const key = dayKey(dayDate)
           const inMonth = dayDate >= firstOfMonth && dayDate <= lastOfMonth
           const isToday = dayDate.getUTCFullYear() === todayYmd.year && dayDate.getUTCMonth() + 1 === todayYmd.month && dayDate.getUTCDate() === todayYmd.day
@@ -328,7 +406,7 @@ function MonthGrid({
           return (
             <div
               key={key}
-              className={`flex h-16 flex-col gap-1 rounded p-1.5 ${inMonth ? 'bg-white' : 'bg-white/60 opacity-45'} ${
+              className={`relative flex h-16 flex-col gap-1 rounded p-1.5 ${inMonth ? 'bg-white' : 'bg-white/60 opacity-45'} ${
                 isToday ? 'ring-2 ring-[#003495]' : ''
               }`}
             >
@@ -343,10 +421,18 @@ function MonthGrid({
                 {isToday && <span className="text-[10px] font-bold uppercase tracking-[0.5px] text-[#003495]">Today</span>}
               </div>
               {dayEvents[0] && <EventPill event={dayEvents[0]} href={hrefWith({ event: dayEvents[0].id })} compact />}
+              {/* A day box only fits one event. "+N more" used to open just the
+                  second event, leaving a third or later unreachable — it now
+                  opens a list of every event that day. */}
               {dayEvents.length > 1 && (
-                <Link href={hrefWith({ event: dayEvents[1].id })} scroll={false} className="text-[10px] font-semibold text-[#64748B] hover:underline">
-                  +{dayEvents.length - 1} more
-                </Link>
+                <DayEventsList
+                  dayDate={dayDate}
+                  events={dayEvents}
+                  hrefWith={hrefWith}
+                  alignRight={index % 7 >= 4}
+                  open={openDayKey === key}
+                  onOpenChange={isOpen => setOpenDayKey(isOpen ? key : null)}
+                />
               )}
             </div>
           )
