@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { monthGridRange, weekRange, gridDays, dayKey, MONTH_NAMES, WEEKDAY_LABELS } from './date-grid'
+import { formatOrgDate, formatOrgTime, toOrgWallClock } from '@/lib/org-date'
 import { eventTypeStyle, EVENT_TYPE_STYLES } from './event-type'
 import { EventDetailPanel } from './event-detail-panel'
 import { UpcomingQprSection } from './upcoming-qpr-section'
@@ -90,7 +91,7 @@ export function EventsCalendar({ view, year, month, day, club, type, q, events, 
     return `${basePath}?${params.toString()}`
   }
 
-  const today = new Date()
+  const today = toOrgWallClock(new Date()) // Sri Lanka "today" (see lib/org-date.ts)
   const todayYmd = ymd(today)
 
   function goToday() {
@@ -125,7 +126,7 @@ export function EventsCalendar({ view, year, month, day, club, type, q, events, 
   const activeTypeCount = type ? (typeCounts[type] ?? 0) : totalCount
   const usedTypes = EVENT_TYPES.filter(t => t.value === 'other' ? (typeCounts.other ?? 0) > 0 : true)
 
-  const updatedLabel = new Date(generatedAt).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })
+  const updatedLabel = formatOrgTime(generatedAt, { hour: '2-digit', minute: '2-digit' })
 
   return (
     <div className="flex flex-col gap-6 p-8 font-[family-name:var(--font-inter)]">
@@ -278,7 +279,7 @@ function weekLabel(year: number, month: number, day: number) {
 
 function EventPill({ event, href, compact }: { event: EventItem; href: string; compact?: boolean }) {
   const style = eventTypeStyle(event.type)
-  const time = new Date(event.starts_at).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }).replace(' ', '')
+  const time = formatOrgTime(event.starts_at, { hour: 'numeric', minute: '2-digit' }).replace(' ', '')
   return (
     <Link
       href={href}
@@ -306,7 +307,7 @@ function MonthGrid({
 
   const eventsByDay: Record<string, EventItem[]> = {}
   for (const ev of events) {
-    const key = dayKey(new Date(ev.starts_at))
+    const key = dayKey(toOrgWallClock(ev.starts_at))
     eventsByDay[key] ??= []
     eventsByDay[key].push(ev)
   }
@@ -374,7 +375,7 @@ function WeekGrid({
 
   const eventsByDay: Record<string, EventItem[]> = {}
   for (const ev of events) {
-    const key = dayKey(new Date(ev.starts_at))
+    const key = dayKey(toOrgWallClock(ev.starts_at))
     eventsByDay[key] ??= []
     eventsByDay[key].push(ev)
   }
@@ -433,8 +434,8 @@ function AgendaView({
     <div className="overflow-hidden rounded-lg bg-white ring-1 ring-[#F1F5F9]">
       <ul className="divide-y divide-[#F1F5F9]">
         {events.map(ev => {
-          const d = new Date(ev.starts_at)
-          const dateLabel = d.toLocaleDateString('en-AU', { dateStyle: 'full' })
+          const startsAt = ev.starts_at
+          const dateLabel = formatOrgDate(startsAt, { dateStyle: 'full' })
           const showHeading = dateLabel !== lastDateLabel
           lastDateLabel = dateLabel
           const style = eventTypeStyle(ev.type)
@@ -448,7 +449,7 @@ function AgendaView({
               <Link href={hrefWith({ event: ev.id })} scroll={false} className="flex items-center gap-3 px-6 py-3 hover:bg-slate-50">
                 <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ backgroundColor: style.dot }} />
                 <span className="w-16 flex-shrink-0 text-sm text-[#64748B]">
-                  {d.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}
+                  {formatOrgTime(startsAt, { hour: '2-digit', minute: '2-digit' })}
                 </span>
                 <span className="flex-1 truncate text-sm font-medium text-[#0F172A]">{ev.title}</span>
                 <span className={`inline-flex flex-shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${style.badge}`}>

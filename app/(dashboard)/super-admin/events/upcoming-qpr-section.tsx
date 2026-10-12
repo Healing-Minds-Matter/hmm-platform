@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { formatOrgDate, formatOrgTime } from '@/lib/org-date'
 
 interface QprEvent {
   id: string
@@ -12,11 +13,11 @@ interface QprEvent {
 }
 
 function formatWhen(startsAt: string, endsAt: string | null) {
-  const start = new Date(startsAt)
-  const dateLabel = start.toLocaleDateString('en-AU', { month: 'short', day: 'numeric' })
-  const startTime = start.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' })
+  // Shown in Sri Lanka time (see lib/org-date.ts).
+  const dateLabel = formatOrgDate(startsAt, { month: 'short', day: 'numeric' })
+  const startTime = formatOrgTime(startsAt, { hour: 'numeric', minute: '2-digit' })
   if (!endsAt) return `${dateLabel}, ${startTime}`
-  const endTime = new Date(endsAt).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' })
+  const endTime = formatOrgTime(endsAt, { hour: 'numeric', minute: '2-digit' })
   return `${dateLabel}, ${startTime} – ${endTime}`
 }
 

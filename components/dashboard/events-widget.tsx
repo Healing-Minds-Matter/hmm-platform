@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { getUpcomingEvents } from '@/actions/dashboard'
 import type { EventsData, EventsFilter } from '@/actions/dashboard'
 import { EVENT_TYPE_STYLES } from '@/app/(dashboard)/super-admin/events/event-type'
+import { formatOrgDate, formatOrgTime } from '@/lib/org-date'
 
 const FILTER_LABELS: Record<EventsFilter, string> = {
   next_7_days:  '7d',
@@ -23,9 +24,9 @@ function typeSolid(type: string) {
 }
 
 function EventRow({ ev }: { ev: EventsData['events'][number] }) {
-  const d = new Date(ev.starts_at)
-  const dateLabel = d.toLocaleDateString('en-AU', { month: 'short', day: '2-digit' })
-  const time = d.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })
+  // Shown in Sri Lanka time (see lib/org-date.ts).
+  const dateLabel = formatOrgDate(ev.starts_at, { month: 'short', day: '2-digit' })
+  const time = formatOrgTime(ev.starts_at, { hour: '2-digit', minute: '2-digit' })
   const style = EVENT_TYPE_STYLES[ev.type] ?? EVENT_TYPE_STYLES.other
   const solid = typeSolid(ev.type)
 

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 import { eventTypeStyle } from './event-type'
 import { cancelEventAction } from '@/actions/events'
+import { formatOrgDate, formatOrgTime } from '@/lib/org-date'
 
 interface EventDetail {
   id: string
@@ -34,11 +35,12 @@ function Field({ label, value }: { label: string; value: string }) {
 // view-only, matching Story 6.1's original scope.
 export function EventDetailPanel({ event, closeHref, editHref }: { event: EventDetail; closeHref: string; editHref?: string }) {
   const style = eventTypeStyle(event.type)
-  const starts = new Date(event.starts_at)
-  const dateLabel = starts.toLocaleDateString('en-AU', { dateStyle: 'full' })
+  // Shown in Sri Lanka time (see lib/org-date.ts).
+  const dateLabel = formatOrgDate(event.starts_at, { dateStyle: 'full' })
+  const timeOpts: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit' }
   const timeLabel = event.ends_at
-    ? `${starts.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })} – ${new Date(event.ends_at).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}`
-    : starts.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })
+    ? `${formatOrgTime(event.starts_at, timeOpts)} – ${formatOrgTime(event.ends_at, timeOpts)}`
+    : formatOrgTime(event.starts_at, timeOpts)
 
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [isPending, startTransition] = useTransition()
