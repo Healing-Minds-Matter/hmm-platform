@@ -1,15 +1,8 @@
 import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+// Pre-fills the form in Sri Lanka time, the same zone it is saved in.
+import { isoToOrgDateTime } from '@/lib/org-date'
 import { EditEventModal } from './edit-event-modal'
-
-function toDateTimeParts(iso: string) {
-  const d = new Date(iso)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return {
-    date: `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`,
-    time: `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`,
-  }
-}
 
 export default async function InterceptedEditChampionEventPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -29,8 +22,8 @@ export default async function InterceptedEditChampionEventPage({ params }: { par
 
   if (!event) notFound()
 
-  const { date, time: start_time } = toDateTimeParts(event.starts_at)
-  const end_time = event.ends_at ? toDateTimeParts(event.ends_at).time : ''
+  const { date, time: start_time } = isoToOrgDateTime(event.starts_at)
+  const end_time = event.ends_at ? isoToOrgDateTime(event.ends_at).time : ''
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const clubName = (event.clubs as any)?.name ?? 'Your Club'
 

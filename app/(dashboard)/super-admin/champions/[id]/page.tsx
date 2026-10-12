@@ -3,6 +3,8 @@ import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { ChampionStatusControls } from './champion-status-controls'
 import { eventTypeStyle } from '@/app/(dashboard)/super-admin/events/event-type'
+// Event dates/times are shown in Sri Lanka time (see lib/org-date.ts).
+import { ORG_TIME_ZONE } from '@/lib/org-date'
 
 export const metadata = { title: 'Champion Details — HMM Super Admin' }
 
@@ -22,11 +24,11 @@ function getInitials(name: string): string {
 }
 
 function formatEventDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: ORG_TIME_ZONE })
 }
 
 function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+  return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: ORG_TIME_ZONE })
 }
 
 function formatTimeRange(startsAt: string, endsAt: string | null) {

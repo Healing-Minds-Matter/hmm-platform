@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { EventsCalendar } from './events-calendar'
 import { monthGridRange, weekRange } from './date-grid'
+import { fromOrgWallClock, toOrgWallClock } from '@/lib/org-date'
 
 export default async function EventsPage({
   searchParams,
@@ -10,9 +11,11 @@ export default async function EventsPage({
   const sp = await searchParams
   const view: 'month' | 'week' | 'agenda' = sp.view === 'week' ? 'week' : sp.view === 'agenda' ? 'agenda' : 'month'
   const now = new Date()
-  const year = sp.year ? parseInt(sp.year, 10) : now.getUTCFullYear()
-  const month = sp.month ? parseInt(sp.month, 10) : now.getUTCMonth() + 1 // 1-12
-  const day = sp.day ? parseInt(sp.day, 10) : now.getUTCDate()
+  // The calendar works in Sri Lanka dates ("wall-clock" Dates, see lib/org-date.ts).
+  const todayWall = toOrgWallClock(now)
+  const year = sp.year ? parseInt(sp.year, 10) : todayWall.getUTCFullYear()
+  const month = sp.month ? parseInt(sp.month, 10) : todayWall.getUTCMonth() + 1 // 1-12
+  const day = sp.day ? parseInt(sp.day, 10) : todayWall.getUTCDate()
   const clubFilter = sp.club || ''
   const typeFilter = sp.type || ''
   const q = sp.q || ''
@@ -35,12 +38,13 @@ export default async function EventsPage({
     const { gridStart, gridEnd } = monthGridRange(year, month)
     const gridEndExclusive = new Date(gridEnd)
     gridEndExclusive.setUTCDate(gridEndExclusive.getUTCDate() + 1)
-    eventsQuery = eventsQuery.gte('starts_at', gridStart.toISOString()).lt('starts_at', gridEndExclusive.toISOString())
+    // Grid days are Sri Lanka days: convert their wall-clock midnights to real moments.
+    eventsQuery = eventsQuery.gte('starts_at', fromOrgWallClock(gridStart).toISOString()).lt('starts_at', fromOrgWallClock(gridEndExclusive).toISOString())
   } else if (view === 'week') {
     const { start, end } = weekRange(new Date(Date.UTC(year, month - 1, day)))
     const endExclusive = new Date(end)
     endExclusive.setUTCDate(endExclusive.getUTCDate() + 1)
-    eventsQuery = eventsQuery.gte('starts_at', start.toISOString()).lt('starts_at', endExclusive.toISOString())
+    eventsQuery = eventsQuery.gte('starts_at', fromOrgWallClock(start).toISOString()).lt('starts_at', fromOrgWallClock(endExclusive).toISOString())
   }
   if (clubFilter) eventsQuery = eventsQuery.eq('club_id', clubFilter)
   if (typeFilter) eventsQuery = eventsQuery.eq('type', typeFilter)

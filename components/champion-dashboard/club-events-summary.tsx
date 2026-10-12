@@ -1,13 +1,14 @@
 import Link from 'next/link'
 import type { EventSummary } from '@/actions/champion-dashboard'
 import { eventTypeStyle } from '@/app/(dashboard)/super-admin/events/event-type'
+import { formatOrgDate, formatOrgTime, toOrgWallClock } from '@/lib/org-date'
 
 function formatDateTime(iso: string) {
-  const d = new Date(iso)
+  // Shown in Sri Lanka time (see lib/org-date.ts).
   return {
-    month: d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase(),
-    day: d.getDate(),
-    time: d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+    month: formatOrgDate(iso, { month: 'short' }, 'en-US').toUpperCase(),
+    day: toOrgWallClock(iso).getUTCDate(),
+    time: formatOrgTime(iso, { hour: 'numeric', minute: '2-digit' }, 'en-US'),
   }
 }
 

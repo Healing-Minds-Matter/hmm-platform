@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { writeAuditLog } from '@/lib/audit'
+import { orgDateTimeToIso } from '@/lib/org-date'
 
 export type EventActionState = { error?: string; success?: boolean } | null
 
@@ -47,8 +48,9 @@ export async function createEventAction(
   const validationError = validate(fields)
   if (validationError) return { error: validationError }
 
-  const startsAt = new Date(`${fields.eventDate}T${fields.startTime}:00Z`).toISOString()
-  const endsAt = fields.endTime ? new Date(`${fields.eventDate}T${fields.endTime}:00Z`).toISOString() : null
+  // The form's date and times are Sri Lanka time (see lib/org-date.ts).
+  const startsAt = orgDateTimeToIso(fields.eventDate!, fields.startTime!)
+  const endsAt = fields.endTime ? orgDateTimeToIso(fields.eventDate!, fields.endTime) : null
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -101,8 +103,9 @@ export async function updateEventAction(
   const validationError = validate(fields, false)
   if (validationError) return { error: validationError }
 
-  const startsAt = new Date(`${fields.eventDate}T${fields.startTime}:00Z`).toISOString()
-  const endsAt = fields.endTime ? new Date(`${fields.eventDate}T${fields.endTime}:00Z`).toISOString() : null
+  // The form's date and times are Sri Lanka time (see lib/org-date.ts).
+  const startsAt = orgDateTimeToIso(fields.eventDate!, fields.startTime!)
+  const endsAt = fields.endTime ? orgDateTimeToIso(fields.eventDate!, fields.endTime) : null
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
