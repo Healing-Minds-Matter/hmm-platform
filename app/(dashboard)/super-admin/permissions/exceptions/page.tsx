@@ -43,7 +43,7 @@ export default async function ExceptionsPage({
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/icons/plus-small.svg" alt="" width={10.5} height={10.5} />
-            Grant Exception
+            Add Individual Exception
           </Link>
         </div>
         <div className="border-t border-[#F1F5F9] pt-3">
