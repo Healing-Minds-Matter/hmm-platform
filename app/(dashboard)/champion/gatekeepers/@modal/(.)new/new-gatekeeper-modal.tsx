@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { ModalOverlay } from '@/components/modal-overlay'
-import { CreateGatekeeperForm } from '../../create-gatekeeper-form'
+import { CreateGatekeeperForm } from '@/app/(dashboard)/super-admin/gatekeepers/create-gatekeeper-form'
 
 export function NewGatekeeperModal({ clubName }: { clubName: string }) {
   const router = useRouter()
@@ -10,7 +10,7 @@ export function NewGatekeeperModal({ clubName }: { clubName: string }) {
 
   return (
     <ModalOverlay onClose={close}>
-      <CreateGatekeeperForm clubName={clubName} onClose={close} />
+      <CreateGatekeeperForm scope={{ mode: 'fixed', clubName }} redirectPath="/champion/gatekeepers" onClose={close} />
     </ModalOverlay>
   )
 }

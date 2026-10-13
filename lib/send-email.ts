@@ -1,4 +1,6 @@
 import 'server-only'
+import fs from 'fs'
+import path from 'path'
 
 // SendGrid Web API (not Supabase's SMTP-relayed mailer) — needed here
 // specifically because Supabase's own invite/magic-link email templates
@@ -95,6 +97,71 @@ If you weren't expecting this account, you can ignore this email.`
 </div>`
 
   return sendEmail({ to, subject, html, text })
+}
+
+// Real temporary-password welcome email, per the actual onboarding spec —
+// supersedes an earlier invite-link version of this function that was
+// based on an incorrect assumption. Sent through this same SendGrid
+// mechanism (not Supabase's own mailer) for the same reason as
+// sendTemporaryPasswordEmail above: the branded template needs
+// champion_name/club_name, which live in this app's own tables, not
+// anything Supabase's templating can see.
+export async function sendGatekeeperWelcomeEmail(params: {
+  to: string
+  gatekeeperFirstName: string
+  championName: string
+  clubName: string
+  tempPassword: string
+  appLoginLink: string
+}): Promise<{ error?: string }> {
+  const templatePath = path.join(process.cwd(), 'emails', 'templates', 'hmm_gatekeeper_welcome_email_v2.html')
+  let template: string
+  try {
+    template = fs.readFileSync(templatePath, 'utf-8')
+  } catch {
+    return { error: `Email template not found at ${templatePath}.` }
+  }
+
+  const values: Record<string, string> = {
+    gatekeeper_first_name: params.gatekeeperFirstName,
+    champion_name: params.championName,
+    club_name: params.clubName,
+    gatekeeper_email: params.to,
+    temporary_password: params.tempPassword,
+    app_login_link: params.appLoginLink,
+    android_download_link: process.env.GATEKEEPER_ANDROID_DOWNLOAD_URL ?? '#',
+    ios_download_link: process.env.GATEKEEPER_IOS_DOWNLOAD_URL ?? '#',
+    current_year: String(new Date().getFullYear()),
+  }
+
+  // URL fields stay unescaped (escapeHtml would mangle a "&" in a query
+  // string into "&amp;"); the temp password is left unescaped too since
+  // generateTempPassword's charset (letters/digits/!@#$%^&*) is
+  // deliberately safe to place directly into HTML — every other field is
+  // escaped normally.
+  const rawKeys = new Set(['app_login_link', 'android_download_link', 'ios_download_link', 'temporary_password'])
+  const html = template.replace(/\{\{(\w+)\}\}/g, (_match, key: string) => {
+    if (!(key in values)) return `{{${key}}}`
+    return rawKeys.has(key) ? values[key] : escapeHtml(values[key])
+  })
+
+  const text = `Hi ${params.gatekeeperFirstName},
+
+${params.championName} has created your Gatekeeper account for ${params.clubName} on Healing Minds Matter.
+
+Email: ${params.to}
+Temporary password: ${params.tempPassword}
+
+Sign in here: ${params.appLoginLink}
+
+We'd recommend changing this password after you sign in (Profile > Change Password).`
+
+  return sendEmail({
+    to: params.to,
+    subject: `Your Healing Minds Matter Gatekeeper account is ready`,
+    html,
+    text,
+  })
 }
 
 function escapeHtml(value: string): string {

@@ -13,7 +13,11 @@ export function NewGatekeeperModal({ clubs, champions }: { clubs: Club[]; champi
 
   return (
     <ModalOverlay onClose={close}>
-      <CreateGatekeeperForm clubs={clubs} champions={champions} onClose={close} />
+      <CreateGatekeeperForm
+        scope={{ mode: 'select', clubs, champions }}
+        redirectPath="/super-admin/gatekeepers"
+        onClose={close}
+      />
     </ModalOverlay>
   )
 }
