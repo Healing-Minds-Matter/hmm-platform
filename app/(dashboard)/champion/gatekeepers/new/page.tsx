@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { CreateGatekeeperForm } from '../create-gatekeeper-form'
+import { CreateGatekeeperForm } from '@/app/(dashboard)/super-admin/gatekeepers/create-gatekeeper-form'
 
 export const metadata = { title: 'Add Gatekeeper — HMM Champion' }
 
@@ -22,7 +22,10 @@ export default async function NewGatekeeperPage() {
 
   return (
     <div className="flex justify-center p-8">
-      <CreateGatekeeperForm clubName={club?.name ?? 'Your Club'} />
+      <CreateGatekeeperForm
+        scope={{ mode: 'fixed', clubName: club?.name ?? 'Your Club' }}
+        redirectPath="/champion/gatekeepers"
+      />
     </div>
   )
 }

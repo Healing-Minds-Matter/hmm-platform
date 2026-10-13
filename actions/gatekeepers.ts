@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { writeAuditLog } from '@/lib/audit'
-import { createInvitedUser } from '@/lib/create-invited-user'
+import { createGatekeeperWithTempPassword, resendGatekeeperWelcomeEmail } from '@/lib/invite-gatekeeper'
 import { parsePhone } from '@/lib/phone'
 import { validateCertificationDate } from '@/lib/certification-date'
 import { checkPhoneAvailable, describePhoneDbError, phoneChanged } from '@/lib/phone-uniqueness.server'
@@ -14,9 +14,13 @@ export type GatekeeperActionState = {
   error?: string
   conflict?: boolean
   success?: boolean
+  // Only set when the Champion/Super Admin chose "I'll share credentials
+  // manually" — the one time this ever appears on screen, since no
+  // plaintext password is stored anywhere afterward.
+  tempPassword?: string
 } | null
 
-export type BulkGatekeeperRow = { row: number; email: string; error?: string; success?: boolean }
+export type BulkGatekeeperRow = { row: number; email: string; error?: string; success?: boolean; tempPassword?: string }
 export type BulkGatekeeperState = {
   error?: string
   success?: boolean
@@ -38,6 +42,7 @@ async function inviteAndCreateGatekeeper(params: {
   clubId: string
   certificationDate: string
   actorId: string
+  sendWelcomeEmail: boolean
 }) {
   const admin = createAdminClient()
 
@@ -75,10 +80,39 @@ async function inviteAndCreateGatekeeper(params: {
   const { data: gkCode, error: codeError } = await admin.rpc('next_gatekeeper_code')
   if (codeError) return { error: codeError.message }
 
-  // Creates the auth user with a system-generated temporary password and
-  // emails it directly (Supabase's own invite email can't embed a
-  // password) — see lib/create-invited-user.ts.
-  const invited = await createInvitedUser({ email: params.email, fullName: params.fullName, roleLabel: 'Gatekeeper' })
+  const { data: actor } = await admin.from('profiles').select('full_name, role').eq('id', params.actorId).maybeSingle()
+
+  // {{champion_name}}: when a Champion creates the Gatekeeper, the actor
+  // IS the real champion_name — use their own name directly. When a
+  // Super Admin creates one instead, "Super Admin created you" is less
+  // useful to a Gatekeeper than their actual day-to-day club contact, so
+  // this looks up the club's real active Champion and uses that name;
+  // only falls back to the Super Admin's own name (per explicit decision)
+  // when the club genuinely has no active Champion assigned.
+  let championName = actor?.full_name ?? 'Your Champion'
+  if (actor?.role === 'super_admin') {
+    const { data: linkedChampion } = await admin
+      .from('profiles')
+      .select('full_name')
+      .eq('club_id', params.clubId)
+      .eq('role', 'champion')
+      .eq('is_active', true)
+      .maybeSingle()
+    championName = linkedChampion?.full_name ?? actor.full_name ?? 'The Healing Minds Matter Team'
+  }
+
+  // Real system-generated temp password (crypto-random — see
+  // generate-temp-password.ts), no invite link. See lib/invite-gatekeeper.ts
+  // for why this is a separate path from Champion's createInvitedUser flow.
+  const appLoginLink = process.env.GATEKEEPER_ANDROID_DOWNLOAD_URL ?? process.env.NEXT_PUBLIC_SITE_URL ?? ''
+  const invited = await createGatekeeperWithTempPassword({
+    email: params.email,
+    fullName: params.fullName,
+    championName,
+    clubName: club.name,
+    appLoginLink,
+    sendWelcomeEmail: params.sendWelcomeEmail,
+  })
   if ('error' in invited) return { error: invited.error }
 
   const newUserId = invited.userId
@@ -96,7 +130,12 @@ async function inviteAndCreateGatekeeper(params: {
     qpr_expiry_date: qprExpiryDate,
     gatekeeper_code: gkCode,
     is_active: true,
-    must_change_password: true,
+    // No forced first-login password change needed — the real invite
+    // No forced first-login password change — per the spec's "no forced
+    // password change gate for Phase 1," the Gatekeeper logs in directly
+    // with the emailed (or manually-shared) temp password; the welcome
+    // email just nudges them toward Change Password afterward.
+    must_change_password: false,
   })
 
   if (profileError) {
@@ -118,7 +157,7 @@ async function inviteAndCreateGatekeeper(params: {
     details: { full_name: params.fullName, email: params.email, club_id: params.clubId, gatekeeper_code: gkCode },
   })
 
-  return { id: newUserId, gatekeeper_code: gkCode }
+  return { id: newUserId, gatekeeper_code: gkCode, tempPassword: invited.tempPassword ?? undefined }
 }
 
 // inviteAndCreateGatekeeper uses the service-role admin client, which
@@ -161,6 +200,10 @@ export async function createGatekeeperAction(
   const preferredLanguage = (formData.get('preferred_language') as string | null) || 'en'
   const requestedClubId = formData.get('club_id') as string | null
   const certificationDate = formData.get('certification_date') as string | null
+  // Per spec: "Automated notification (optional/deferrable)" — a real
+  // checkbox on the create form, not always-on. Checkbox fields are only
+  // present in FormData when checked, so absence means "off."
+  const sendWelcomeEmail = formData.get('send_welcome_email') === 'on'
 
   if (!fullName) return { error: 'Full name is required.' }
   if (!email)    return { error: 'Email is required.' }
@@ -178,13 +221,15 @@ export async function createGatekeeperAction(
   if ('error' in scoped) return { error: scoped.error }
 
   const result = await inviteAndCreateGatekeeper({
-    fullName, email, phone, preferredLanguage, clubId: scoped.clubId, certificationDate, actorId: user.id,
+    fullName, email, phone, preferredLanguage, clubId: scoped.clubId, certificationDate, actorId: user.id, sendWelcomeEmail,
   })
   if ('error' in result) return { error: result.error }
 
   revalidatePath('/super-admin/gatekeepers')
   revalidatePath('/champion/gatekeepers')
-  return { success: true }
+  // Only present when sendWelcomeEmail was false — the one time this
+  // password is ever shown, since it's never stored in plaintext.
+  return { success: true, tempPassword: result.tempPassword }
 }
 
 // CSV header: full_name,email,phone,club_id,certification_date
@@ -204,6 +249,7 @@ export async function createGatekeepersBulkAction(
 ): Promise<BulkGatekeeperState> {
   const file = formData.get('csv_file') as File | null
   if (!file || file.size === 0) return { error: 'Select a CSV file to upload.' }
+  const sendWelcomeEmail = formData.get('send_welcome_email') === 'on'
 
   const text = await file.text()
   const rows = parseCsv(text)
@@ -284,12 +330,12 @@ export async function createGatekeepersBulkAction(
     phonesInFile.set(phone, rowNum)
 
     const result = await inviteAndCreateGatekeeper({
-      fullName, email, phone, preferredLanguage: 'en', clubId, certificationDate, actorId: user.id,
+      fullName, email, phone, preferredLanguage: 'en', clubId, certificationDate, actorId: user.id, sendWelcomeEmail,
     })
     if ('error' in result) {
       results.push({ row: rowNum, email, error: result.error })
     } else {
-      results.push({ row: rowNum, email, success: true })
+      results.push({ row: rowNum, email, success: true, tempPassword: result.tempPassword })
       createdCount++
     }
   }
@@ -458,5 +504,82 @@ export async function reactivateGatekeeperAction(
 
   revalidatePath(`/super-admin/gatekeepers/${gatekeeperId}`)
   revalidatePath('/super-admin/gatekeepers')
+  return { success: true }
+}
+
+// Real gap closed: no way to resend a Gatekeeper's welcome email existed
+// before this (confirmed — no such action or UI anywhere). Issues a
+// genuinely new temp password each time (nothing plaintext is ever stored
+// to "resend the same one") — correct behavior for "the original email
+// got lost/never arrived," not just cosmetic. Meaningful for any active
+// gatekeeper, not just ones who never logged in — an admin re-sharing
+// credentials after a Gatekeeper forgot theirs is a real use case too.
+export async function resendGatekeeperInviteAction(
+  _prev: GatekeeperActionState,
+  formData: FormData
+): Promise<GatekeeperActionState> {
+  const gatekeeperId = formData.get('gatekeeper_id') as string
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { data: caller } = await supabase.from('profiles').select('role, club_id, full_name').eq('id', user.id).single()
+  if (caller?.role !== 'champion' && caller?.role !== 'super_admin') {
+    return { error: 'Not authorized.' }
+  }
+
+  const admin = createAdminClient()
+  const { data: gatekeeper } = await admin
+    .from('profiles')
+    .select('full_name, email, club_id, clubs!profiles_club_id_fkey(name)')
+    .eq('id', gatekeeperId)
+    .eq('role', 'gatekeeper')
+    .maybeSingle()
+  if (!gatekeeper) return { error: 'Gatekeeper not found.' }
+
+  // A Champion may only resend for their own club's gatekeepers — this
+  // action uses the service-role admin client below (to read/update
+  // auth-adjacent state), which bypasses RLS entirely, so this scoping
+  // has to be enforced here explicitly, same as every other
+  // Champion-reachable gatekeeper action in this file.
+  if (caller.role === 'champion' && gatekeeper.club_id !== caller.club_id) {
+    return { error: 'Not authorized.' }
+  }
+
+  // Same real {{champion_name}} resolution as creation (see
+  // inviteAndCreateGatekeeper above) — a Super Admin resending should
+  // still name the real linked Champion when one exists, not themselves.
+  let championName = caller.full_name ?? 'Your Champion'
+  if (caller.role === 'super_admin') {
+    const { data: linkedChampion } = await admin
+      .from('profiles')
+      .select('full_name')
+      .eq('club_id', gatekeeper.club_id)
+      .eq('role', 'champion')
+      .eq('is_active', true)
+      .maybeSingle()
+    championName = linkedChampion?.full_name ?? caller.full_name ?? 'The Healing Minds Matter Team'
+  }
+
+  const appLoginLink = process.env.GATEKEEPER_ANDROID_DOWNLOAD_URL ?? process.env.NEXT_PUBLIC_SITE_URL ?? ''
+  const result = await resendGatekeeperWelcomeEmail({
+    userId: gatekeeperId,
+    email: gatekeeper.email,
+    fullName: gatekeeper.full_name,
+    championName,
+    clubName: (gatekeeper.clubs as unknown as { name: string } | null)?.name ?? 'your club',
+    appLoginLink,
+  })
+  if (result.error) return { error: result.error }
+
+  await writeAuditLog({
+    actorId: user.id,
+    action: 'gatekeeper.invite_resent',
+    entityType: 'gatekeeper',
+    entityId: gatekeeperId,
+    details: { email: gatekeeper.email },
+  })
+
   return { success: true }
 }

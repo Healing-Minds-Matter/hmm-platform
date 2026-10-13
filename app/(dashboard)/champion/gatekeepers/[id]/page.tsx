@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { GatekeeperStatusControls } from './gatekeeper-status-controls'
+import { ResendInviteButton } from '@/app/(dashboard)/super-admin/gatekeepers/[id]/resend-invite-button'
 import { qprStatus, QPR_STATUS_LABEL, QPR_STATUS_BADGE, QPR_STATUS_DOT, todayBounds } from '@/app/(dashboard)/super-admin/gatekeepers/gatekeeper-status'
 
 export const metadata = { title: 'Gatekeeper Details — HMM Champion' }
@@ -92,6 +93,7 @@ export default async function ChampionGatekeeperDetailPage({ params }: { params:
               Edit Gatekeeper
             </Link>
           )}
+          {gatekeeper.is_active && <ResendInviteButton gatekeeperId={id} />}
           <GatekeeperStatusControls gatekeeperId={id} isActive={gatekeeper.is_active} />
         </div>
       </div>
