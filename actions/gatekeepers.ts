@@ -9,6 +9,7 @@ import { createGatekeeperWithTempPassword, resendGatekeeperWelcomeEmail } from '
 import { parsePhone } from '@/lib/phone'
 import { validateCertificationDate } from '@/lib/certification-date'
 import { checkPhoneAvailable, describePhoneDbError, phoneChanged } from '@/lib/phone-uniqueness.server'
+import { readCsvUpload } from '@/lib/csv'
 
 export type GatekeeperActionState = {
   error?: string
@@ -235,30 +236,16 @@ export async function createGatekeeperAction(
 // CSV header: full_name,email,phone,club_id,certification_date
 // phone is required and must be unique (also within the same file);
 // club_id must be a real active club UUID.
-function parseCsv(text: string): string[][] {
-  return text
-    .split(/\r?\n/)
-    .map(line => line.trim())
-    .filter(Boolean)
-    .map(line => line.split(',').map(cell => cell.trim().replace(/^"|"$/g, '')))
-}
 
 export async function createGatekeepersBulkAction(
   _prev: BulkGatekeeperState,
   formData: FormData
 ): Promise<BulkGatekeeperState> {
-  const file = formData.get('csv_file') as File | null
-  if (!file || file.size === 0) return { error: 'Select a CSV file to upload.' }
   const sendWelcomeEmail = formData.get('send_welcome_email') === 'on'
 
-  const text = await file.text()
-  const rows = parseCsv(text)
-  if (rows.length === 0) return { error: 'The CSV file is empty.' }
-
-  const header = rows[0].map(h => h.toLowerCase())
-  const dataRows = rows.slice(1)
-  if (dataRows.length === 0) return { error: 'The CSV file has no data rows.' }
-  if (dataRows.length > 50) return { error: `The CSV has ${dataRows.length} rows — maximum is 50 per upload.` }
+  const upload = await readCsvUpload(formData.get('csv_file') as File | null)
+  if ('error' in upload) return { error: upload.error }
+  const { header, rows: dataRows } = upload
 
   const col = (name: string) => header.indexOf(name)
   const nameIdx = col('full_name')
@@ -299,9 +286,7 @@ export async function createGatekeepersBulkAction(
   // saved yet, so duplicates within the CSV are caught here.
   const phonesInFile = new Map<string, number>()
 
-  for (let i = 0; i < dataRows.length; i++) {
-    const cells = dataRows[i]
-    const rowNum = i + 2 // 1-indexed + header row
+  for (const { line: rowNum, cells } of dataRows) {
     const fullName = cells[nameIdx]?.trim()
     const email = cells[emailIdx]?.trim().toLowerCase()
     const parsedPhone = parsePhone(cells[phoneIdx])

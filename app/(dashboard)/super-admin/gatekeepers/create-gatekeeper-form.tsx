@@ -1,10 +1,12 @@
 'use client'
 
-import { useActionState, useEffect, useRef, useState } from 'react'
+import { useActionState, useEffect, useState } from 'react'
 import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { useRouter } from 'next/navigation'
 import { certificationDateInputProps } from '@/lib/certification-date'
 import { createGatekeeperAction, createGatekeepersBulkAction } from '@/actions/gatekeepers'
+import { CsvDropZone } from '@/components/csv-drop-zone'
+import { BulkTabLabel, ModeTabs } from '@/components/mode-tabs'
 
 interface Club { id: string; name: string; club_code: string | null }
 interface Champion { id: string; full_name: string; club_id: string | null }
@@ -21,50 +23,6 @@ function threeYearsLabel(dateStr: string): string | null {
   if (isNaN(d.getTime())) return null
   d.setUTCFullYear(d.getUTCFullYear() + 3)
   return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-}
-
-function CsvDropZone({ fileName, onFile }: { fileName: string | null; onFile: (file: File | null) => void }) {
-  const [isDragging, setIsDragging] = useState(false)
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  return (
-    <div
-      onDragOver={e => { e.preventDefault(); setIsDragging(true) }}
-      onDragLeave={() => setIsDragging(false)}
-      onDrop={e => {
-        e.preventDefault()
-        setIsDragging(false)
-        const file = e.dataTransfer.files?.[0]
-        if (file && inputRef.current) {
-          const dt = new DataTransfer()
-          dt.items.add(file)
-          inputRef.current.files = dt.files
-          onFile(file)
-        }
-      }}
-      onClick={() => inputRef.current?.click()}
-      className={`flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl p-6 text-center transition-colors ${
-        isDragging ? 'bg-[#EFF4FF] ring-2 ring-[#1E4BB8]' : 'bg-[#F8FAFC] hover:bg-slate-100'
-      }`}
-    >
-      <input
-        ref={inputRef}
-        type="file"
-        name="csv_file"
-        accept=".csv,text/csv"
-        className="hidden"
-        onChange={e => onFile(e.target.files?.[0] ?? null)}
-      />
-      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-sm">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/icons/cloud-upload.svg" alt="" width={18.33} height={13.33} />
-      </span>
-      <p className="text-[12px] font-semibold tracking-[0.24px] text-[#0F172A]">
-        {fileName ?? 'Drag & drop a CSV file, or click to browse'}
-      </p>
-      <p className="text-[11px] text-[#64748B]">Up to 50 rows per upload</p>
-    </div>
-  )
 }
 
 // Shared by both Super Admin (/super-admin/gatekeepers/new) and Champion
@@ -141,29 +99,23 @@ export function CreateGatekeeperForm({
         </button>
       </div>
 
-      {/* Mode tabs */}
-      <div className="flex gap-2 px-6 pb-3">
-        <button
-          type="button"
-          onClick={() => setMode('single')}
-          className={`flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-[12px] font-semibold transition-colors ${
-            mode === 'single' ? 'border-[#E5E7EB] bg-white text-[#003495] shadow-sm' : 'border-transparent text-[#64748B] hover:bg-slate-50'
-          }`}
-        >
-          Single Gatekeeper
-        </button>
-        <button
-          type="button"
-          onClick={() => setMode('bulk')}
-          className={`flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-[12px] font-semibold transition-colors ${
-            mode === 'bulk' ? 'border-[#E5E7EB] bg-white text-[#003495] shadow-sm' : 'border-transparent text-[#64748B] hover:bg-slate-50'
-          }`}
-        >
-          Bulk CSV Upload
-          <span className="rounded bg-[#E6EEFF] px-1.5 py-0.5 text-[10px] font-medium text-[#64748B]">Up to 50</span>
-        </button>
-      </div>
+      <ModeTabs
+        label="How to add gatekeepers"
+        idPrefix="add-gatekeeper"
+        value={mode}
+        onChange={setMode}
+        tabs={[
+          { value: 'single', label: 'Single Gatekeeper' },
+          { value: 'bulk', label: <BulkTabLabel /> },
+        ]}
+      />
 
+      <div
+        id="add-gatekeeper-panel"
+        role="tabpanel"
+        aria-labelledby={`add-gatekeeper-tab-${mode}`}
+        className="flex flex-1 flex-col overflow-hidden"
+      >
       {mode === 'single' && singleState?.success && singleState.tempPassword ? (
         <div className="flex flex-1 flex-col overflow-hidden">
           <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-6">
@@ -430,6 +382,7 @@ export function CreateGatekeeperForm({
           </div>
         </form>
       )}
+      </div>
     </div>
   )
 }
