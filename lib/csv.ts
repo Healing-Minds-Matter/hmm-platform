@@ -54,6 +54,13 @@ export function parseCsv(text: string): CsvRow[] {
   return rows
 }
 
+// The reverse of parseCsv: quotes any cell containing a comma, quote or line
+// break, so the file opens correctly in Excel and can be uploaded again.
+export function toCsv(rows: string[][]): string {
+  const cell = (value: string) => (/[",\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value)
+  return rows.map(r => r.map(cell).join(',')).join('\r\n') + '\r\n'
+}
+
 export type CsvUpload = { header: string[]; rows: CsvRow[] }
 
 // Reads an uploaded file and applies the checks every bulk upload shares.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { BULK_UPLOAD_MAX_ROWS, parseCsv, readCsvUpload } from '@/lib/csv'
+import { BULK_UPLOAD_MAX_ROWS, parseCsv, readCsvUpload, toCsv } from '@/lib/csv'
 
 const csvFile = (text: string) => new File([text], 'upload.csv', { type: 'text/csv' })
 
@@ -42,6 +42,19 @@ describe('parseCsv', () => {
       ['full_name', 'email', 'phone', 'club_id', 'certification_date'],
       ['Maya Lin', 'maya@example.com', '0771234567', 'abc', '2025-01-02'],
     ])
+  })
+})
+
+describe('toCsv', () => {
+  it('quotes only cells that need it, and parseCsv reads the result back', () => {
+    const rows = [
+      ['name', 'address', 'problem'],
+      ['Club A', '12 Galle Rd, Colombo 03', 'Club code "A-1" is already taken.'],
+      ['Club B', 'Kandy', 'line one\nline two'],
+    ]
+    const text = toCsv(rows)
+    expect(text.split('\r\n')[1]).toBe('Club A,"12 Galle Rd, Colombo 03","Club code ""A-1"" is already taken."')
+    expect(parseCsv(text).map(r => r.cells)).toEqual(rows)
   })
 })
 

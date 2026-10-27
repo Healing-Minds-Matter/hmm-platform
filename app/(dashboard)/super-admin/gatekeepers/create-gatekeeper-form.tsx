@@ -5,7 +5,8 @@ import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { useRouter } from 'next/navigation'
 import { certificationDateInputProps } from '@/lib/certification-date'
 import { createGatekeeperAction, createGatekeepersBulkAction } from '@/actions/gatekeepers'
-import { CsvDropZone } from '@/components/csv-drop-zone'
+import { BulkCsvUpload } from '@/components/bulk-csv-upload'
+import { GATEKEEPER_CSV_COLUMNS, gatekeeperCsvHeaderError } from '@/lib/gatekeeper-csv'
 import { BulkTabLabel, ModeTabs } from '@/components/mode-tabs'
 
 interface Club { id: string; name: string; club_code: string | null }
@@ -53,14 +54,11 @@ export function CreateGatekeeperForm({
   const [mode, setMode] = useState<'single' | 'bulk'>('single')
 
   const [singleState, singleAction, singlePending] = useActionState(createGatekeeperAction, null)
-  const [bulkState, bulkAction, bulkPending] = useActionState(createGatekeepersBulkAction, null)
   const submitSingle = useSubmitWithoutReset(singleAction)
-  const submitBulk = useSubmitWithoutReset(bulkAction)
 
   const [email, setEmail] = useState('')
   const [clubId, setClubId] = useState('')
   const [certDate, setCertDate] = useState('')
-  const [csvFileName, setCsvFileName] = useState<string | null>(null)
 
   const linkedChampion = scope.mode === 'select' ? scope.champions.find(c => c.club_id === clubId) ?? null : null
   const expiryLabel = threeYearsLabel(certDate)
@@ -74,9 +72,9 @@ export function CreateGatekeeperForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [singleState])
 
-  // Bulk has no auto-close at all — the per-row results table (including
-  // any skipped-email temp passwords) is the useful output to review,
-  // not something to dismiss immediately on success.
+  // Bulk has no auto-close at all — the per-row results (including any
+  // skipped-email temp passwords) are the useful output to review, not
+  // something to dismiss immediately on success. See BulkCsvUpload.
 
   return (
     <div className="mx-auto flex max-h-[90vh] w-full max-w-[672px] flex-col overflow-hidden rounded-2xl bg-white shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)] font-[family-name:var(--font-inter)]">
@@ -304,85 +302,62 @@ export function CreateGatekeeperForm({
           </div>
         </form>
       ) : (
-        <form onSubmit={submitBulk} className="flex flex-1 flex-col overflow-hidden">
-          <div className="flex flex-1 flex-col gap-4 overflow-y-auto bg-[#F8FAFC] p-6">
-            {bulkState?.error && (
-              <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">{bulkState.error}</div>
-            )}
-
-            <div className="flex flex-col gap-3 rounded-xl bg-white p-5">
-              <h2 className="text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">CSV Format</h2>
-              {scope.mode === 'select' ? (
-                <>
-                  <p className="text-[12px] leading-[18px] text-[#475569]">
-                    Header row required, exactly: <code className="rounded bg-[#F1F5F9] px-1.5 py-0.5 font-mono text-[11px]">full_name,email,phone,club_id,certification_date</code>
-                    <br />
-                    <code className="rounded bg-[#F1F5F9] px-1.5 py-0.5 font-mono text-[11px]">club_id</code> must be a real club&apos;s internal ID. <code className="rounded bg-[#F1F5F9] px-1.5 py-0.5 font-mono text-[11px]">certification_date</code> as YYYY-MM-DD, not in the future. Every row needs its own <code className="rounded bg-[#F1F5F9] px-1.5 py-0.5 font-mono text-[11px]">phone</code> number.
-                  </p>
-                  <details className="text-[12px] text-[#475569]">
-                    <summary className="cursor-pointer font-semibold text-[#003495]">Active club IDs</summary>
-                    <ul className="mt-1.5 flex flex-col gap-0.5">
-                      {scope.clubs.map(c => (
-                        <li key={c.id} className="font-mono text-[11px]">{c.id} — {c.name}</li>
-                      ))}
-                    </ul>
-                  </details>
-                </>
-              ) : (
-                <p className="text-[12px] leading-[18px] text-[#475569]">
-                  Header row required, exactly: <code className="rounded bg-[#F1F5F9] px-1.5 py-0.5 font-mono text-[11px]">full_name,email,phone,certification_date</code>
-                  <br />
-                  All rows are added to <strong>{scope.clubName}</strong>. <code className="rounded bg-[#F1F5F9] px-1.5 py-0.5 font-mono text-[11px]">certification_date</code> as YYYY-MM-DD, not in the future. Every row needs its own <code className="rounded bg-[#F1F5F9] px-1.5 py-0.5 font-mono text-[11px]">phone</code> number.
-                </p>
-              )}
-              <CsvDropZone fileName={csvFileName} onFile={f => setCsvFileName(f?.name ?? null)} />
-            </div>
-
-            <label className="flex items-center gap-2 rounded-xl bg-white p-4 text-[13px] text-[#0F172A]">
-              <input type="checkbox" name="send_welcome_email" defaultChecked className="h-4 w-4 rounded border-[#D4D7E3]" />
-              Send welcome email now (applies to every row) — uncheck to share each temp password manually instead
-            </label>
-
-            {bulkState?.results && bulkState.results.length > 0 && (
-              <div className="flex flex-col gap-2 rounded-xl bg-white p-5">
-                <h2 className="text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">
-                  Results — {bulkState.createdCount} of {bulkState.results.length} created
-                </h2>
-                <ul className="flex flex-col gap-1">
-                  {bulkState.results.map(r => (
-                    <li key={r.row} className="flex flex-col gap-0.5 text-[12px]">
-                      <div className={`flex items-center gap-2 ${r.success ? 'text-[#0D8275]' : 'text-[#DC2626]'}`}>
-                        <span className="font-mono">Row {r.row}</span>
-                        <span>{r.email}</span>
-                        <span>{r.success ? '✓ Created' : `✗ ${r.error}`}</span>
-                      </div>
-                      {r.tempPassword && (
-                        <div className="ml-6 flex items-center gap-1.5 text-[#0F172A]">
-                          <span className="text-[11px] text-[#64748B]">Temp password (share manually — shown only once):</span>
-                          <span className="font-mono font-semibold">{r.tempPassword}</span>
-                        </div>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-
-          <div className="flex items-center justify-end gap-2.5 border-t border-[#E2E8F0] px-6 py-4">
-            <button type="button" onClick={close} className="flex h-10 items-center rounded-lg bg-[#F1F5F9] px-4 text-[13px] font-medium text-[#0F172A] transition-colors hover:bg-[#E2E8F0]">
-              {bulkState?.results ? 'Close' : 'Cancel'}
-            </button>
-            <button
-              type="submit" disabled={bulkPending || !csvFileName}
-              className="flex h-10 items-center gap-1.5 rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
-            >
-              {bulkPending ? 'Uploading…' : 'Upload & Register'}
-            </button>
-          </div>
-        </form>
+        <BulkGatekeeperUpload scope={scope} onClose={close} />
       )}
       </div>
     </div>
+  )
+}
+
+const code = 'rounded bg-[#F1F5F9] px-1.5 py-0.5 font-mono text-[11px]'
+
+function BulkGatekeeperUpload({ scope, onClose }: { scope: ClubScope; onClose: () => void }) {
+  const uploader = scope.mode === 'select' ? 'super_admin' : 'champion'
+  const columns = GATEKEEPER_CSV_COLUMNS[uploader]
+  const exampleRow: Record<string, string> = {
+    full_name: 'Maya Lin',
+    email: 'maya.lin@example.com',
+    phone: '077 123 4567',
+    club_id: scope.mode === 'select' ? scope.clubs[0]?.id ?? '' : '',
+    certification_date: '2025-06-01',
+  }
+
+  return (
+    <BulkCsvUpload
+      action={createGatekeepersBulkAction}
+      noun={{ one: 'gatekeeper', many: 'gatekeepers' }}
+      template={{ fileName: 'gatekeepers-template.csv', rows: [columns, columns.map(c => exampleRow[c])] }}
+      checkHeader={header => gatekeeperCsvHeaderError(header, uploader)}
+      onClose={onClose}
+      options={
+        <label className="flex items-center gap-2 rounded-xl bg-white p-4 text-[13px] text-[#0F172A]">
+          <input type="checkbox" name="send_welcome_email" defaultChecked className="h-4 w-4 rounded border-[#D4D7E3]" />
+          Send welcome email now (applies to every row) — uncheck to share each temp password manually instead
+        </label>
+      }
+      formatHelp={scope.mode === 'select' ? (
+        <>
+          <p className="text-[12px] leading-[18px] text-[#475569]">
+            Header row required, exactly: <code className={code}>{columns.join(',')}</code>
+            <br />
+            <code className={code}>club_id</code> must be a real club&apos;s internal ID. <code className={code}>certification_date</code> as YYYY-MM-DD, not in the future. Every row needs its own <code className={code}>phone</code> number.
+          </p>
+          <details className="text-[12px] text-[#475569]">
+            <summary className="cursor-pointer font-semibold text-[#003495]">Active club IDs</summary>
+            <ul className="mt-1.5 flex flex-col gap-0.5">
+              {scope.clubs.map(c => (
+                <li key={c.id} className="font-mono text-[11px]">{c.id} — {c.name}</li>
+              ))}
+            </ul>
+          </details>
+        </>
+      ) : (
+        <p className="text-[12px] leading-[18px] text-[#475569]">
+          Header row required, exactly: <code className={code}>{columns.join(',')}</code>
+          <br />
+          All rows are added to <strong>{scope.clubName}</strong>. <code className={code}>certification_date</code> as YYYY-MM-DD, not in the future. Every row needs its own <code className={code}>phone</code> number.
+        </p>
+      )}
+    />
   )
 }

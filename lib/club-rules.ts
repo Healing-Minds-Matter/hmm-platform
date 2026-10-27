@@ -5,6 +5,7 @@
 
 import { parsePhone } from '@/lib/phone'
 import type { CsvUpload } from '@/lib/csv'
+import { PROBLEM_COLUMN, type BulkIntent, type BulkRowResult } from '@/lib/bulk-upload'
 
 export type ClubInput = {
   name?: string | null
@@ -89,11 +90,14 @@ export function describeClubInsertError(error: { code?: string; message: string 
 
 export const CLUB_CSV_COLUMNS = ['name', 'code', 'address', 'contact_email', 'contact_phone', 'description'] as const
 
-export type BulkClubRow = { row: number; name: string; success?: boolean; error?: string }
-
-export type BulkClubResult =
-  | { error: string }
-  | { results: BulkClubRow[]; createdCount: number; failedCount: number }
+// Shown as soon as a file is chosen, and checked again on the server. The
+// header must match exactly; a trailing "problem" column (from the "Download
+// failed rows" file) is allowed and ignored.
+export function clubCsvHeaderError(header: string[]): string | null {
+  const columns = header[header.length - 1] === PROBLEM_COLUMN ? header.slice(0, -1) : header
+  const expected = CLUB_CSV_COLUMNS.join(',')
+  return columns.join(',') === expected ? null : `The first row of the file must be exactly: ${expected}. Nothing was created.`
+}
 
 export type BulkClubDeps = {
   existingClubs: ExistingClub[]
@@ -101,23 +105,26 @@ export type BulkClubDeps = {
   onCreated: (id: string, club: ClubFields) => Promise<void>
 }
 
-export async function createClubsFromCsv(upload: CsvUpload, deps: BulkClubDeps): Promise<BulkClubResult> {
-  const expected = CLUB_CSV_COLUMNS.join(',')
-  if (upload.header.join(',') !== expected) {
-    return { error: `The first row of the file must be exactly: ${expected}. Nothing was created.` }
-  }
+// intent 'check' validates every row and saves nothing; 'save' creates the
+// rows that pass and skips the rest.
+export async function createClubsFromCsv(
+  upload: CsvUpload,
+  deps: BulkClubDeps,
+  intent: BulkIntent
+): Promise<{ error: string } | { results: BulkRowResult[] }> {
+  const headerError = clubCsvHeaderError(upload.header)
+  if (headerError) return { error: headerError }
 
   const known = [...deps.existingClubs]
   const codesInFile = new Map<string, number>()
   const namesInFile = new Map<string, number>()
-  const results: BulkClubRow[] = []
+  const results: BulkRowResult[] = []
 
   for (const { line, cells } of upload.rows) {
     const [name, code, address, contactEmail, contactPhone, description] = cells
-    const label = name || '(no name)'
-    const fail = (error: string) => { results.push({ row: line, name: label, error }) }
+    const fail = (error: string) => { results.push({ row: line, label: name || '(no name)', status: 'failed', error }) }
 
-    if (cells.length > CLUB_CSV_COLUMNS.length) {
+    if (cells.length > upload.header.length) {
       fail('This row has more columns than the header. Put quotes around any value that contains a comma.')
       continue
     }
@@ -135,14 +142,18 @@ export async function createClubsFromCsv(upload: CsvUpload, deps: BulkClubDeps):
     const conflict = findClubConflict(club, known)
     if (conflict) { fail(conflict); continue }
 
+    if (intent === 'check') {
+      results.push({ row: line, label: club.name, status: 'ready' })
+      continue
+    }
+
     const inserted = await deps.insertClub(club)
     if ('error' in inserted) { fail(inserted.error); continue }
 
     known.push({ name: club.name, club_code: club.club_code })
     await deps.onCreated(inserted.id, club)
-    results.push({ row: line, name: club.name, success: true })
+    results.push({ row: line, label: club.name, status: 'created' })
   }
 
-  const createdCount = results.filter(r => r.success).length
-  return { results, createdCount, failedCount: results.length - createdCount }
+  return { results }
 }

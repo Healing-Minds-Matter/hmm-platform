@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { parseCsv } from '@/lib/csv'
 import {
   CLUB_CSV_COLUMNS,
+  clubCsvHeaderError,
   createClubsFromCsv,
   describeClubInsertError,
   findClubConflict,
@@ -11,6 +12,7 @@ import {
 } from '@/lib/club-rules'
 
 const HEADER = CLUB_CSV_COLUMNS.join(',')
+const HEADER_ERROR = `The first row of the file must be exactly: ${HEADER}. Nothing was created.`
 
 function upload(text: string) {
   const [head, ...rows] = parseCsv(text)
@@ -92,20 +94,49 @@ describe('describeClubInsertError', () => {
   })
 })
 
+describe('clubCsvHeaderError', () => {
+  it('accepts the exact header, optionally followed by a problem column', () => {
+    expect(clubCsvHeaderError([...CLUB_CSV_COLUMNS])).toBeNull()
+    expect(clubCsvHeaderError([...CLUB_CSV_COLUMNS, 'problem'])).toBeNull()
+  })
+
+  it.each([
+    ['a missing column', ['name', 'code', 'address', 'contact_email', 'contact_phone']],
+    ['columns in a different order', ['code', 'name', 'address', 'contact_email', 'contact_phone', 'description']],
+    ['a misspelt column', ['name', 'code', 'adress', 'contact_email', 'contact_phone', 'description']],
+    ['an extra column', [...CLUB_CSV_COLUMNS, 'notes']],
+  ])('rejects a header with %s', (_label, header) => {
+    expect(clubCsvHeaderError(header)).toBe(HEADER_ERROR)
+  })
+})
+
 describe('createClubsFromCsv', () => {
-  it('creates every row of a valid file', async () => {
+  it('check: marks valid rows ready and saves nothing', async () => {
+    const deps = fakeDeps()
+    const result = await createClubsFromCsv(upload(`${HEADER}
+Rotaract Club of Colombo,RAC-001,Colombo,,,
+Rotaract Club of Kandy,RAC-002,,,,`), deps, 'check')
+    expect(result).toEqual({
+      results: [
+        { row: 2, label: 'Rotaract Club of Colombo', status: 'ready' },
+        { row: 3, label: 'Rotaract Club of Kandy', status: 'failed', error: 'Address is required.' },
+      ],
+    })
+    expect(deps.insertClub).not.toHaveBeenCalled()
+    expect(deps.onCreated).not.toHaveBeenCalled()
+  })
+
+  it('save: creates every row of a valid file', async () => {
     const deps = fakeDeps()
     const result = await createClubsFromCsv(upload(`${HEADER}
 Rotaract Club of Colombo,RAC-001,"12 Galle Rd, Colombo 03",colombo@example.com,077 123 4567,City club
-Rotaract Club of Kandy,RAC-002,Kandy,,,`), deps)
+Rotaract Club of Kandy,RAC-002,Kandy,,,`), deps, 'save')
 
     expect(result).toEqual({
       results: [
-        { row: 2, name: 'Rotaract Club of Colombo', success: true },
-        { row: 3, name: 'Rotaract Club of Kandy', success: true },
+        { row: 2, label: 'Rotaract Club of Colombo', status: 'created' },
+        { row: 3, label: 'Rotaract Club of Kandy', status: 'created' },
       ],
-      createdCount: 2,
-      failedCount: 0,
     })
     expect(deps.insertClub).toHaveBeenCalledWith({
       name: 'Rotaract Club of Colombo', club_code: 'RAC-001', location: '12 Galle Rd, Colombo 03',
@@ -114,39 +145,38 @@ Rotaract Club of Kandy,RAC-002,Kandy,,,`), deps)
     expect(deps.onCreated).toHaveBeenCalledTimes(2)
   })
 
-  it.each([
-    ['a missing column', 'name,code,address,contact_email,contact_phone'],
-    ['columns in a different order', 'code,name,address,contact_email,contact_phone,description'],
-    ['a misspelt column', 'name,code,adress,contact_email,contact_phone,description'],
-    ['an extra column', `${HEADER},notes`],
-  ])('rejects the whole file for a header with %s', async (_label, header) => {
+  it('rejects the whole file for a wrong header', async () => {
     const deps = fakeDeps()
-    const result = await createClubsFromCsv(upload(`${header}\nA,B,C,,,`), deps)
-    expect(result).toEqual({ error: `The first row of the file must be exactly: ${HEADER}. Nothing was created.` })
+    expect(await createClubsFromCsv(upload('name,code,location\nA,B,C'), deps, 'save')).toEqual({ error: HEADER_ERROR })
     expect(deps.insertClub).not.toHaveBeenCalled()
+  })
+
+  it('accepts a re-uploaded "failed rows" file and ignores its problem column', async () => {
+    const result = await createClubsFromCsv(upload(`${HEADER},problem
+Club A,RAC-1,Colombo,,,Address is required.`), fakeDeps(), 'save')
+    expect(result).toEqual({ results: [{ row: 2, label: 'Club A', status: 'created' }] })
   })
 
   it('reports each missing required field on its own row', async () => {
     const result = await createClubsFromCsv(upload(`${HEADER}
 ,RAC-1,Colombo,,,
 Club A,,Colombo,,,
-Club B,RAC-3,,,,`), fakeDeps())
+Club B,RAC-3,,,,`), fakeDeps(), 'check')
     expect('results' in result && result.results).toEqual([
-      { row: 2, name: '(no name)', error: 'Club name is required.' },
-      { row: 3, name: 'Club A', error: 'Club code is required.' },
-      { row: 4, name: 'Club B', error: 'Address is required.' },
+      { row: 2, label: '(no name)', status: 'failed', error: 'Club name is required.' },
+      { row: 3, label: 'Club A', status: 'failed', error: 'Club code is required.' },
+      { row: 4, label: 'Club B', status: 'failed', error: 'Address is required.' },
     ])
   })
 
-  it('rejects a duplicate code or name within the same file', async () => {
+  it.each(['check', 'save'] as const)('%s: rejects a duplicate code or name within the same file', async intent => {
     const result = await createClubsFromCsv(upload(`${HEADER}
 Club A,RAC-1,Colombo,,,
 Club B,rac-1,Colombo,,,
-club a,RAC-3,Colombo,,,`), fakeDeps())
-    expect('results' in result && result.results).toEqual([
-      { row: 2, name: 'Club A', success: true },
-      { row: 3, name: 'Club B', error: 'Same club code as row 2 in this file.' },
-      { row: 4, name: 'club a', error: 'Same club name as row 2 in this file.' },
+club a,RAC-3,Colombo,,,`), fakeDeps(), intent)
+    expect('results' in result && result.results.slice(1)).toEqual([
+      { row: 3, label: 'Club B', status: 'failed', error: 'Same club code as row 2 in this file.' },
+      { row: 4, label: 'club a', status: 'failed', error: 'Same club name as row 2 in this file.' },
     ])
   })
 
@@ -154,10 +184,10 @@ club a,RAC-3,Colombo,,,`), fakeDeps())
     const deps = fakeDeps([{ name: 'Rotaract Club of Galle', club_code: 'RAC-009' }])
     const result = await createClubsFromCsv(upload(`${HEADER}
 New Club,rac-009,Galle,,,
-rotaract club of galle,RAC-010,Galle,,,`), deps)
+rotaract club of galle,RAC-010,Galle,,,`), deps, 'save')
     expect('results' in result && result.results).toEqual([
-      { row: 2, name: 'New Club', error: 'Club code "rac-009" is already taken. Please choose a unique code.' },
-      { row: 3, name: 'rotaract club of galle', error: 'A club with that name already exists.' },
+      { row: 2, label: 'New Club', status: 'failed', error: 'Club code "rac-009" is already taken. Please choose a unique code.' },
+      { row: 3, label: 'rotaract club of galle', status: 'failed', error: 'A club with that name already exists.' },
     ])
     expect(deps.insertClub).not.toHaveBeenCalled()
   })
@@ -165,7 +195,7 @@ rotaract club of galle,RAC-010,Galle,,,`), deps)
   it('rejects a bad email and a bad phone number', async () => {
     const result = await createClubsFromCsv(upload(`${HEADER}
 Club A,RAC-1,Colombo,club@,,
-Club B,RAC-2,Colombo,,123,`), fakeDeps())
+Club B,RAC-2,Colombo,,123,`), fakeDeps(), 'check')
     expect('results' in result && result.results.map(r => r.error)).toEqual([
       'Enter a valid contact email, e.g. club@example.com.',
       expect.stringMatching(/^Enter a valid phone number/),
@@ -178,34 +208,29 @@ Club B,RAC-2,Colombo,,123,`), fakeDeps())
 Club A,RAC-1,Colombo,,,
 
 Club B,,Colombo,,,
-`), fakeDeps())
-    expect('results' in result && result.results).toEqual([
-      { row: 3, name: 'Club A', success: true },
-      { row: 5, name: 'Club B', error: 'Club code is required.' },
-    ])
+`), fakeDeps(), 'check')
+    expect('results' in result && result.results.map(r => [r.row, r.status])).toEqual([[3, 'ready'], [5, 'failed']])
   })
 
   it('flags a row with an unquoted comma instead of shifting its columns', async () => {
     const result = await createClubsFromCsv(upload(`${HEADER}
-Club A,RAC-1,12 Galle Rd, Colombo 03,,,`), fakeDeps())
+Club A,RAC-1,12 Galle Rd, Colombo 03,,,`), fakeDeps(), 'check')
     expect('results' in result && result.results[0].error).toBe(
       'This row has more columns than the header. Put quotes around any value that contains a comma.'
     )
   })
 
-  it('carries on after a failed insert and reports its reason', async () => {
+  it('save: carries on after a failed insert and reports its reason', async () => {
     const deps = fakeDeps()
     vi.mocked(deps.insertClub).mockResolvedValueOnce({ error: 'A club with that name already exists.' })
     const result = await createClubsFromCsv(upload(`${HEADER}
 Club A,RAC-1,Colombo,,,
-Club B,RAC-2,Colombo,,,`), deps)
+Club B,RAC-2,Colombo,,,`), deps, 'save')
     expect(result).toEqual({
       results: [
-        { row: 2, name: 'Club A', error: 'A club with that name already exists.' },
-        { row: 3, name: 'Club B', success: true },
+        { row: 2, label: 'Club A', status: 'failed', error: 'A club with that name already exists.' },
+        { row: 3, label: 'Club B', status: 'created' },
       ],
-      createdCount: 1,
-      failedCount: 1,
     })
     expect(deps.onCreated).toHaveBeenCalledTimes(1)
   })

@@ -55,11 +55,28 @@ import { createClubAction, createClubsBulkAction } from '@/actions/clubs'
 
 const HEADER = CLUB_CSV_COLUMNS.join(',')
 
-function csvForm(text: string) {
+function csvForm(text: string, intent: 'check' | 'save' = 'save') {
   const form = new FormData()
   form.set('csv_file', new File([text], 'clubs.csv', { type: 'text/csv' }))
+  form.set('intent', intent)
   return form
 }
+
+const MIXED_FILE = `${CLUB_CSV_COLUMNS.join(',')}
+Rotaract Club of Colombo,RAC-001,"12 Galle Rd, Colombo 03",colombo@example.com,077 123 4567,City club
+Rotaract Club of Kandy,RAC-002,,,,
+Rotaract Club of Matara,rac-009,Matara,,,
+
+Rotaract Club of Jaffna,RAC-004,Jaffna,jaffna@,,
+Rotaract Club of Negombo,RAC-001,Negombo,,,
+Rotaract Club of Kurunegala,RAC-006,Kurunegala,,0372 222 333,`
+
+const MIXED_PROBLEMS = [
+  { row: 3, label: 'Rotaract Club of Kandy', status: 'failed', error: 'Address is required.' },
+  { row: 4, label: 'Rotaract Club of Matara', status: 'failed', error: 'Club code "rac-009" is already taken. Please choose a unique code.' },
+  { row: 6, label: 'Rotaract Club of Jaffna', status: 'failed', error: 'Enter a valid contact email, e.g. club@example.com.' },
+  { row: 7, label: 'Rotaract Club of Negombo', status: 'failed', error: 'Same club code as row 2 in this file.' },
+]
 
 beforeEach(() => {
   db.role = 'super_admin'
@@ -84,27 +101,31 @@ describe('createClubsBulkAction', () => {
     })
   })
 
-  it('creates only the valid rows of a mixed file and reports every row', async () => {
-    const state = await createClubsBulkAction(null, csvForm(`${HEADER}
-Rotaract Club of Colombo,RAC-001,"12 Galle Rd, Colombo 03",colombo@example.com,077 123 4567,City club
-Rotaract Club of Kandy,RAC-002,,,,
-Rotaract Club of Matara,rac-009,Matara,,,
+  it('check step: previews a mixed file and saves nothing', async () => {
+    const state = await createClubsBulkAction(null, csvForm(MIXED_FILE, 'check'))
+    expect(state).toEqual({
+      intent: 'check',
+      results: [
+        { row: 2, label: 'Rotaract Club of Colombo', status: 'ready' },
+        ...MIXED_PROBLEMS,
+        { row: 8, label: 'Rotaract Club of Kurunegala', status: 'ready' },
+      ],
+    })
+    expect(db.inserts).toHaveLength(0)
+    expect(db.audit).toHaveLength(0)
+    expect(revalidatePath).not.toHaveBeenCalled()
+  })
 
-Rotaract Club of Jaffna,RAC-004,Jaffna,jaffna@,,
-Rotaract Club of Negombo,RAC-001,Negombo,,,
-Rotaract Club of Kurunegala,RAC-006,Kurunegala,,0372 222 333,`))
+  it('save step: creates only the valid rows of a mixed file and reports every row', async () => {
+    const state = await createClubsBulkAction(null, csvForm(MIXED_FILE, 'save'))
 
     expect(state).toEqual({
+      intent: 'save',
       results: [
-        { row: 2, name: 'Rotaract Club of Colombo', success: true },
-        { row: 3, name: 'Rotaract Club of Kandy', error: 'Address is required.' },
-        { row: 4, name: 'Rotaract Club of Matara', error: 'Club code "rac-009" is already taken. Please choose a unique code.' },
-        { row: 6, name: 'Rotaract Club of Jaffna', error: 'Enter a valid contact email, e.g. club@example.com.' },
-        { row: 7, name: 'Rotaract Club of Negombo', error: 'Same club code as row 2 in this file.' },
-        { row: 8, name: 'Rotaract Club of Kurunegala', success: true },
+        { row: 2, label: 'Rotaract Club of Colombo', status: 'created' },
+        ...MIXED_PROBLEMS,
+        { row: 8, label: 'Rotaract Club of Kurunegala', status: 'created' },
       ],
-      createdCount: 2,
-      failedCount: 4,
     })
     expect(db.inserts).toEqual([
       {
@@ -137,6 +158,23 @@ Rotaract Club of Kurunegala,RAC-006,Kurunegala,,0372 222 333,`))
     expect(await createClubsBulkAction(null, csvForm(`${HEADER}\n${rows}`))).toEqual({
       error: 'The CSV has 51 rows — maximum is 50 per upload.',
     })
+    expect(db.inserts).toHaveLength(0)
+  })
+
+  it('save step re-checks: a club added since the preview is skipped, not duplicated', async () => {
+    const file = `${HEADER}\nRotaract Club of Ella,RAC-020,Ella,,,`
+    expect(await createClubsBulkAction(null, csvForm(file, 'check'))).toMatchObject({ results: [{ status: 'ready' }] })
+    db.clubs.push({ id: 'club-z', name: 'Someone Else Club', club_code: 'rac-020' })
+    expect(await createClubsBulkAction(null, csvForm(file, 'save'))).toMatchObject({
+      results: [{ status: 'failed', error: 'Club code "RAC-020" is already taken. Please choose a unique code.' }],
+    })
+    expect(db.inserts).toHaveLength(0)
+  })
+
+  it('treats a missing intent as a check, never a save', async () => {
+    const form = csvForm(`${HEADER}\nClub A,RAC-1,Colombo,,,`)
+    form.delete('intent')
+    expect(await createClubsBulkAction(null, form)).toMatchObject({ intent: 'check', results: [{ status: 'ready' }] })
     expect(db.inserts).toHaveLength(0)
   })
 

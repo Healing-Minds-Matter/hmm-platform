@@ -6,12 +6,12 @@ import { createClient } from '@/lib/supabase/server'
 import { writeAuditLog } from '@/lib/audit'
 import { endDelegationsForDeactivatedUser } from '@/actions/permissions'
 import { readCsvUpload } from '@/lib/csv'
+import { bulkIntent, type BulkUploadState } from '@/lib/bulk-upload'
 import {
   createClubsFromCsv,
   describeClubInsertError,
   findClubConflict,
   validateClubFields,
-  type BulkClubRow,
   type ClubFields,
   type ExistingClub,
 } from '@/lib/club-rules'
@@ -113,20 +113,15 @@ async function logClubCreated(actorId: string, clubId: string, fields: ClubField
   })
 }
 
-export type BulkClubState = {
-  error?: string
-  results?: BulkClubRow[]
-  createdCount?: number
-  failedCount?: number
-} | null
-
 // Bulk CSV upload of clubs — Super Admin only. The role is checked here, not
 // just by hiding the tab: server actions can be called directly, so the
 // UI alone isn't a guard (RLS also limits club inserts to Super Admins).
+// Two steps (see lib/bulk-upload.ts): intent=check previews, intent=save
+// re-checks and creates the rows that pass.
 export async function createClubsBulkAction(
-  _prev: BulkClubState,
+  _prev: BulkUploadState,
   formData: FormData
-): Promise<BulkClubState> {
+): Promise<BulkUploadState> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -137,15 +132,16 @@ export async function createClubsBulkAction(
   const upload = await readCsvUpload(formData.get('csv_file') as File | null)
   if ('error' in upload) return { error: upload.error }
 
+  const intent = bulkIntent(formData)
   const outcome = await createClubsFromCsv(upload, {
     existingClubs: await listExistingClubs(supabase),
     insertClub: fields => insertClub(supabase, fields, user.id),
     onCreated: (id, fields) => logClubCreated(user.id, id, fields, { source: 'bulk_csv' }),
-  })
+  }, intent)
   if ('error' in outcome) return { error: outcome.error }
 
-  if (outcome.createdCount > 0) revalidatePath('/super-admin/clubs')
-  return outcome
+  if (outcome.results.some(r => r.status === 'created')) revalidatePath('/super-admin/clubs')
+  return { intent, results: outcome.results }
 }
 
 export async function updateClubAction(
