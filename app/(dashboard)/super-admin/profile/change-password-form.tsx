@@ -1,9 +1,9 @@
 'use client'
 
-import { useActionState, useEffect, useState } from 'react'
+import { startTransition, useActionState, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { changePasswordAction } from '@/actions/auth'
+import { changePasswordAction, signOutToForgotPasswordAction } from '@/actions/auth'
 import { checkPasswordRules } from '@/lib/password-validation'
 
 const RULES = [
@@ -87,6 +87,12 @@ export function ChangePasswordForm({
 }) {
   const router = useRouter()
   const [state, formAction, isPending] = useActionState(changePasswordAction, null)
+
+  function goToForgotPassword() {
+    const ok = window.confirm("You'll be signed out so you can reset your password by email. Continue?")
+    if (ok) startTransition(() => signOutToForgotPasswordAction())
+  }
+
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -158,9 +164,17 @@ export function ChangePasswordForm({
                 <label htmlFor="currentPassword" className="text-[13px] font-medium tracking-[0.24px] text-[#0F172A]">
                   {mode === 'forced' ? 'Temporary Password' : 'Current Password'} <span className="text-[#DC2626]">*</span>
                 </label>
-                <Link href="/forgot-password" className="text-[11px] font-semibold tracking-[0.44px] text-[#003495] hover:underline">
+                {/* Used to link straight to /forgot-password, which bounces
+                    signed-in users back to their dashboard — so it never
+                    worked. It now signs out and opens the user's own portal's
+                    forgot-password page (signOutToForgotPasswordAction). */}
+                <button
+                  type="button"
+                  onClick={goToForgotPassword}
+                  className="text-[11px] font-semibold tracking-[0.44px] text-[#003495] hover:underline"
+                >
                   {mode === 'forced' ? "Didn't get one?" : 'Forgot current password?'}
-                </Link>
+                </button>
               </div>
               <PasswordInput
                 id="currentPassword"

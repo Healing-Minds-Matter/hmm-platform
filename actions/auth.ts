@@ -6,7 +6,7 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
 import { syncProfileEmail } from '@/lib/email-sync.server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { LOGIN_PATH, parsePortal, portalForRole } from '@/lib/portals'
+import { FORGOT_PASSWORD_PATH, LOGIN_PATH, parsePortal, portalForRole } from '@/lib/portals'
 import {
   RESET_GRANT_COOKIE,
   RESET_GRANT_MAX_AGE_SECONDS,
@@ -441,6 +441,27 @@ export async function logoutAction() {
   const supabase = await createClient()
   await supabase.auth.signOut()
   redirect('/login')
+}
+
+// "Forgot current password?" / "Didn't get one?" on the Change Password and
+// Set Your Password screens. The forgot-password pages only serve signed-out
+// users (middleware sends signed-in users to their dashboard), and each
+// portal's page only emails its own role — so sign this device out and go to
+// the user's own portal's page. Gatekeepers have no web portal: login page.
+export async function signOutToForgotPasswordAction() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  let destination = '/login'
+  if (user) {
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+    const portal = portalForRole(profile?.role)
+    if (portal) destination = FORGOT_PASSWORD_PATH[portal]
+  }
+
+  // This device only — the user's other sessions are left alone.
+  await supabase.auth.signOut({ scope: 'local' })
+  redirect(destination)
 }
 
 // Story 1.4 Scenario 04: timeout logout must redirect with session_expired param
