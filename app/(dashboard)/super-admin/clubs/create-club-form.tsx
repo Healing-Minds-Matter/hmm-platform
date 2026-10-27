@@ -1,12 +1,15 @@
 'use client'
 
-import { useActionState, useEffect } from 'react'
+import { useActionState, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClubAction } from '@/actions/clubs'
+import { BulkTabLabel, ModeTabs } from '@/components/mode-tabs'
+import { BulkClubUpload } from './bulk-club-upload'
 
 export function CreateClubForm({ onClose }: { onClose?: () => void }) {
   const router = useRouter()
   const close = onClose ?? (() => router.push('/super-admin/clubs'))
+  const [mode, setMode] = useState<'single' | 'bulk'>('single')
   const [state, formAction, isPending] = useActionState(createClubAction, null)
   // Values sent back with an error (see createClubAction), so a failed save
   // keeps what was typed instead of clearing the whole form.
@@ -18,7 +21,7 @@ export function CreateClubForm({ onClose }: { onClose?: () => void }) {
   }, [state])
 
   return (
-    <div className="mx-auto w-full max-w-[672px] overflow-hidden rounded-2xl bg-white shadow-[0_12px_50px_-12px_rgba(0,0,0,0.25)] font-[family-name:var(--font-inter)]">
+    <div className="mx-auto flex max-h-[90vh] w-full max-w-[672px] flex-col overflow-hidden rounded-2xl bg-white shadow-[0_12px_50px_-12px_rgba(0,0,0,0.25)] font-[family-name:var(--font-inter)]">
       {/* Header */}
       <div className="flex items-start justify-between gap-4 px-6 pb-4 pt-6">
         <div className="flex flex-col gap-1">
@@ -37,8 +40,28 @@ export function CreateClubForm({ onClose }: { onClose?: () => void }) {
         </button>
       </div>
 
-      <form action={formAction}>
-        <div className="flex flex-col gap-4 bg-[#F8FAFC] p-6">
+      <ModeTabs
+        label="How to add clubs"
+        idPrefix="create-club"
+        value={mode}
+        onChange={setMode}
+        tabs={[
+          { value: 'single', label: 'Single Club' },
+          { value: 'bulk', label: <BulkTabLabel /> },
+        ]}
+      />
+
+      <div
+        id="create-club-panel"
+        role="tabpanel"
+        aria-labelledby={`create-club-tab-${mode}`}
+        className="flex flex-1 flex-col overflow-hidden"
+      >
+      {mode === 'bulk' ? (
+        <BulkClubUpload onClose={close} />
+      ) : (
+      <form action={formAction} className="flex flex-1 flex-col overflow-hidden">
+        <div className="flex flex-col gap-4 overflow-y-auto bg-[#F8FAFC] p-6">
           {state?.error && (
             <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">
               {state.error}
@@ -190,6 +213,8 @@ export function CreateClubForm({ onClose }: { onClose?: () => void }) {
           </button>
         </div>
       </form>
+      )}
+      </div>
     </div>
   )
 }

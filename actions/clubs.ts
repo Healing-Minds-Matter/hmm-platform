@@ -5,6 +5,16 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { writeAuditLog } from '@/lib/audit'
 import { endDelegationsForDeactivatedUser } from '@/actions/permissions'
+import { readCsvUpload } from '@/lib/csv'
+import { bulkIntent, type BulkUploadState } from '@/lib/bulk-upload'
+import {
+  createClubsFromCsv,
+  describeClubInsertError,
+  findClubConflict,
+  validateClubFields,
+  type ClubFields,
+  type ExistingClub,
+} from '@/lib/club-rules'
 
 async function getActorId() {
   const supabase = await createClient()
@@ -47,50 +57,91 @@ export async function createClubAction(
   }
   const fail = (error: string): ClubActionState => ({ error, values })
 
-  if (!clubCode) return fail('Club code is required.')
-  if (!name)     return fail('Club name is required.')
-  if (!location) return fail('Location is required.')
+  // Same rules as the bulk upload below — see lib/club-rules.ts.
+  const checked = validateClubFields({
+    name, code: clubCode, address: location, contactEmail, contactPhone, description,
+  })
+  if ('error' in checked) return fail(checked.error)
+  const fields = checked.club
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  // Check for duplicate club_code
-  const { data: existing } = await supabase
-    .from('clubs')
-    .select('id')
-    .eq('club_code', clubCode)
-    .maybeSingle()
+  const conflict = findClubConflict(fields, await listExistingClubs(supabase))
+  if (conflict) return fail(conflict)
 
-  if (existing) return fail(`Club code "${clubCode}" is already taken. Please choose a unique code.`)
+  const inserted = await insertClub(supabase, fields, user.id)
+  if ('error' in inserted) return fail(inserted.error)
 
-  const { data: club, error } = await supabase
-    .from('clubs')
-    .insert({
-      club_code: clubCode, name, location, description,
-      contact_email: contactEmail, contact_phone: contactPhone,
-      created_by: user.id,
-    })
-    .select('id')
-    .single()
-
-  if (error) {
-    if (error.code === '23505') return fail('A club with that name already exists.')
-    return fail(error.message)
-  }
-
-  await writeAuditLog({
-    actorId: user.id,
-    action: 'club.created',
-    entityType: 'club',
-    entityId: club.id,
-    details: { club_code: clubCode, name },
-  })
+  await logClubCreated(user.id, inserted.id, fields)
 
   // Without this the list kept its cached render, so the new club only
   // appeared after a manual refresh (every other create action does this).
   revalidatePath('/super-admin/clubs')
   return { success: true }
+}
+
+type ServerClient = Awaited<ReturnType<typeof createClient>>
+
+async function listExistingClubs(supabase: ServerClient): Promise<ExistingClub[]> {
+  const { data } = await supabase.from('clubs').select('name, club_code')
+  return data ?? []
+}
+
+async function insertClub(
+  supabase: ServerClient,
+  fields: ClubFields,
+  actorId: string
+): Promise<{ id: string } | { error: string }> {
+  const { data, error } = await supabase
+    .from('clubs')
+    .insert({ ...fields, created_by: actorId })
+    .select('id')
+    .single()
+  if (error || !data) return { error: describeClubInsertError(error ?? { message: '' }, fields) }
+  return { id: data.id as string }
+}
+
+async function logClubCreated(actorId: string, clubId: string, fields: ClubFields, extra?: Record<string, unknown>) {
+  await writeAuditLog({
+    actorId,
+    action: 'club.created',
+    entityType: 'club',
+    entityId: clubId,
+    details: { club_code: fields.club_code, name: fields.name, ...extra },
+  })
+}
+
+// Bulk CSV upload of clubs — Super Admin only. The role is checked here, not
+// just by hiding the tab: server actions can be called directly, so the
+// UI alone isn't a guard (RLS also limits club inserts to Super Admins).
+// Two steps (see lib/bulk-upload.ts): intent=check previews, intent=save
+// re-checks and creates the rows that pass.
+export async function createClubsBulkAction(
+  _prev: BulkUploadState,
+  formData: FormData
+): Promise<BulkUploadState> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { data: caller } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  if (caller?.role !== 'super_admin') return { error: 'Only Super Admins can add clubs.' }
+
+  const upload = await readCsvUpload(formData.get('csv_file') as File | null)
+  if ('error' in upload) return { error: upload.error }
+
+  const intent = bulkIntent(formData)
+  const outcome = await createClubsFromCsv(upload, {
+    existingClubs: await listExistingClubs(supabase),
+    insertClub: fields => insertClub(supabase, fields, user.id),
+    onCreated: (id, fields) => logClubCreated(user.id, id, fields, { source: 'bulk_csv' }),
+  }, intent)
+  if ('error' in outcome) return { error: outcome.error }
+
+  if (outcome.results.some(r => r.status === 'created')) revalidatePath('/super-admin/clubs')
+  return { intent, results: outcome.results }
 }
 
 export async function updateClubAction(

@@ -9,6 +9,9 @@ import { createGatekeeperWithTempPassword, resendGatekeeperWelcomeEmail } from '
 import { parsePhone } from '@/lib/phone'
 import { validateCertificationDate } from '@/lib/certification-date'
 import { checkPhoneAvailable, describePhoneDbError, phoneChanged } from '@/lib/phone-uniqueness.server'
+import { readCsvUpload } from '@/lib/csv'
+import { bulkIntent, type BulkRowResult, type BulkUploadState } from '@/lib/bulk-upload'
+import { gatekeeperCsvHeaderError } from '@/lib/gatekeeper-csv'
 
 export type GatekeeperActionState = {
   error?: string
@@ -20,30 +23,20 @@ export type GatekeeperActionState = {
   tempPassword?: string
 } | null
 
-export type BulkGatekeeperRow = { row: number; email: string; error?: string; success?: boolean; tempPassword?: string }
-export type BulkGatekeeperState = {
-  error?: string
-  success?: boolean
-  results?: BulkGatekeeperRow[]
-  createdCount?: number
-} | null
-
 function threeYearsFrom(dateStr: string): string {
   const d = new Date(dateStr)
   d.setUTCFullYear(d.getUTCFullYear() + 3)
   return d.toISOString().slice(0, 10)
 }
 
-async function inviteAndCreateGatekeeper(params: {
-  fullName: string
+// Everything that can rule a new Gatekeeper out, checked before any account
+// is created or email sent. Also used on its own by the bulk upload's
+// "check" step, which must not create anything.
+async function checkNewGatekeeper(params: {
   email: string
   phone: string // already normalised by parsePhone()
-  preferredLanguage: string
   clubId: string
-  certificationDate: string
-  actorId: string
-  sendWelcomeEmail: boolean
-}) {
+}): Promise<{ club: { name: string } } | { error: string }> {
   const admin = createAdminClient()
 
   const { data: existing } = await admin
@@ -76,6 +69,23 @@ async function inviteAndCreateGatekeeper(params: {
   if (!club.is_active) {
     return { error: `Club "${club.name}" is currently inactive. Reactivate it first or choose a different club.` }
   }
+  return { club: { name: club.name } }
+}
+
+async function inviteAndCreateGatekeeper(params: {
+  fullName: string
+  email: string
+  phone: string // already normalised by parsePhone()
+  preferredLanguage: string
+  clubId: string
+  certificationDate: string
+  actorId: string
+  sendWelcomeEmail: boolean
+}): Promise<{ error: string } | { id: string; gatekeeper_code: string; tempPassword?: string }> {
+  const checked = await checkNewGatekeeper(params)
+  if ('error' in checked) return { error: checked.error }
+  const club = checked.club
+  const admin = createAdminClient()
 
   const { data: gkCode, error: codeError } = await admin.rpc('next_gatekeeper_code')
   if (codeError) return { error: codeError.message }
@@ -235,30 +245,20 @@ export async function createGatekeeperAction(
 // CSV header: full_name,email,phone,club_id,certification_date
 // phone is required and must be unique (also within the same file);
 // club_id must be a real active club UUID.
-function parseCsv(text: string): string[][] {
-  return text
-    .split(/\r?\n/)
-    .map(line => line.trim())
-    .filter(Boolean)
-    .map(line => line.split(',').map(cell => cell.trim().replace(/^"|"$/g, '')))
-}
 
+// Two steps (see lib/bulk-upload.ts): intent=check runs every check below
+// without creating accounts or sending email; intent=save checks again and
+// registers the rows that pass, skipping the rest.
 export async function createGatekeepersBulkAction(
-  _prev: BulkGatekeeperState,
+  _prev: BulkUploadState,
   formData: FormData
-): Promise<BulkGatekeeperState> {
-  const file = formData.get('csv_file') as File | null
-  if (!file || file.size === 0) return { error: 'Select a CSV file to upload.' }
+): Promise<BulkUploadState> {
+  const intent = bulkIntent(formData)
   const sendWelcomeEmail = formData.get('send_welcome_email') === 'on'
 
-  const text = await file.text()
-  const rows = parseCsv(text)
-  if (rows.length === 0) return { error: 'The CSV file is empty.' }
-
-  const header = rows[0].map(h => h.toLowerCase())
-  const dataRows = rows.slice(1)
-  if (dataRows.length === 0) return { error: 'The CSV file has no data rows.' }
-  if (dataRows.length > 50) return { error: `The CSV has ${dataRows.length} rows — maximum is 50 per upload.` }
+  const upload = await readCsvUpload(formData.get('csv_file') as File | null)
+  if ('error' in upload) return { error: upload.error }
+  const { header, rows: dataRows } = upload
 
   const col = (name: string) => header.indexOf(name)
   const nameIdx = col('full_name')
@@ -286,66 +286,65 @@ export async function createGatekeepersBulkAction(
   const forcedClubId = caller.role === 'champion' ? caller.club_id : null
   if (caller.role === 'champion' && !forcedClubId) return { error: 'Your account has no assigned club.' }
 
-  if (nameIdx === -1 || emailIdx === -1 || phoneIdx === -1 || certIdx === -1 || (caller.role === 'super_admin' && clubIdx === -1)) {
-    const required = caller.role === 'super_admin'
-      ? 'full_name, email, phone, club_id, certification_date'
-      : 'full_name, email, phone, certification_date (club_id is optional and ignored)'
-    return { error: `CSV header must include: ${required}.` }
-  }
+  const headerError = gatekeeperCsvHeaderError(header, caller.role)
+  if (headerError) return { error: headerError }
 
-  const results: BulkGatekeeperRow[] = []
-  let createdCount = 0
-  // The database check can't see rows from this same file that haven't been
-  // saved yet, so duplicates within the CSV are caught here.
+  const results: BulkRowResult[] = []
+  // The check step saves nothing, so the database can't see other rows in
+  // this file: duplicates within the CSV are caught here. The save step
+  // skips this — rows are created one by one, so a later duplicate meets the
+  // earlier, now-saved row in the database check ("already exists"), which
+  // is also the reason that still makes sense in the "failed rows" file.
   const phonesInFile = new Map<string, number>()
+  const emailsInFile = new Map<string, number>()
 
-  for (let i = 0; i < dataRows.length; i++) {
-    const cells = dataRows[i]
-    const rowNum = i + 2 // 1-indexed + header row
+  for (const { line: rowNum, cells } of dataRows) {
     const fullName = cells[nameIdx]?.trim()
     const email = cells[emailIdx]?.trim().toLowerCase()
     const parsedPhone = parsePhone(cells[phoneIdx])
     const clubId = forcedClubId ?? (clubIdx !== -1 ? cells[clubIdx]?.trim() : undefined)
     const certificationDate = cells[certIdx]?.trim()
+    const fail = (error: string) => { results.push({ row: rowNum, label: email || '(missing)', status: 'failed', error }) }
 
     if (!fullName || !email || !clubId || !certificationDate || (parsedPhone.ok && !parsedPhone.value)) {
-      results.push({ row: rowNum, email: email || '(missing)', error: 'Missing required field(s).' })
+      fail('Missing required field(s).')
       continue
     }
     const certificationError = validateCertificationDate(certificationDate)
-    if (certificationError) {
-      results.push({ row: rowNum, email, error: certificationError })
-      continue
-    }
-    if (!parsedPhone.ok) {
-      results.push({ row: rowNum, email, error: parsedPhone.error })
-      continue
-    }
+    if (certificationError) { fail(certificationError); continue }
+    if (!parsedPhone.ok) { fail(parsedPhone.error); continue }
     const phone = parsedPhone.value!
-    const firstRow = phonesInFile.get(phone)
-    if (firstRow) {
-      results.push({ row: rowNum, email, error: `Same phone number as row ${firstRow} in this file. Each user needs their own phone number.` })
+
+    if (intent === 'check') {
+      const firstEmailRow = emailsInFile.get(email)
+      if (firstEmailRow) { fail(`Same email as row ${firstEmailRow} in this file.`); continue }
+      const firstPhoneRow = phonesInFile.get(phone)
+      if (firstPhoneRow) {
+        fail(`Same phone number as row ${firstPhoneRow} in this file. Each user needs their own phone number.`)
+        continue
+      }
+      emailsInFile.set(email, rowNum)
+      phonesInFile.set(phone, rowNum)
+
+      const checked = await checkNewGatekeeper({ email, phone, clubId })
+      if ('error' in checked) fail(checked.error)
+      else results.push({ row: rowNum, label: email, status: 'ready' })
       continue
     }
-    phonesInFile.set(phone, rowNum)
 
     const result = await inviteAndCreateGatekeeper({
       fullName, email, phone, preferredLanguage: 'en', clubId, certificationDate, actorId: user.id, sendWelcomeEmail,
     })
-    if ('error' in result) {
-      results.push({ row: rowNum, email, error: result.error })
-    } else {
-      results.push({ row: rowNum, email, success: true, tempPassword: result.tempPassword })
-      createdCount++
-    }
+    if ('error' in result) fail(result.error)
+    else results.push({ row: rowNum, label: email, status: 'created', tempPassword: result.tempPassword })
   }
 
-  if (createdCount > 0) {
+  if (results.some(r => r.status === 'created')) {
     revalidatePath('/super-admin/gatekeepers')
     revalidatePath('/champion/gatekeepers')
   }
 
-  return { success: createdCount === dataRows.length, results, createdCount }
+  return { intent, results }
 }
 
 export async function updateGatekeeperAction(
