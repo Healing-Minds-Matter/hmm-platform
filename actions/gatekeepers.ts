@@ -290,8 +290,11 @@ export async function createGatekeepersBulkAction(
   if (headerError) return { error: headerError }
 
   const results: BulkRowResult[] = []
-  // The database check can't see rows from this same file that haven't been
-  // saved yet, so duplicates within the CSV are caught here.
+  // The check step saves nothing, so the database can't see other rows in
+  // this file: duplicates within the CSV are caught here. The save step
+  // skips this — rows are created one by one, so a later duplicate meets the
+  // earlier, now-saved row in the database check ("already exists"), which
+  // is also the reason that still makes sense in the "failed rows" file.
   const phonesInFile = new Map<string, number>()
   const emailsInFile = new Map<string, number>()
 
@@ -311,17 +314,18 @@ export async function createGatekeepersBulkAction(
     if (certificationError) { fail(certificationError); continue }
     if (!parsedPhone.ok) { fail(parsedPhone.error); continue }
     const phone = parsedPhone.value!
-    const firstEmailRow = emailsInFile.get(email)
-    if (firstEmailRow) { fail(`Same email as row ${firstEmailRow} in this file.`); continue }
-    const firstPhoneRow = phonesInFile.get(phone)
-    if (firstPhoneRow) {
-      fail(`Same phone number as row ${firstPhoneRow} in this file. Each user needs their own phone number.`)
-      continue
-    }
-    emailsInFile.set(email, rowNum)
-    phonesInFile.set(phone, rowNum)
 
     if (intent === 'check') {
+      const firstEmailRow = emailsInFile.get(email)
+      if (firstEmailRow) { fail(`Same email as row ${firstEmailRow} in this file.`); continue }
+      const firstPhoneRow = phonesInFile.get(phone)
+      if (firstPhoneRow) {
+        fail(`Same phone number as row ${firstPhoneRow} in this file. Each user needs their own phone number.`)
+        continue
+      }
+      emailsInFile.set(email, rowNum)
+      phonesInFile.set(phone, rowNum)
+
       const checked = await checkNewGatekeeper({ email, phone, clubId })
       if ('error' in checked) fail(checked.error)
       else results.push({ row: rowNum, label: email, status: 'ready' })

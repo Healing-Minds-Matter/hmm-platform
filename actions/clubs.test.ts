@@ -75,8 +75,9 @@ const MIXED_PROBLEMS = [
   { row: 3, label: 'Rotaract Club of Kandy', status: 'failed', error: 'Address is required.' },
   { row: 4, label: 'Rotaract Club of Matara', status: 'failed', error: 'Club code "rac-009" is already taken. Please choose a unique code.' },
   { row: 6, label: 'Rotaract Club of Jaffna', status: 'failed', error: 'Enter a valid contact email, e.g. club@example.com.' },
-  { row: 7, label: 'Rotaract Club of Negombo', status: 'failed', error: 'Same club code as row 2 in this file.' },
 ]
+const ROW_7_CHECK = { row: 7, label: 'Rotaract Club of Negombo', status: 'failed', error: 'Same club code as row 2 in this file.' }
+const ROW_7_SAVE = { row: 7, label: 'Rotaract Club of Negombo', status: 'failed', error: 'Club code "RAC-001" is already taken. Please choose a unique code.' }
 
 beforeEach(() => {
   db.role = 'super_admin'
@@ -108,6 +109,7 @@ describe('createClubsBulkAction', () => {
       results: [
         { row: 2, label: 'Rotaract Club of Colombo', status: 'ready' },
         ...MIXED_PROBLEMS,
+        ROW_7_CHECK,
         { row: 8, label: 'Rotaract Club of Kurunegala', status: 'ready' },
       ],
     })
@@ -124,6 +126,7 @@ describe('createClubsBulkAction', () => {
       results: [
         { row: 2, label: 'Rotaract Club of Colombo', status: 'created' },
         ...MIXED_PROBLEMS,
+        ROW_7_SAVE,
         { row: 8, label: 'Rotaract Club of Kurunegala', status: 'created' },
       ],
     })
@@ -148,7 +151,7 @@ describe('createClubsBulkAction', () => {
 
   it('rejects a wrong header and creates nothing', async () => {
     const state = await createClubsBulkAction(null, csvForm('name,code,location\nClub A,RAC-1,Colombo'))
-    expect(state).toEqual({ error: `The first row of the file must be exactly: ${HEADER}. Nothing was created.` })
+    expect(state).toEqual({ error: `The first row of the file must be exactly: ${HEADER}` })
     expect(db.inserts).toHaveLength(0)
     expect(revalidatePath).not.toHaveBeenCalled()
   })

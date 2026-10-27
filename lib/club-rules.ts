@@ -96,7 +96,7 @@ export const CLUB_CSV_COLUMNS = ['name', 'code', 'address', 'contact_email', 'co
 export function clubCsvHeaderError(header: string[]): string | null {
   const columns = header[header.length - 1] === PROBLEM_COLUMN ? header.slice(0, -1) : header
   const expected = CLUB_CSV_COLUMNS.join(',')
-  return columns.join(',') === expected ? null : `The first row of the file must be exactly: ${expected}. Nothing was created.`
+  return columns.join(',') === expected ? null : `The first row of the file must be exactly: ${expected}`
 }
 
 export type BulkClubDeps = {
@@ -132,12 +132,18 @@ export async function createClubsFromCsv(
     if ('error' in checked) { fail(checked.error); continue }
     const club = checked.club
 
-    const codeKey = club.club_code.toLowerCase()
-    const nameKey = club.name.toLowerCase()
-    if (codesInFile.has(codeKey)) { fail(`Same club code as row ${codesInFile.get(codeKey)} in this file.`); continue }
-    if (namesInFile.has(nameKey)) { fail(`Same club name as row ${namesInFile.get(nameKey)} in this file.`); continue }
-    codesInFile.set(codeKey, line)
-    namesInFile.set(nameKey, line)
+    // Only the check points at the other row. When saving, an earlier row
+    // with the same code or name has just been created, so the clash below
+    // ("already taken") is the accurate reason, and it still makes sense in
+    // the "failed rows" file, which won't contain that earlier row.
+    if (intent === 'check') {
+      const codeKey = club.club_code.toLowerCase()
+      const nameKey = club.name.toLowerCase()
+      if (codesInFile.has(codeKey)) { fail(`Same club code as row ${codesInFile.get(codeKey)} in this file.`); continue }
+      if (namesInFile.has(nameKey)) { fail(`Same club name as row ${namesInFile.get(nameKey)} in this file.`); continue }
+      codesInFile.set(codeKey, line)
+      namesInFile.set(nameKey, line)
+    }
 
     const conflict = findClubConflict(club, known)
     if (conflict) { fail(conflict); continue }

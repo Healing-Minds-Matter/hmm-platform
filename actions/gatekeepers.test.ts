@@ -124,6 +124,21 @@ Dilani Raj,dilani@example.com,0771234567,club-1,2999-01-01`, 'check'))
 })
 
 describe('createGatekeepersBulkAction: save step', () => {
+  it('leaves duplicates within the file to the database check', async () => {
+    // Rows are saved one by one, so a repeat of an earlier row meets it in
+    // the database ("already exists") instead of "same as row N", which
+    // would point at a row missing from the "failed rows" file.
+    const state = await createGatekeepersBulkAction(null, csvForm(`${HEADER}
+Asha Silva,asha@example.com,0771234569,club-1,2025-01-01
+Asha S,asha@example.com,0771234570,club-1,2025-01-01`))
+    expect(state).toMatchObject({
+      results: [
+        { row: 2, error: 'An account with this email already exists.' },
+        { row: 3, error: 'An account with this email already exists.' },
+      ],
+    })
+  })
+
   it('checks each row again before creating any account', async () => {
     const state = await createGatekeepersBulkAction(null, csvForm(`${HEADER}
 Maya Lin,,0771234567,club-1,2025-01-01

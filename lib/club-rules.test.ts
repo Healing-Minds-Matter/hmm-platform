@@ -12,7 +12,7 @@ import {
 } from '@/lib/club-rules'
 
 const HEADER = CLUB_CSV_COLUMNS.join(',')
-const HEADER_ERROR = `The first row of the file must be exactly: ${HEADER}. Nothing was created.`
+const HEADER_ERROR = `The first row of the file must be exactly: ${HEADER}`
 
 function upload(text: string) {
   const [head, ...rows] = parseCsv(text)
@@ -169,15 +169,30 @@ Club B,RAC-3,,,,`), fakeDeps(), 'check')
     ])
   })
 
-  it.each(['check', 'save'] as const)('%s: rejects a duplicate code or name within the same file', async intent => {
-    const result = await createClubsFromCsv(upload(`${HEADER}
+  const DUPLICATES = `${HEADER}
 Club A,RAC-1,Colombo,,,
 Club B,rac-1,Colombo,,,
-club a,RAC-3,Colombo,,,`), fakeDeps(), intent)
+club a,RAC-3,Colombo,,,`
+
+  it('check: points duplicates within the file at the earlier row', async () => {
+    const result = await createClubsFromCsv(upload(DUPLICATES), fakeDeps(), 'check')
     expect('results' in result && result.results.slice(1)).toEqual([
       { row: 3, label: 'Club B', status: 'failed', error: 'Same club code as row 2 in this file.' },
       { row: 4, label: 'club a', status: 'failed', error: 'Same club name as row 2 in this file.' },
     ])
+  })
+
+  it('save: reports duplicates of a just-created row as already taken', async () => {
+    // The earlier row is registered, so it won't be in the "failed rows"
+    // file; "row 2" would point at nothing there.
+    const deps = fakeDeps()
+    const result = await createClubsFromCsv(upload(DUPLICATES), deps, 'save')
+    expect('results' in result && result.results).toEqual([
+      { row: 2, label: 'Club A', status: 'created' },
+      { row: 3, label: 'Club B', status: 'failed', error: 'Club code "rac-1" is already taken. Please choose a unique code.' },
+      { row: 4, label: 'club a', status: 'failed', error: 'A club with that name already exists.' },
+    ])
+    expect(deps.insertClub).toHaveBeenCalledTimes(1)
   })
 
   it('rejects rows that clash with clubs already in the system', async () => {
