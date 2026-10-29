@@ -1,12 +1,20 @@
 'use client'
 
-import { startTransition, useActionState, useState, type FormEvent, type ReactNode } from 'react'
+import { useState, type FormEvent, type ReactNode } from 'react'
 import { CsvDropZone } from '@/components/csv-drop-zone'
 import { parseCsv, toCsv } from '@/lib/csv'
-import { PROBLEM_COLUMN, countBulkResults, type BulkIntent, type BulkRowResult, type BulkUploadState } from '@/lib/bulk-upload'
+import {
+  PROBLEM_COLUMN,
+  countBulkResults,
+  planBatches,
+  type BulkIntent,
+  type BulkRowResult,
+  type BulkUploadState,
+} from '@/lib/bulk-upload'
 
 type Props = {
   action: (prev: BulkUploadState, formData: FormData) => Promise<BulkUploadState>
+  batchSize: number // rows per request — BULK_BATCH_SIZE in lib/bulk-upload.ts
   noun: { one: string; many: string } // e.g. club / clubs
   formatHelp: ReactNode
   template: { fileName: string; rows: string[][] }
@@ -53,14 +61,56 @@ async function downloadFailedRows(file: File, results: BulkRowResult[], fileName
   ])
 }
 
-function BulkCsvUploadSteps({ action, noun, formatHelp, template, checkHeader, options, onClose, onRestart }: Props & { onRestart: () => void }) {
-  const [state, formAction, isPending] = useActionState(action, null)
+function BulkCsvUploadSteps({ action, noun, formatHelp, template, checkHeader, options, batchSize, onClose, onRestart }: Props & { onRestart: () => void }) {
+  const [state, setState] = useState<BulkUploadState>(null)
   const [file, setFile] = useState<File | null>(null)
   const [headerError, setHeaderError] = useState<string | null>(null)
   const [pendingIntent, setPendingIntent] = useState<BulkIntent>('check')
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
+  const isPending = progress !== null
 
   const step = state?.results ? (state.intent === 'save' ? 'done' : 'preview') : 'choose'
   const counts = countBulkResults(state?.results ?? [])
+
+  // Sends the file once per batch with that batch's line numbers, so each
+  // request stays short (see BULK_BATCH_SIZE in lib/bulk-upload.ts), and
+  // collects the results. A failure part-way keeps what earlier batches did.
+  const run = async (intent: BulkIntent, formData: FormData) => {
+    if (!file) return
+    const lines = parseCsv(await file.text()).slice(1).map(r => r.line)
+    const batches = planBatches(lines, batchSize)
+    const results: BulkRowResult[] = []
+    setPendingIntent(intent)
+    setProgress({ done: 0, total: lines.length })
+    try {
+      for (const batch of batches) {
+        const data = new FormData()
+        formData.forEach((value, key) => data.append(key, value))
+        data.set('csv_file', file)
+        data.set('intent', intent)
+        data.set('lines', batch.join(','))
+        let outcome: BulkUploadState
+        try {
+          outcome = await action(null, data)
+        } catch {
+          outcome = { error: 'The connection was interrupted.' }
+        }
+        if (outcome?.error) {
+          // Nothing handled yet: the whole file was rejected (wrong header,
+          // too many rows…). Otherwise report what earlier batches did.
+          setState(results.length === 0
+            ? { error: outcome.error }
+            : { intent, results, stopped: `${outcome.error} Stopped at row ${batch[0]}; rows from there on weren't ${intent === 'save' ? 'registered' : 'checked'}.` })
+          return
+        }
+        results.push(...(outcome?.results ?? []))
+        setProgress({ done: Math.min(results.length, lines.length), total: lines.length })
+      }
+      setState({ intent, results })
+    } finally {
+      setProgress(null)
+    }
+  }
 
   const chooseFile = async (chosen: File | null) => {
     setFile(chosen)
@@ -73,11 +123,12 @@ function BulkCsvUploadSteps({ action, noun, formatHelp, template, checkHeader, o
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const submitter = (event.nativeEvent as SubmitEvent).submitter
+    // Form fields (e.g. the welcome-email checkbox) plus the clicked button's
+    // intent. The file is sent from state, since the picker isn't on screen
+    // after the check.
     const formData = new FormData(event.currentTarget, submitter)
-    // The file picker isn't on screen after the check, so send the file itself.
-    if (file) formData.set('csv_file', file)
-    setPendingIntent(formData.get('intent') === 'save' ? 'save' : 'check')
-    startTransition(() => formAction(formData))
+    formData.delete('csv_file')
+    void run(formData.get('intent') === 'save' ? 'save' : 'check', formData)
   }
 
   const failedFileName = `${noun.many}-failed-rows.csv`
@@ -108,7 +159,7 @@ function BulkCsvUploadSteps({ action, noun, formatHelp, template, checkHeader, o
         ) : (
           <div className="flex items-center justify-between gap-3 rounded-xl bg-white px-5 py-3 text-[13px]">
             <span className="min-w-0 truncate font-medium text-[#0F172A]">{file?.name}</span>
-            {step === 'preview' && (
+            {step === 'preview' && !isPending && (
               <button type="button" onClick={onRestart} className="shrink-0 text-[12px] font-semibold text-[#003495] underline-offset-2 hover:underline">
                 Change file
               </button>
@@ -126,7 +177,10 @@ function BulkCsvUploadSteps({ action, noun, formatHelp, template, checkHeader, o
                     : `${rows(counts.ready)} ready. ${rows(counts.failed)} ${counts.failed === 1 ? 'has a problem' : 'have problems'} and will be skipped.`
                   : `${plural(counts.created, noun)} registered${counts.failed ? `, ${counts.failed} failed` : ''}.`}
               </h2>
-              {step === 'preview' && counts.ready === 0 && (
+              {state.stopped && (
+                <p className="rounded-lg bg-red-50 p-3 text-[12px] text-red-700" role="alert">{state.stopped}</p>
+              )}
+              {step === 'preview' && counts.ready === 0 && !state.stopped && (
                 <p className="text-[12px] text-[#475569]">Nothing can be registered yet. Fix the problems below, then choose the file again.</p>
               )}
               <ResultList results={state.results} />
@@ -140,7 +194,7 @@ function BulkCsvUploadSteps({ action, noun, formatHelp, template, checkHeader, o
           )}
         </div>
 
-        {step === 'preview' && counts.ready > 0 && options}
+        {step === 'preview' && counts.ready > 0 && !state?.stopped && options}
       </div>
 
       <div className="flex flex-wrap items-center justify-end gap-2.5 border-t border-[#E2E8F0] px-6 py-4">
@@ -160,7 +214,7 @@ function BulkCsvUploadSteps({ action, noun, formatHelp, template, checkHeader, o
           </>
         ) : (
           <>
-            <button type="button" onClick={onClose} className="flex h-10 items-center rounded-lg bg-[#F1F5F9] px-4 text-[13px] font-medium text-[#0F172A] transition-colors hover:bg-[#E2E8F0]">
+            <button type="button" onClick={onClose} disabled={isPending} className="flex h-10 items-center rounded-lg bg-[#F1F5F9] px-4 text-[13px] font-medium text-[#0F172A] transition-colors hover:bg-[#E2E8F0] disabled:opacity-60">
               Cancel
             </button>
             {step === 'choose' ? (
@@ -168,14 +222,14 @@ function BulkCsvUploadSteps({ action, noun, formatHelp, template, checkHeader, o
                 type="submit" name="intent" value="check" disabled={isPending || !file || !!headerError}
                 className="flex h-10 items-center rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
               >
-                {isPending ? 'Checking…' : 'Check file'}
+                {isPending ? `Checking… ${progress?.done ?? 0} of ${rows(progress?.total ?? 0)}` : 'Check file'}
               </button>
-            ) : counts.ready > 0 ? (
+            ) : counts.ready > 0 && !state?.stopped ? (
               <button
                 type="submit" name="intent" value="save" disabled={isPending}
                 className="flex h-10 items-center rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
               >
-                {isPending && pendingIntent === 'save' ? 'Registering…' : `Register ${plural(counts.ready, noun)}`}
+                {isPending && pendingIntent === 'save' ? `Registering… ${progress?.done ?? 0} of ${rows(progress?.total ?? 0)}` : `Register ${plural(counts.ready, noun)}`}
               </button>
             ) : null}
           </>

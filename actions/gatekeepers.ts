@@ -10,7 +10,7 @@ import { parsePhone } from '@/lib/phone'
 import { validateCertificationDate } from '@/lib/certification-date'
 import { checkPhoneAvailable, describePhoneDbError, phoneChanged } from '@/lib/phone-uniqueness.server'
 import { readCsvUpload } from '@/lib/csv'
-import { bulkIntent, type BulkRowResult, type BulkUploadState } from '@/lib/bulk-upload'
+import { batchLines, bulkIntent, type BulkRowResult, type BulkUploadState } from '@/lib/bulk-upload'
 import { gatekeeperCsvHeaderError } from '@/lib/gatekeeper-csv'
 
 export type GatekeeperActionState = {
@@ -297,14 +297,22 @@ export async function createGatekeepersBulkAction(
   // is also the reason that still makes sense in the "failed rows" file.
   const phonesInFile = new Map<string, number>()
   const emailsInFile = new Map<string, number>()
+  // One batch of rows per request (see lib/bulk-upload.ts). A check still
+  // reads every row for the in-file duplicates above, but only looks rows up
+  // in the database, and reports them, when they're in this batch.
+  const lines = batchLines(formData)
 
   for (const { line: rowNum, cells } of dataRows) {
+    const inBatch = !lines || lines.has(rowNum)
+    if (intent === 'save' && !inBatch) continue
     const fullName = cells[nameIdx]?.trim()
     const email = cells[emailIdx]?.trim().toLowerCase()
     const parsedPhone = parsePhone(cells[phoneIdx])
     const clubId = forcedClubId ?? (clubIdx !== -1 ? cells[clubIdx]?.trim() : undefined)
     const certificationDate = cells[certIdx]?.trim()
-    const fail = (error: string) => { results.push({ row: rowNum, label: email || '(missing)', status: 'failed', error }) }
+    const fail = (error: string) => {
+      if (inBatch) results.push({ row: rowNum, label: email || '(missing)', status: 'failed', error })
+    }
 
     if (!fullName || !email || !clubId || !certificationDate || (parsedPhone.ok && !parsedPhone.value)) {
       fail('Missing required field(s).')
@@ -325,6 +333,7 @@ export async function createGatekeepersBulkAction(
       }
       emailsInFile.set(email, rowNum)
       phonesInFile.set(phone, rowNum)
+      if (!inBatch) continue
 
       const checked = await checkNewGatekeeper({ email, phone, clubId })
       if ('error' in checked) fail(checked.error)

@@ -106,11 +106,14 @@ export type BulkClubDeps = {
 }
 
 // intent 'check' validates every row and saves nothing; 'save' creates the
-// rows that pass and skips the rest.
+// rows that pass and skips the rest. With `lines` (one batch — see
+// lib/bulk-upload.ts) only those rows are reported or saved; a check still
+// reads the whole file so duplicates against earlier rows are caught.
 export async function createClubsFromCsv(
   upload: CsvUpload,
   deps: BulkClubDeps,
-  intent: BulkIntent
+  intent: BulkIntent,
+  lines: Set<number> | null = null
 ): Promise<{ error: string } | { results: BulkRowResult[] }> {
   const headerError = clubCsvHeaderError(upload.header)
   if (headerError) return { error: headerError }
@@ -121,8 +124,12 @@ export async function createClubsFromCsv(
   const results: BulkRowResult[] = []
 
   for (const { line, cells } of upload.rows) {
+    const inBatch = !lines || lines.has(line)
+    if (intent === 'save' && !inBatch) continue
     const [name, code, address, contactEmail, contactPhone, description] = cells
-    const fail = (error: string) => { results.push({ row: line, label: name || '(no name)', status: 'failed', error }) }
+    const fail = (error: string) => {
+      if (inBatch) results.push({ row: line, label: name || '(no name)', status: 'failed', error })
+    }
 
     if (cells.length > upload.header.length) {
       fail('This row has more columns than the header. Put quotes around any value that contains a comma.')
@@ -149,7 +156,7 @@ export async function createClubsFromCsv(
     if (conflict) { fail(conflict); continue }
 
     if (intent === 'check') {
-      results.push({ row: line, label: club.name, status: 'ready' })
+      if (inBatch) results.push({ row: line, label: club.name, status: 'ready' })
       continue
     }
 

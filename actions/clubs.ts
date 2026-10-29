@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { writeAuditLog } from '@/lib/audit'
 import { endDelegationsForDeactivatedUser } from '@/actions/permissions'
 import { readCsvUpload } from '@/lib/csv'
-import { bulkIntent, type BulkUploadState } from '@/lib/bulk-upload'
+import { batchLines, bulkIntent, type BulkUploadState } from '@/lib/bulk-upload'
 import {
   createClubsFromCsv,
   describeClubInsertError,
@@ -137,7 +137,7 @@ export async function createClubsBulkAction(
     existingClubs: await listExistingClubs(supabase),
     insertClub: fields => insertClub(supabase, fields, user.id),
     onCreated: (id, fields) => logClubCreated(user.id, id, fields, { source: 'bulk_csv' }),
-  }, intent)
+  }, intent, batchLines(formData))
   if ('error' in outcome) return { error: outcome.error }
 
   if (outcome.results.some(r => r.status === 'created')) revalidatePath('/super-admin/clubs')

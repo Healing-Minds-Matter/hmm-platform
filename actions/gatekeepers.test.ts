@@ -154,4 +154,37 @@ Asha Silva,asha@example.com,0771234569,club-1,2025-01-01`))
     })
     expect(createGatekeeperWithTempPassword).not.toHaveBeenCalled()
   })
+
+describe('createGatekeepersBulkAction: in batches', () => {
+  const FILE = `${HEADER}
+Maya Lin,maya@example.com,0771234561,club-1,2025-01-01
+Ravi Perera,ravi@example.com,0771234562,club-1,2025-01-01
+Nimal Fernando,MAYA@example.com,0771234563,club-1,2025-01-01
+Sunil Jay,sunil@example.com,077 123 4562,club-1,2025-01-01
+Dilani Raj,dilani@example.com,0771234565,club-1,2025-01-01`
+
+  const batchForm = (intent: 'check' | 'save', lines: number[]) => {
+    const form = csvForm(FILE, intent)
+    form.set('lines', lines.join(','))
+    return form
+  }
+
+  it('check: reports only the batch, but still catches duplicates of rows in earlier batches', async () => {
+    expect(await createGatekeepersBulkAction(null, batchForm('check', [4, 5, 6]))).toEqual({
+      intent: 'check',
+      results: [
+        { row: 4, label: 'maya@example.com', status: 'failed', error: 'Same email as row 2 in this file.' },
+        { row: 5, label: 'sunil@example.com', status: 'failed', error: 'Same phone number as row 3 in this file. Each user needs their own phone number.' },
+        { row: 6, label: 'dilani@example.com', status: 'ready' },
+      ],
+    })
+  })
+
+  it('save: handles only the batch rows', async () => {
+    db.takenEmails = new Set(['maya@example.com', 'ravi@example.com', 'sunil@example.com', 'dilani@example.com'])
+    const state = await createGatekeepersBulkAction(null, batchForm('save', [2, 3]))
+    expect(state?.results?.map(r => r.row)).toEqual([2, 3])
+    expect(createGatekeeperWithTempPassword).not.toHaveBeenCalled()
+  })
+})
 })
