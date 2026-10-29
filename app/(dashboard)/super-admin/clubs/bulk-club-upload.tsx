@@ -3,6 +3,7 @@
 import { createClubsBulkAction } from '@/actions/clubs'
 import { BulkCsvUpload } from '@/components/bulk-csv-upload'
 import { CLUB_CSV_COLUMNS, clubCsvHeaderError } from '@/lib/club-rules'
+import { BULK_BATCH_SIZE } from '@/lib/bulk-upload'
 
 const code = 'rounded bg-[#F1F5F9] px-1.5 py-0.5 font-mono text-[11px]'
 
@@ -19,6 +20,7 @@ export function BulkClubUpload({ onClose }: { onClose: () => void }) {
   return (
     <BulkCsvUpload
       action={createClubsBulkAction}
+      batchSize={BULK_BATCH_SIZE.clubs}
       noun={{ one: 'club', many: 'clubs' }}
       template={TEMPLATE}
       checkHeader={clubCsvHeaderError}

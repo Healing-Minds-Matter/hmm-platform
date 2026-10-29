@@ -7,6 +7,7 @@ import { certificationDateInputProps } from '@/lib/certification-date'
 import { createGatekeeperAction, createGatekeepersBulkAction } from '@/actions/gatekeepers'
 import { BulkCsvUpload } from '@/components/bulk-csv-upload'
 import { GATEKEEPER_CSV_COLUMNS, gatekeeperCsvHeaderError } from '@/lib/gatekeeper-csv'
+import { BULK_BATCH_SIZE } from '@/lib/bulk-upload'
 import { BulkTabLabel, ModeTabs } from '@/components/mode-tabs'
 
 interface Club { id: string; name: string; club_code: string | null }
@@ -325,6 +326,7 @@ function BulkGatekeeperUpload({ scope, onClose }: { scope: ClubScope; onClose: (
   return (
     <BulkCsvUpload
       action={createGatekeepersBulkAction}
+      batchSize={BULK_BATCH_SIZE.gatekeepers}
       noun={{ one: 'gatekeeper', many: 'gatekeepers' }}
       template={{ fileName: 'gatekeepers-template.csv', rows: [columns, columns.map(c => exampleRow[c])] }}
       checkHeader={header => gatekeeperCsvHeaderError(header, uploader)}

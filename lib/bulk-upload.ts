@@ -21,10 +21,34 @@ export type BulkUploadState = {
   error?: string // the whole file was rejected; nothing was checked or saved
   intent?: BulkIntent
   results?: BulkRowResult[]
+  // Set by the screen when a batch failed part-way: rows in earlier batches
+  // were handled, the rest weren't.
+  stopped?: string
 } | null
 
 export const bulkIntent = (formData: FormData): BulkIntent =>
   formData.get('intent') === 'save' ? 'save' : 'check'
+
+// Each request handles only a few rows, so no single request runs long
+// enough to hit the hosting time limit (on the live site a Gatekeeper takes
+// ~6s to register: login, ID, audit, email). The screen sends the whole file
+// every time plus the line numbers to handle, in a "lines" field, and shows
+// progress between batches. Checking still looks at every row for
+// duplicates within the file, but only reports on the batch's rows.
+export const BULK_BATCH_SIZE = { gatekeepers: 5, clubs: 10 } as const
+
+// The batch's line numbers, or null to handle every row (no "lines" field).
+export function batchLines(formData: FormData): Set<number> | null {
+  const raw = formData.get('lines')
+  if (typeof raw !== 'string' || raw.trim() === '') return null
+  return new Set(raw.split(',').map(Number).filter(Number.isInteger))
+}
+
+export function planBatches(lines: number[], size: number): number[][] {
+  const batches: number[][] = []
+  for (let i = 0; i < lines.length; i += size) batches.push(lines.slice(i, i + size))
+  return batches
+}
 
 export function countBulkResults(results: BulkRowResult[]) {
   return {

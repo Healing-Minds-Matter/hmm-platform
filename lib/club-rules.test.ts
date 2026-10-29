@@ -249,4 +249,42 @@ Club B,RAC-2,Colombo,,,`), deps, 'save')
     })
     expect(deps.onCreated).toHaveBeenCalledTimes(1)
   })
+
+  describe('in batches (one request per few rows)', () => {
+    const FILE = `${HEADER}
+Club A,RAC-1,Colombo,,,
+Club B,RAC-2,,,,
+Club C,rac-1,Kandy,,,
+Club D,RAC-4,Galle,,,`
+
+    it('check: reports only the batch, but still sees duplicates from earlier batches', async () => {
+      const deps = fakeDeps()
+      const result = await createClubsFromCsv(upload(FILE), deps, 'check', new Set([4, 5]))
+      expect(result).toEqual({
+        results: [
+          { row: 4, label: 'Club C', status: 'failed', error: 'Same club code as row 2 in this file.' },
+          { row: 5, label: 'Club D', status: 'ready' },
+        ],
+      })
+    })
+
+    it('save: touches only the batch rows', async () => {
+      const deps = fakeDeps()
+      const result = await createClubsFromCsv(upload(FILE), deps, 'save', new Set([2, 3]))
+      expect(result).toEqual({
+        results: [
+          { row: 2, label: 'Club A', status: 'created' },
+          { row: 3, label: 'Club B', status: 'failed', error: 'Address is required.' },
+        ],
+      })
+      expect(deps.insertClub).toHaveBeenCalledTimes(1)
+    })
+
+    it('all batches together give the same results as one request', async () => {
+      const whole = await createClubsFromCsv(upload(FILE), fakeDeps(), 'check')
+      const first = await createClubsFromCsv(upload(FILE), fakeDeps(), 'check', new Set([2, 3]))
+      const second = await createClubsFromCsv(upload(FILE), fakeDeps(), 'check', new Set([4, 5]))
+      expect('results' in first && 'results' in second && [...first.results, ...second.results]).toEqual('results' in whole && whole.results)
+    })
+  })
 })
