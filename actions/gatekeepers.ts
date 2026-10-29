@@ -23,7 +23,9 @@ export type GatekeeperActionState = {
   tempPassword?: string
 } | null
 
-function threeYearsFrom(dateStr: string): string {
+// Blank certification date = not certified yet, so no expiry either.
+function threeYearsFrom(dateStr: string | null): string | null {
+  if (!dateStr) return null
   const d = new Date(dateStr)
   d.setUTCFullYear(d.getUTCFullYear() + 3)
   return d.toISOString().slice(0, 10)
@@ -113,7 +115,7 @@ async function inviteAndCreateGatekeeper(params: {
   phone: string // already normalised by parsePhone()
   preferredLanguage: string
   clubId: string
-  certificationDate: string
+  certificationDate: string | null // null = not certified yet
   actorId: string
   sendWelcomeEmail: boolean
 }): Promise<{ error: string } | { id: string; gatekeeper_code: string; tempPassword?: string }> {
@@ -244,7 +246,7 @@ export async function createGatekeeperAction(
   const parsedPhone = parsePhone(formData.get('phone') as string | null)
   const preferredLanguage = (formData.get('preferred_language') as string | null) || 'en'
   const requestedClubId = formData.get('club_id') as string | null
-  const certificationDate = formData.get('certification_date') as string | null
+  const certificationDate = (formData.get('certification_date') as string | null)?.trim() || null
   // Per spec: "Automated notification (optional/deferrable)" — a real
   // checkbox on the create form, not always-on. Checkbox fields are only
   // present in FormData when checked, so absence means "off."
@@ -256,7 +258,7 @@ export async function createGatekeeperAction(
   if (!parsedPhone.value) return { error: 'Phone number is required.' }
   const phone = parsedPhone.value
   const certificationError = validateCertificationDate(certificationDate)
-  if (certificationError || !certificationDate) return { error: certificationError ?? 'Certification date is required.' }
+  if (certificationError) return { error: certificationError }
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -347,12 +349,12 @@ export async function createGatekeepersBulkAction(
     const email = cells[emailIdx]?.trim().toLowerCase()
     const parsedPhone = parsePhone(cells[phoneIdx])
     const clubId = forcedClubId ?? (clubIdx !== -1 ? cells[clubIdx]?.trim() : undefined)
-    const certificationDate = cells[certIdx]?.trim()
+    const certificationDate = cells[certIdx]?.trim() || null
     const fail = (error: string) => {
       if (inBatch) results.push({ row: rowNum, label: email || '(missing)', status: 'failed', error })
     }
 
-    if (!fullName || !email || !clubId || !certificationDate || (parsedPhone.ok && !parsedPhone.value)) {
+    if (!fullName || !email || !clubId || (parsedPhone.ok && !parsedPhone.value)) {
       fail('Missing required field(s).')
       continue
     }
@@ -412,7 +414,7 @@ export async function updateGatekeeperAction(
   const parsedPhone = parsePhone(formData.get('phone') as string | null)
   const preferredLanguage = (formData.get('preferred_language') as string | null) || 'en'
   const clubId   = formData.get('club_id') as string | null
-  const certificationDate = formData.get('certification_date') as string | null
+  const certificationDate = (formData.get('certification_date') as string | null)?.trim() || null
 
   if (!fullName) return { error: 'Full name is required.' }
   if (!email)    return { error: 'Email is required.' }
@@ -421,7 +423,7 @@ export async function updateGatekeeperAction(
   const phone = parsedPhone.value
   if (!clubId)   return { error: 'Assigned club is required.' }
   const certificationError = validateCertificationDate(certificationDate)
-  if (certificationError || !certificationDate) return { error: certificationError ?? 'Certification date is required.' }
+  if (certificationError) return { error: certificationError }
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

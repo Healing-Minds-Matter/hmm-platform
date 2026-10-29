@@ -133,6 +133,19 @@ Dilani Raj,dilani@example.com,0771234567,club-1,2999-01-01`, 'check'))
     expect(createGatekeeperWithTempPassword).not.toHaveBeenCalled()
   })
 
+  it('accepts a blank certification_date (not certified yet) but still checks one that is given', async () => {
+    const state = await createGatekeepersBulkAction(null, csvForm(`${HEADER}
+Maya Lin,maya@example.com,0771234561,club-1,
+Ravi Perera,ravi@example.com,0771234562,club-1,2999-01-01
+Kamal Dias,kamal@example.com,0771234563,club-1,01/06/2025`, 'check'))
+
+    expect(state?.results).toEqual([
+      { row: 2, label: 'maya@example.com', status: 'ready' },
+      { row: 3, label: 'ravi@example.com', status: 'failed', error: 'Certification date cannot be in the future.' },
+      { row: 4, label: 'kamal@example.com', status: 'failed', error: 'Certification date must be a valid date in YYYY-MM-DD format.' },
+    ])
+  })
+
   it('reads every user\'s phone number once per request, not once per row', async () => {
     db.takenPhones = [{ phone: '+94771234562' }]
     const state = await createGatekeepersBulkAction(null, csvForm(`${HEADER}

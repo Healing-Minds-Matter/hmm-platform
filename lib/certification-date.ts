@@ -1,5 +1,6 @@
 // A Gatekeeper's QPR certification date is when they were certified, so it
-// can't be in the future. Shared by the forms (to cap the date picker) and
+// can't be in the future. It's optional: members who aren't certified yet
+// can still be added (and use the app); leave it blank until they are. Shared by the forms (to cap the date picker) and
 // the server actions (the real check — single create, CSV upload and edit).
 //
 // "Today" is Sri Lanka's date, not the server's: the live site runs on UTC,
@@ -12,10 +13,11 @@ export { todayDateString }
 
 export const FUTURE_DATE_MESSAGE = 'Certification date cannot be in the future.'
 
-// Returns a user-facing error, or null when the date is acceptable.
+// Returns a user-facing error, or null when the date is acceptable (or
+// blank — not certified yet).
 export function validateCertificationDate(value: string | null | undefined): string | null {
   const date = (value ?? '').trim()
-  if (!date) return 'Certification date is required.'
+  if (!date) return null
 
   // Also guards the expiry calculation, which can't handle e.g. "01/10/2026".
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date)

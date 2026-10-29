@@ -70,6 +70,7 @@ export function GatekeeperFilters({
           <option value="active">Active</option>
           <option value="expiring_soon">Expiring Soon</option>
           <option value="expired">Expired</option>
+          <option value="not_certified">Not Certified</option>
           <option value="inactive">Inactive</option>
         </select>
         <select
