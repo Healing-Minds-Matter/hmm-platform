@@ -14,21 +14,42 @@ import { parsePhone } from '@/lib/phone'
 // Returns a user-facing error, or null when the number is free.
 export async function checkPhoneAvailable(
   phone: string,
-  options: { excludeUserId?: string; creatingGatekeeper?: boolean } = {}
+  options: PhoneCheckOptions = {}
 ): Promise<string | null> {
+  return findPhoneClash(phone, await loadPhoneOwners(), options)
+}
+
+export type PhoneOwner = { id: string; phone: string; role: string; is_active: boolean }
+type PhoneCheckOptions = { excludeUserId?: string; creatingGatekeeper?: boolean }
+
+const PHONE_LOOKUP_FAILED = 'Could not check the phone number right now. Please try again.'
+
+// Every user's number, normalised. This reads the whole profiles table, so a
+// bulk upload loads it once per batch and checks each row with
+// findPhoneClash() instead of calling checkPhoneAvailable() per row.
+// Returns null if the lookup failed.
+export async function loadPhoneOwners(): Promise<PhoneOwner[] | null> {
   const admin = createAdminClient()
   const { data: rows, error } = await admin
     .from('profiles')
     .select('id, phone, role, is_active')
     .not('phone', 'is', null)
+  if (error) return null
 
-  if (error) return 'Could not check the phone number right now. Please try again.'
-
-  const clash = (rows ?? []).find(row => {
-    if (row.id === options.excludeUserId) return false
+  return (rows ?? []).flatMap(row => {
     const parsed = parsePhone(row.phone)
-    return parsed.ok && parsed.value === phone
+    return parsed.ok && parsed.value ? [{ ...row, phone: parsed.value }] : []
   })
+}
+
+export function findPhoneClash(
+  phone: string,
+  owners: PhoneOwner[] | null,
+  options: PhoneCheckOptions = {}
+): string | null {
+  if (!owners) return PHONE_LOOKUP_FAILED
+
+  const clash = owners.find(row => row.id !== options.excludeUserId && row.phone === phone)
   if (!clash) return null
 
   // Don't say who it belongs to or which club — a Champion must only ever

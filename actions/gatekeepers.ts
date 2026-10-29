@@ -8,7 +8,7 @@ import { writeAuditLog } from '@/lib/audit'
 import { createGatekeeperWithTempPassword, resendGatekeeperWelcomeEmail } from '@/lib/invite-gatekeeper'
 import { parsePhone } from '@/lib/phone'
 import { validateCertificationDate } from '@/lib/certification-date'
-import { checkPhoneAvailable, describePhoneDbError, phoneChanged } from '@/lib/phone-uniqueness.server'
+import { checkPhoneAvailable, describePhoneDbError, findPhoneClash, loadPhoneOwners, phoneChanged, type PhoneOwner } from '@/lib/phone-uniqueness.server'
 import { readCsvUpload } from '@/lib/csv'
 import { batchLines, bulkIntent, type BulkRowResult, type BulkUploadState } from '@/lib/bulk-upload'
 import { gatekeeperCsvHeaderError } from '@/lib/gatekeeper-csv'
@@ -29,25 +29,64 @@ function threeYearsFrom(dateStr: string): string {
   return d.toISOString().slice(0, 10)
 }
 
-// Everything that can rule a new Gatekeeper out, checked before any account
-// is created or email sent. Also used on its own by the bulk upload's
-// "check" step, which must not create anything.
-async function checkNewGatekeeper(params: {
+type NewGatekeeper = {
   email: string
   phone: string // already normalised by parsePhone()
   clubId: string
-}): Promise<{ club: { name: string } } | { error: string }> {
-  const admin = createAdminClient()
+}
 
-  const { data: existing } = await admin
-    .from('profiles')
-    .select('id')
-    .eq('email', params.email)
-    .maybeSingle()
-  if (existing) return { error: 'An account with this email already exists.' }
+// What the checks below need from the database, fetched together for a
+// group of rows: one query each for emails and phones, plus one per club.
+// The bulk check loads this once per batch — looking everything up row by
+// row (one query reading every user's phone, each time) made a 50-row check
+// take well over a minute on the live site.
+type GatekeeperLookups = {
+  takenEmails: Set<string>
+  phoneOwners: PhoneOwner[] | null
+  clubs: Map<string, { name: string; is_active: boolean }>
+}
+
+async function loadGatekeeperLookups(rows: Pick<NewGatekeeper, 'email' | 'clubId'>[]): Promise<GatekeeperLookups> {
+  const admin = createAdminClient()
+  const emails = [...new Set(rows.map(r => r.email))]
+  // One lookup per club rather than a single "in" query: a club_id typed
+  // into a CSV may not even be a valid ID, and Postgres rejects the whole
+  // query over one bad value.
+  const clubIds = [...new Set(rows.map(r => r.clubId))]
+
+  const [emailRows, phoneOwners, clubRows] = await Promise.all([
+    emails.length ? admin.from('profiles').select('email').in('email', emails) : { data: [] },
+    loadPhoneOwners(),
+    Promise.all(clubIds.map(async id => {
+      const { data } = await admin.from('clubs').select('name, is_active').eq('id', id).maybeSingle()
+      return [id, data] as const
+    })),
+  ])
+
+  const clubs = new Map<string, { name: string; is_active: boolean }>()
+  for (const [id, club] of clubRows) if (club) clubs.set(id, club)
+  return {
+    takenEmails: new Set((emailRows.data ?? []).map(row => row.email as string)),
+    phoneOwners,
+    clubs,
+  }
+}
+
+// Everything that can rule a new Gatekeeper out, checked before any account
+// is created or email sent. Also used on its own by the bulk upload's
+// "check" step, which must not create anything.
+async function checkNewGatekeeper(params: NewGatekeeper): Promise<{ club: { name: string } } | { error: string }> {
+  return checkNewGatekeeperAgainst(params, await loadGatekeeperLookups([params]))
+}
+
+function checkNewGatekeeperAgainst(
+  params: NewGatekeeper,
+  lookups: GatekeeperLookups
+): { club: { name: string } } | { error: string } {
+  if (lookups.takenEmails.has(params.email)) return { error: 'An account with this email already exists.' }
 
   // Before createInvitedUser() below sends a real account email.
-  const phoneError = await checkPhoneAvailable(params.phone, { creatingGatekeeper: true })
+  const phoneError = findPhoneClash(params.phone, lookups.phoneOwners, { creatingGatekeeper: true })
   if (phoneError) return { error: phoneError }
 
   // Validate club_id BEFORE creating the auth user / sending the invite
@@ -58,12 +97,8 @@ async function checkNewGatekeeper(params: {
   // profiles insert, by which point the invite email (with a real temp
   // password) has already been sent for an account that's about to be
   // rolled back.
-  const { data: club, error: clubLookupError } = await admin
-    .from('clubs')
-    .select('name, is_active')
-    .eq('id', params.clubId)
-    .maybeSingle()
-  if (clubLookupError || !club) {
+  const club = lookups.clubs.get(params.clubId)
+  if (!club) {
     return { error: 'The selected club could not be found. Double-check the club_id and try again.' }
   }
   if (!club.is_active) {
@@ -301,6 +336,9 @@ export async function createGatekeepersBulkAction(
   // reads every row for the in-file duplicates above, but only looks rows up
   // in the database, and reports them, when they're in this batch.
   const lines = batchLines(formData)
+  // Check step: rows that pass the checks above, looked up in the database
+  // together once the loop is done. Each holds its place in `results`.
+  const toLookUp: { index: number; row: NewGatekeeper }[] = []
 
   for (const { line: rowNum, cells } of dataRows) {
     const inBatch = !lines || lines.has(rowNum)
@@ -335,9 +373,8 @@ export async function createGatekeepersBulkAction(
       phonesInFile.set(phone, rowNum)
       if (!inBatch) continue
 
-      const checked = await checkNewGatekeeper({ email, phone, clubId })
-      if ('error' in checked) fail(checked.error)
-      else results.push({ row: rowNum, label: email, status: 'ready' })
+      toLookUp.push({ index: results.length, row: { email, phone, clubId } })
+      results.push({ row: rowNum, label: email, status: 'ready' })
       continue
     }
 
@@ -346,6 +383,14 @@ export async function createGatekeepersBulkAction(
     })
     if ('error' in result) fail(result.error)
     else results.push({ row: rowNum, label: email, status: 'created', tempPassword: result.tempPassword })
+  }
+
+  if (toLookUp.length) {
+    const lookups = await loadGatekeeperLookups(toLookUp.map(entry => entry.row))
+    for (const { index, row } of toLookUp) {
+      const checked = checkNewGatekeeperAgainst(row, lookups)
+      if ('error' in checked) results[index] = { ...results[index], status: 'failed', error: checked.error }
+    }
   }
 
   if (results.some(r => r.status === 'created')) {

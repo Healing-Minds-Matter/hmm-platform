@@ -8,6 +8,7 @@ const db = vi.hoisted(() => ({
   caller: { role: 'super_admin' as string, club_id: null as string | null },
   takenEmails: new Set<string>(),
   clubs: new Map<string, { name: string; is_active: boolean }>(),
+  takenPhones: [] as { phone: string }[],
 }))
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -20,6 +21,10 @@ vi.mock('@/lib/supabase/admin', () => ({
   createAdminClient: () => ({
     from: (table: string) => ({
       select: () => ({
+        in: async (_column: string, values: string[]) => ({
+          data: values.filter(email => db.takenEmails.has(email)).map(email => ({ email })),
+          error: null,
+        }),
         eq: (_column: string, value: string) => ({
           maybeSingle: async () => ({
             data: table === 'profiles'
@@ -39,12 +44,16 @@ vi.mock('@/lib/invite-gatekeeper', () => ({
 }))
 vi.mock('@/lib/phone-uniqueness.server', () => ({
   checkPhoneAvailable: vi.fn(async () => null), describePhoneDbError: vi.fn(), phoneChanged: vi.fn(),
+  loadPhoneOwners: vi.fn(async () => db.takenPhones),
+  findPhoneClash: (phone: string, owners: { phone: string }[]) =>
+    owners.some(o => o.phone === phone) ? 'This phone number is already registered to another user. Each user needs their own phone number.' : null,
 }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 vi.mock('next/navigation', () => ({ redirect: vi.fn(() => { throw new Error('redirect') }) }))
 
 import { createGatekeepersBulkAction } from '@/actions/gatekeepers'
 import { createGatekeeperWithTempPassword } from '@/lib/invite-gatekeeper'
+import { loadPhoneOwners } from '@/lib/phone-uniqueness.server'
 
 const HEADER = 'full_name,email,phone,club_id,certification_date'
 
@@ -62,7 +71,9 @@ beforeEach(() => {
     ['club-1', { name: 'Rotaract Club of Colombo', is_active: true }],
     ['club-off', { name: 'Rotaract Club of Kandy', is_active: false }],
   ])
+  db.takenPhones = []
   vi.mocked(createGatekeeperWithTempPassword).mockClear()
+  vi.mocked(loadPhoneOwners).mockClear()
 })
 
 describe('createGatekeepersBulkAction: file-level checks', () => {
@@ -120,6 +131,21 @@ Dilani Raj,dilani@example.com,0771234567,club-1,2999-01-01`, 'check'))
       ],
     })
     expect(createGatekeeperWithTempPassword).not.toHaveBeenCalled()
+  })
+
+  it('reads every user\'s phone number once per request, not once per row', async () => {
+    db.takenPhones = [{ phone: '+94771234562' }]
+    const state = await createGatekeepersBulkAction(null, csvForm(`${HEADER}
+Maya Lin,maya@example.com,0771234561,club-1,2025-01-01
+Ravi Perera,ravi@example.com,0771234562,club-1,2025-01-01
+Kamal Dias,kamal@example.com,0771234563,club-1,2025-01-01`, 'check'))
+
+    expect(state?.results).toEqual([
+      { row: 2, label: 'maya@example.com', status: 'ready' },
+      { row: 3, label: 'ravi@example.com', status: 'failed', error: 'This phone number is already registered to another user. Each user needs their own phone number.' },
+      { row: 4, label: 'kamal@example.com', status: 'ready' },
+    ])
+    expect(loadPhoneOwners).toHaveBeenCalledTimes(1)
   })
 })
 
