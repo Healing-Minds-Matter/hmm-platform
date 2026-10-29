@@ -84,7 +84,7 @@ export function CreateGatekeeperForm({
         <div className="flex flex-col gap-[3px]">
           <h1 className="text-[18px] font-bold leading-6 text-[#0F172A]">Add New Gatekeeper</h1>
           <p className="max-w-[480px] text-[12px] leading-4 text-[#64748B]">
-            Onboard a certified QPR community gatekeeper to {scope.mode === 'fixed' ? scope.clubName : 'a regional club'}.
+            Onboard a QPR community gatekeeper to {scope.mode === 'fixed' ? scope.clubName : 'a regional club'}.
           </p>
         </div>
         <button
@@ -256,10 +256,10 @@ export function CreateGatekeeperForm({
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label htmlFor="certification_date" className="mb-1.5 block text-[13px] font-medium text-[#0F172A]">
-                      Certification Date <span className="text-[#DC2626]">*</span>
+                      Certification Date
                     </label>
                     <input
-                      id="certification_date" name="certification_date" type="date" required {...certificationDateInputProps()}
+                      id="certification_date" name="certification_date" type="date" {...certificationDateInputProps()}
                       value={certDate} onChange={e => setCertDate(e.target.value)}
                       className="h-10 w-full rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                     />
@@ -272,10 +272,12 @@ export function CreateGatekeeperForm({
                     </div>
                   </div>
                 </div>
-                {expiryLabel && (
+                {expiryLabel ? (
                   <div className="mt-3 rounded-lg bg-[rgba(13,130,117,0.1)] px-3 py-1.5 text-[12px] font-medium text-[#0D8275]">
                     Active for 3 Years • Valid until {expiryLabel}
                   </div>
+                ) : (
+                  <p className="mt-2 text-[11px] text-[#94A3B8]">Leave blank if they aren&apos;t QPR-certified yet. You can add the date later by editing the Gatekeeper.</p>
                 )}
               </div>
             </div>
@@ -342,7 +344,7 @@ function BulkGatekeeperUpload({ scope, onClose }: { scope: ClubScope; onClose: (
           <p className="text-[12px] leading-[18px] text-[#475569]">
             Header row required, exactly: <code className={code}>{columns.join(',')}</code>
             <br />
-            <code className={code}>club_id</code> must be a real club&apos;s internal ID. <code className={code}>certification_date</code> as YYYY-MM-DD, not in the future. Every row needs its own <code className={code}>phone</code> number.
+            <code className={code}>club_id</code> must be a real club&apos;s internal ID. <code className={code}>certification_date</code> as YYYY-MM-DD, not in the future, or left blank for members who aren&apos;t certified yet. Every row needs its own <code className={code}>phone</code> number.
           </p>
           <details className="text-[12px] text-[#475569]">
             <summary className="cursor-pointer font-semibold text-[#003495]">Active club IDs</summary>
@@ -357,7 +359,7 @@ function BulkGatekeeperUpload({ scope, onClose }: { scope: ClubScope; onClose: (
         <p className="text-[12px] leading-[18px] text-[#475569]">
           Header row required, exactly: <code className={code}>{columns.join(',')}</code>
           <br />
-          All rows are added to <strong>{scope.clubName}</strong>. <code className={code}>certification_date</code> as YYYY-MM-DD, not in the future. Every row needs its own <code className={code}>phone</code> number.
+          All rows are added to <strong>{scope.clubName}</strong>. <code className={code}>certification_date</code> as YYYY-MM-DD, not in the future, or left blank for members who aren&apos;t certified yet. Every row needs its own <code className={code}>phone</code> number.
         </p>
       )}
     />

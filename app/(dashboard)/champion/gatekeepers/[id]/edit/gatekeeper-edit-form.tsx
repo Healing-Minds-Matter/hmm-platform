@@ -137,14 +137,14 @@ export function GatekeeperEditForm({
             </div>
             <div>
               <label htmlFor="certification_date" className="mb-1.5 block text-[13px] font-medium text-[#0F172A]">
-                Certification Date <span className="text-[#DC2626]">*</span>
+                Certification Date
               </label>
               <input
-                id="certification_date" name="certification_date" type="date" required {...certificationDateInputProps()}
+                id="certification_date" name="certification_date" type="date" {...certificationDateInputProps()}
                 defaultValue={gatekeeper.qpr_certification_date ?? ''}
                 className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
               />
-              <p className="mt-1.5 text-[11px] text-[#94A3B8]">Changing this recalculates the expiry date (certification date + 3 years).</p>
+              <p className="mt-1.5 text-[11px] text-[#94A3B8]">Changing this recalculates the expiry date (certification date + 3 years). Leave blank if they aren&apos;t QPR-certified yet.</p>
             </div>
           </div>
         </div>
