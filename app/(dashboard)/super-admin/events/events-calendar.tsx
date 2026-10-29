@@ -18,8 +18,8 @@ interface EventItem {
   venue: string
   description: string | null
   max_participants: number | null
-  club_id: string
-  club_name: string
+  created_by: string
+  club_name: string // the event's clubs, or "All clubs"
   facilitator: string | null
   virtual_link: string | null
 }
@@ -47,7 +47,7 @@ interface Props {
   upcomingQprTotal: number
   basePath?: string
   newEventHref?: string
-  manageClubId?: string | null
+  manageUserId?: string | null
 }
 
 const EVENT_TYPES = [
@@ -66,7 +66,7 @@ function ymd(d: Date) {
   return { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() }
 }
 
-export function EventsCalendar({ view, year, month, day, club, type, q, events, clubs, typeCounts, totalCount, selectedEvent, generatedAt, upcomingQpr, upcomingQprTotal, basePath = '/super-admin/events', newEventHref, manageClubId = null }: Props) {
+export function EventsCalendar({ view, year, month, day, club, type, q, events, clubs, typeCounts, totalCount, selectedEvent, generatedAt, upcomingQpr, upcomingQprTotal, basePath = '/super-admin/events', newEventHref, manageUserId = null }: Props) {
   const router = useRouter()
 
   function hrefWith(overrides: Partial<{ view: string; year: string; month: string; day: string; club: string; type: string; q: string; event: string }>) {
@@ -264,7 +264,7 @@ export function EventsCalendar({ view, year, month, day, club, type, q, events, 
         <EventDetailPanel
           event={selectedEvent}
           closeHref={hrefWith({ event: '' })}
-          editHref={manageClubId && selectedEvent.club_id === manageClubId ? `${basePath}/${selectedEvent.id}/edit` : undefined}
+          editHref={manageUserId && selectedEvent.created_by === manageUserId ? `${basePath}/${selectedEvent.id}/edit` : undefined}
         />
       )}
     </div>

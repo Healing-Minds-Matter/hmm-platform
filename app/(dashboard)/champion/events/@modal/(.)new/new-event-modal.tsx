@@ -10,7 +10,7 @@ export function NewChampionEventModal({ club }: { club: { id: string; name: stri
 
   return (
     <ModalOverlay onClose={close}>
-      <CreateEventForm clubs={[]} lockedClub={club} onClose={close} />
+      <CreateEventForm clubs={[]} ownClub={club} onClose={close} />
     </ModalOverlay>
   )
 }

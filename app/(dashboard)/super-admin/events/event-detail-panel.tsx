@@ -30,9 +30,9 @@ function Field({ label, value }: { label: string; value: string }) {
   )
 }
 
-// editHref is only passed when the viewer manages this event's club (a
-// Champion, for their own club's events) — Super Admin's calendar remains
-// view-only, matching Story 6.1's original scope.
+// editHref is only passed when the viewer may edit this event (a Champion,
+// for events they created) — Super Admin's calendar remains view-only,
+// matching Story 6.1's original scope.
 export function EventDetailPanel({ event, closeHref, editHref }: { event: EventDetail; closeHref: string; editHref?: string }) {
   const style = eventTypeStyle(event.type)
   // Shown in Sri Lanka time (see lib/org-date.ts).
@@ -73,7 +73,7 @@ export function EventDetailPanel({ event, closeHref, editHref }: { event: EventD
         <dl className="mt-5 grid grid-cols-2 gap-4">
           <Field label="Date & Time" value={`${dateLabel} · ${timeLabel}`} />
           <Field label="Venue" value={event.venue} />
-          <Field label="Club" value={event.club_name} />
+          <Field label="Clubs" value={event.club_name} />
           <Field label="Facilitator" value={event.facilitator ?? 'Not specified'} />
           <Field label="Maximum Participants" value={event.max_participants ? String(event.max_participants) : 'Not specified'} />
           {event.virtual_link && <Field label="Link" value={event.virtual_link} />}

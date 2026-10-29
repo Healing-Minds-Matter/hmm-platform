@@ -5,6 +5,7 @@ import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { useRouter } from 'next/navigation'
 import { updateEventAction } from '@/actions/events'
 import { EVENT_TYPE_STYLES } from '@/app/(dashboard)/super-admin/events/event-type'
+import { EventClubsField } from '@/app/(dashboard)/super-admin/events/event-clubs-field'
 
 const TYPE_OPTIONS = [
   { value: 'qpr_session', label: 'QPR Session', caption: 'Certification & credits', dot: EVENT_TYPE_STYLES.qpr_session.dot },
@@ -13,7 +14,7 @@ const TYPE_OPTIONS = [
   { value: 'other', label: 'Other', caption: 'Anything else', dot: EVENT_TYPE_STYLES.other.dot },
 ]
 
-interface EventValues {
+export interface EventValues {
   id: string
   title: string
   type: string
@@ -25,7 +26,8 @@ interface EventValues {
   virtual_link: string
   max_participants: string
   description: string
-  club_name: string
+  own_club: { id: string; name: string }
+  club_ids: string[] // the event's current clubs
 }
 
 export function EditEventForm({
@@ -139,12 +141,7 @@ export function EditEventForm({
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="mb-1.5 block text-[13px] font-medium tracking-[0.24px] text-[#0F172A]">Assigned Club</label>
-                <div className="flex h-10 items-center rounded-lg border border-[#E2E8F0] bg-[#EFF4FF] px-3.5 text-sm font-semibold text-[#0F172A]">
-                  {event.club_name}
-                </div>
-              </div>
+              <EventClubsField ownClub={event.own_club} defaultClubIds={event.club_ids} />
               <div>
                 <label htmlFor="facilitator" className="mb-1.5 block text-[13px] font-medium tracking-[0.24px] text-[#0F172A]">
                   Primary Facilitator <span className="text-[#DC2626]">*</span>

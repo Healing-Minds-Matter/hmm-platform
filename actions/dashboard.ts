@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { EVENT_CLUBS_EMBED, eventClubsLabel, isEventForClub } from '@/lib/event-clubs'
 
 export type BarItem = { club_id: string; club_name: string; count: number; club_location?: string | null }
 export type StackedItem = { club_id: string; club_name: string; active: number; inactive: number }
@@ -96,7 +97,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'champion').eq('is_active', true).in('club_id', clubIds),
     supabase.from('profiles').select('club_id').eq('role', 'gatekeeper').in('club_id', clubIds).gte('created_at', thisMonthStart),
     supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'gatekeeper').in('club_id', clubIds).gte('created_at', lastMonthStart).lt('created_at', thisMonthStart),
-    supabase.from('events').select('id, title, starts_at, club_id, type').gt('starts_at', now.toISOString()).eq('is_cancelled', false).in('club_id', clubIds).order('starts_at', { ascending: true }).lte('starts_at', in30Days),
+    supabase.from('events').select(`id, title, starts_at, type, ${EVENT_CLUBS_EMBED}`).gt('starts_at', now.toISOString()).eq('is_cancelled', false).order('starts_at', { ascending: true }).lte('starts_at', in30Days),
     supabase.from('profiles').select('qpr_expiry_date').in('role', ['champion', 'gatekeeper']).eq('is_active', true).in('club_id', clubIds),
   ])
 
@@ -114,7 +115,8 @@ export async function getDashboardData(): Promise<DashboardData> {
   }
 
   const allCertUsers = certUsers ?? []
-  const eventList = events ?? []
+  // Events for an active club, or open to all clubs.
+  const eventList = (events ?? []).filter(e => isEventForClub(e, clubIds))
 
   return {
     activeGatekeepersPerClub: activeClubs
@@ -143,7 +145,7 @@ export async function getDashboardData(): Promise<DashboardData> {
       events: eventList.slice(0, 3).map(e => ({
         id: e.id,
         title: e.title,
-        club_name: nameById[e.club_id] ?? '',
+        club_name: eventClubsLabel(e, nameById),
         starts_at: e.starts_at,
         type: e.type,
       })),
@@ -213,10 +215,9 @@ export async function getUpcomingEvents(filter: EventsFilter): Promise<EventsDat
 
   let query = supabase
     .from('events')
-    .select('id, title, starts_at, club_id, type')
+    .select(`id, title, starts_at, type, ${EVENT_CLUBS_EMBED}`)
     .gt('starts_at', now.toISOString())
     .eq('is_cancelled', false)
-    .in('club_id', clubIds)
     .order('starts_at', { ascending: true })
 
   if (filter === 'next_7_days') {
@@ -228,14 +229,15 @@ export async function getUpcomingEvents(filter: EventsFilter): Promise<EventsDat
   }
 
   const { data: events } = await query
-  const eventList = events ?? []
+  // Events for an active club, or open to all clubs.
+  const eventList = (events ?? []).filter(e => isEventForClub(e, clubIds))
 
   return {
     total: eventList.length,
     events: eventList.slice(0, 3).map(e => ({
       id: e.id,
       title: e.title,
-      club_name: nameById[e.club_id] ?? '',
+      club_name: eventClubsLabel(e, nameById),
       starts_at: e.starts_at,
       type: e.type,
     })),

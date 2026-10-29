@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { EVENT_CLUBS_EMBED, isEventForClub, type WithEventClubs } from '@/lib/event-clubs'
 
 export type EventSummary = {
   id: string
@@ -104,15 +105,19 @@ export async function getChampionDashboardData(): Promise<ChampionDashboardData>
     supabase.from('profiles').select('id, full_name, email, created_at')
       .eq('club_id', club.id).eq('role', 'gatekeeper').eq('is_active', true)
       .order('created_at', { ascending: false }),
-    supabase.from('events').select('id, title, type, starts_at, ends_at, venue, description, max_participants')
-      .eq('club_id', club.id).eq('is_cancelled', false)
+    supabase.from('events').select(`id, title, type, starts_at, ends_at, venue, description, max_participants, ${EVENT_CLUBS_EMBED}`)
+      .eq('is_cancelled', false)
       .gte('starts_at', now.toISOString()).lte('starts_at', twoWeeksOut)
       .order('starts_at', { ascending: true }),
-    supabase.from('events').select('id, title, type, starts_at, ends_at, venue, description, max_participants')
-      .eq('club_id', club.id).eq('is_cancelled', false)
+    supabase.from('events').select(`id, title, type, starts_at, ends_at, venue, description, max_participants, ${EVENT_CLUBS_EMBED}`)
+      .eq('is_cancelled', false)
       .lt('starts_at', now.toISOString()).gte('starts_at', thirtyDaysAgo)
       .order('starts_at', { ascending: false }),
   ])
+
+  // This club's events plus events open to all clubs, without the clubs list.
+  const forClub = (rows: (EventSummary & WithEventClubs)[] | null): EventSummary[] =>
+    (rows ?? []).filter(e => isEventForClub(e, club.id)).map(({ event_clubs: _clubs, ...e }) => e)
 
   const total = qprProfiles?.length ?? 0
   const certified = (qprProfiles ?? []).filter(p => p.qpr_expiry_date && p.qpr_expiry_date > now.toISOString()).length
@@ -156,7 +161,7 @@ export async function getChampionDashboardData(): Promise<ChampionDashboardData>
     qpr: { certified, total, expiringSoon },
     monthlyTrend: monthBuckets,
     notYetLoggedIn,
-    upcomingEvents: upcomingRows ?? [],
-    recentlyCompleted: completedRows ?? [],
+    upcomingEvents: forClub(upcomingRows),
+    recentlyCompleted: forClub(completedRows),
   }
 }

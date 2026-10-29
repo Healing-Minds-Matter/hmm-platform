@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { EventsCalendar } from '@/app/(dashboard)/super-admin/events/events-calendar'
 import { monthGridRange, weekRange } from '@/app/(dashboard)/super-admin/events/date-grid'
 import { fromOrgWallClock, toOrgWallClock } from '@/lib/org-date'
+import { EVENT_CLUBS_EMBED, eventClubsLabel, isEventForClub } from '@/lib/event-clubs'
 
 export const metadata = { title: 'Events & Calendar — HMM Champion' }
 
@@ -34,11 +35,11 @@ export default async function ChampionEventsPage({
   const { data: clubs } = await supabase.from('clubs').select('id, name').order('name')
   const clubNameById = Object.fromEntries((clubs ?? []).map(c => [c.id, c.name]))
 
-  const EVENT_COLUMNS = 'id, title, type, starts_at, ends_at, venue, description, max_participants, club_id, facilitator, virtual_link'
+  const EVENT_COLUMNS = `id, title, type, starts_at, ends_at, venue, description, max_participants, created_by, facilitator, virtual_link, ${EVENT_CLUBS_EMBED}`
 
   // Shared platform-wide calendar (Story 6.1: "not limited to their own
   // club") — same read-all scope as Super Admin, just a different basePath
-  // and edit/cancel capability scoped to the Champion's own club.
+  // and edit/cancel only on events this Champion created.
   let eventsQuery = supabase
     .from('events')
     .select(EVENT_COLUMNS)
@@ -57,7 +58,6 @@ export default async function ChampionEventsPage({
     endExclusive.setUTCDate(endExclusive.getUTCDate() + 1)
     eventsQuery = eventsQuery.gte('starts_at', fromOrgWallClock(start).toISOString()).lt('starts_at', fromOrgWallClock(endExclusive).toISOString())
   }
-  if (clubFilter) eventsQuery = eventsQuery.eq('club_id', clubFilter)
   if (typeFilter) eventsQuery = eventsQuery.eq('type', typeFilter)
   if (q) eventsQuery = eventsQuery.or(`title.ilike.%${q}%,venue.ilike.%${q}%`)
 
@@ -66,7 +66,10 @@ export default async function ChampionEventsPage({
     supabase.from('events').select('type').eq('is_cancelled', false),
   ])
 
-  const eventsWithClub = (events ?? []).map(e => ({ ...e, club_name: clubNameById[e.club_id] ?? '—' }))
+  // Club filter: events linked to that club, plus events open to all clubs.
+  const eventsWithClub = (events ?? [])
+    .filter(e => !clubFilter || isEventForClub(e, clubFilter))
+    .map(e => ({ ...e, club_name: eventClubsLabel(e, clubNameById) }))
 
   const typeCounts: Record<string, number> = {}
   for (const e of allForCounts ?? []) typeCounts[e.type] = (typeCounts[e.type] ?? 0) + 1
@@ -78,7 +81,7 @@ export default async function ChampionEventsPage({
       .select(EVENT_COLUMNS)
       .eq('id', selectedEventId)
       .maybeSingle()
-    if (data) selectedEvent = { ...data, club_name: clubNameById[data.club_id] ?? '—' }
+    if (data) selectedEvent = { ...data, club_name: eventClubsLabel(data, clubNameById) }
   }
 
   return (
@@ -99,7 +102,7 @@ export default async function ChampionEventsPage({
       upcomingQpr={[]}
       upcomingQprTotal={0}
       basePath="/champion/events"
-      manageClubId={profile.club_id}
+      manageUserId={user.id}
     />
   )
 }
