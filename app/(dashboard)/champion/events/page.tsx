@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { EventsCalendar } from '@/app/(dashboard)/super-admin/events/events-calendar'
 import { monthGridRange, weekRange } from '@/app/(dashboard)/super-admin/events/date-grid'
 import { fromOrgWallClock, toOrgWallClock } from '@/lib/org-date'
@@ -32,7 +33,11 @@ export default async function ChampionEventsPage({
   const { data: profile } = await supabase.from('profiles').select('club_id').eq('id', user.id).single()
   if (!profile?.club_id) redirect('/champion')
 
-  const { data: clubs } = await supabase.from('clubs').select('id, name').order('name')
+  // Champions may only read their own club (RLS), but an event can be
+  // linked to other clubs too — their names are needed to show it and to
+  // filter by club. Only id + name, read with the admin client (the same
+  // names event_details_extra already shares with Gatekeepers).
+  const { data: clubs } = await createAdminClient().from('clubs').select('id, name').order('name')
   const clubNameById = Object.fromEntries((clubs ?? []).map(c => [c.id, c.name]))
 
   const EVENT_COLUMNS = `id, title, type, starts_at, ends_at, venue, description, max_participants, created_by, facilitator, virtual_link, ${EVENT_CLUBS_EMBED}`
