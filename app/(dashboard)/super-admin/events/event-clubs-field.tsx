@@ -4,7 +4,7 @@ import { useState } from 'react'
 
 export type ClubOption = { id: string; name: string; inactive?: boolean }
 
-// Which clubs the event is for. Posts club_scope ('all' | 'selected') and
+// Which clubs the event (or announcement) is for. Posts club_scope ('all' | 'selected') and
 // one club_ids value per selected club — read by readClubChoice in
 // lib/event-clubs.ts, and checked again on the server and in the database.
 //
@@ -17,11 +17,13 @@ export function EventClubsField({
   ownClub,
   defaultAllClubs = false,
   defaultClubIds = [],
+  label: heading = 'Assigned Club',
 }: {
   clubs?: ClubOption[]
   ownClub?: { id: string; name: string }
   defaultAllClubs?: boolean
   defaultClubIds?: string[]
+  label?: string
 }) {
   const label = 'mb-1.5 block text-[13px] font-medium tracking-[0.24px] text-[#0F172A]'
   const [allClubs, setAllClubs] = useState(defaultAllClubs)
@@ -31,7 +33,7 @@ export function EventClubsField({
   if (ownClub) {
     return (
       <div>
-        <span className={label}>Assigned Club</span>
+        <span className={label}>{heading}</span>
         <input type="hidden" name="club_scope" value="selected" />
         <input type="hidden" name="club_ids" value={ownClub.id} />
         <div className="flex h-10 items-center gap-2 rounded-lg border border-[#E2E8F0] bg-[#EFF4FF] px-3.5">
@@ -55,7 +57,7 @@ export function EventClubsField({
   return (
     <fieldset>
       <legend className={label}>
-        Assigned Club <span className="text-[#DC2626]">*</span>
+        {heading} <span className="text-[#DC2626]">*</span>
       </legend>
       <input type="hidden" name="club_scope" value={allClubs ? 'all' : 'selected'} />
       {!allClubs && selected.map(id => <input key={id} type="hidden" name="club_ids" value={id} />)}

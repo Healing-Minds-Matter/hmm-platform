@@ -2,27 +2,15 @@
 
 import { useRouter } from 'next/navigation'
 import { ModalOverlay } from '@/components/modal-overlay'
-import { AnnouncementForm } from '../../../announcement-form'
-
-interface AnnouncementValues {
-  id: string
-  title: string
-  body: string
-  publish_date: string
-  expiry_date: string | null
-  priority: 'standard' | 'mandatory' | 'urgent'
-  audience: 'all' | 'champions' | 'gatekeepers' | 'specific_clubs'
-  status: 'draft' | 'published'
-  club_id: string | null
-  is_pinned: boolean
-}
+import { AnnouncementForm, type AnnouncementValues } from '../../../announcement-form'
+import type { ClubOption } from '@/app/(dashboard)/super-admin/events/event-clubs-field'
 
 export function EditAnnouncementModal({
   announcement,
   clubs,
 }: {
   announcement: AnnouncementValues
-  clubs: { id: string; name: string }[]
+  clubs: ClubOption[]
 }) {
   const router = useRouter()
   const close = () => router.back()
