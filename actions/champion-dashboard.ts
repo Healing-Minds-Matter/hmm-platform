@@ -117,7 +117,7 @@ export async function getChampionDashboardData(): Promise<ChampionDashboardData>
 
   // This club's events plus events open to all clubs, without the clubs list.
   const forClub = (rows: (EventSummary & WithEventClubs)[] | null): EventSummary[] =>
-    (rows ?? []).filter(e => isEventForClub(e, club.id)).map(({ event_clubs: _clubs, ...e }) => e)
+    (rows ?? []).filter(e => isEventForClub(e, club.id)).map(({ event_clubs: _clubs, is_all_clubs: _all, ...e }) => e)
 
   const total = qprProfiles?.length ?? 0
   const certified = (qprProfiles ?? []).filter(p => p.qpr_expiry_date && p.qpr_expiry_date > now.toISOString()).length

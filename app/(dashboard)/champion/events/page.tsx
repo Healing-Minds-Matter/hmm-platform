@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { EventsCalendar } from '@/app/(dashboard)/super-admin/events/events-calendar'
 import { monthGridRange, weekRange } from '@/app/(dashboard)/super-admin/events/date-grid'
 import { fromOrgWallClock, toOrgWallClock } from '@/lib/org-date'
-import { EVENT_CLUBS_EMBED, eventClubsLabel, isEventForClub } from '@/lib/event-clubs'
+import { EVENT_CLUBS_EMBED, canManageEvent, eventClubsLabel, isEventForClub } from '@/lib/event-clubs'
 
 export const metadata = { title: 'Events & Calendar — HMM Champion' }
 
@@ -42,9 +42,9 @@ export default async function ChampionEventsPage({
 
   const EVENT_COLUMNS = `id, title, type, starts_at, ends_at, venue, description, max_participants, created_by, facilitator, virtual_link, ${EVENT_CLUBS_EMBED}`
 
-  // Shared platform-wide calendar (Story 6.1: "not limited to their own
-  // club") — same read-all scope as Super Admin, just a different basePath
-  // and edit/cancel only on events this Champion created.
+  // RLS limits a Champion to all-club events and events for their own club
+  // (migration 20261030000000); edit/cancel only on events they created for
+  // their own club alone.
   let eventsQuery = supabase
     .from('events')
     .select(EVENT_COLUMNS)
@@ -86,7 +86,11 @@ export default async function ChampionEventsPage({
       .select(EVENT_COLUMNS)
       .eq('id', selectedEventId)
       .maybeSingle()
-    if (data) selectedEvent = { ...data, club_name: eventClubsLabel(data, clubNameById) }
+    // Only events they created for their own club alone (RLS enforces the same).
+    if (data) {
+      const can_manage = canManageEvent({ id: user.id, role: 'champion', club_id: profile.club_id }, data)
+      selectedEvent = { ...data, club_name: eventClubsLabel(data, clubNameById), can_manage }
+    }
   }
 
   return (
@@ -107,7 +111,6 @@ export default async function ChampionEventsPage({
       upcomingQpr={[]}
       upcomingQprTotal={0}
       basePath="/champion/events"
-      manageUserId={user.id}
     />
   )
 }

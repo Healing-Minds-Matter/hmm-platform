@@ -80,7 +80,8 @@ export default async function EventsPage({
       .select(EVENT_COLUMNS)
       .eq('id', selectedEventId)
       .maybeSingle()
-    if (data) selectedEvent = { ...data, club_name: eventClubsLabel(data, clubNameById) }
+    // Super Admins may edit and cancel any event.
+    if (data) selectedEvent = { ...data, club_name: eventClubsLabel(data, clubNameById), can_manage: true }
   }
 
   return (

@@ -2,15 +2,16 @@
 
 import { useRouter } from 'next/navigation'
 import { ModalOverlay } from '@/components/modal-overlay'
-import { EditEventForm, type EventValues } from '../../../[id]/edit/edit-event-form'
+import { EditEventForm } from './edit-event-form'
+import type { EditEventProps } from './load-event-for-edit'
 
-export function EditEventModal({ event }: { event: EventValues }) {
+export function EditEventModal(props: EditEventProps) {
   const router = useRouter()
   const close = () => router.back()
 
   return (
     <ModalOverlay onClose={close}>
-      <EditEventForm event={event} onClose={close} />
+      <EditEventForm {...props} onClose={close} />
     </ModalOverlay>
   )
 }

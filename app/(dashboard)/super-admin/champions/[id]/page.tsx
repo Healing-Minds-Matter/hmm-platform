@@ -129,7 +129,7 @@ export default async function ChampionDetailPage({
           .select(`id, title, type, starts_at, ends_at, venue, max_participants, is_cancelled, ${EVENT_CLUBS_EMBED}`)
           .eq('is_cancelled', false)
           .order('starts_at', { ascending: true })
-      : Promise.resolve({ data: [] as { id: string; title: string; type: string; starts_at: string; ends_at: string | null; venue: string; max_participants: number | null; is_cancelled: boolean; event_clubs?: { club_id: string }[] }[] }),
+      : Promise.resolve({ data: [] as { id: string; title: string; type: string; starts_at: string; ends_at: string | null; venue: string; max_participants: number | null; is_cancelled: boolean; is_all_clubs?: boolean; event_clubs?: { club_id: string }[] }[] }),
   ])
 
   const clubChampionList = clubChampions ?? []

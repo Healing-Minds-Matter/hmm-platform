@@ -18,8 +18,8 @@ function todayInputValue() {
   return new Date().toISOString().slice(0, 10)
 }
 
-// Super Admin passes every active club (pick any, or none); a Champion
-// passes ownClub (link it or not — pre-ticked).
+// Super Admin passes every active club (all clubs, or pick any); a
+// Champion passes ownClub (fixed, read-only).
 export function CreateEventForm({
   clubs,
   ownClub,
@@ -165,7 +165,7 @@ export function CreateEventForm({
               />
             </div>
 
-            <EventClubsField clubs={clubs} ownClub={ownClub} defaultClubIds={ownClub ? [ownClub.id] : []} />
+            <EventClubsField clubs={clubs} ownClub={ownClub} />
 
             <div>
               <label htmlFor="venue" className="mb-1.5 block text-[13px] font-medium tracking-[0.24px] text-[#0F172A]">

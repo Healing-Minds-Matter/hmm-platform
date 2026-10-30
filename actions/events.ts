@@ -3,10 +3,17 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
 import { writeAuditLog } from '@/lib/audit'
 import { orgDateTimeToIso } from '@/lib/org-date'
-import { readClubIds } from '@/lib/event-clubs'
+import {
+  EVENT_CLUBS_EMBED,
+  MSG_CANT_MANAGE,
+  canManageEvent,
+  checkClubChoice,
+  eventClubIds,
+  readClubChoice,
+  type EventCaller,
+} from '@/lib/event-clubs'
 
 export type EventActionState = { error?: string; success?: boolean } | null
 
@@ -16,14 +23,13 @@ function readFields(formData: FormData) {
   const eventDate    = formData.get('event_date') as string | null
   const startTime    = formData.get('start_time') as string | null
   const endTime      = (formData.get('end_time') as string | null) || null
-  const clubIds      = readClubIds(formData) // none = open to all clubs
   const facilitator  = (formData.get('facilitator') as string | null)?.trim() || null
   const venue        = (formData.get('venue') as string | null)?.trim()
   const virtualLink  = (formData.get('virtual_link') as string | null)?.trim() || null
   const description  = (formData.get('description') as string | null)?.trim() || null
   const maxParticipants = (formData.get('max_participants') as string | null) || null
 
-  return { title, type, eventDate, startTime, endTime, clubIds, facilitator, venue, virtualLink, description, maxParticipants }
+  return { title, type, eventDate, startTime, endTime, facilitator, venue, virtualLink, description, maxParticipants }
 }
 
 function validate(fields: ReturnType<typeof readFields>): string | null {
@@ -40,24 +46,68 @@ function validate(fields: ReturnType<typeof readFields>): string | null {
 
 type ServerClient = Awaited<ReturnType<typeof createClient>>
 
-// A Champion may link an event to their own club only (or to none); a
-// Super Admin to any clubs. The database enforces the same rule (RLS on
-// event_clubs) — this just gives a readable message first.
-async function checkClubChoice(supabase: ServerClient, userId: string, clubIds: string[]): Promise<string | null> {
-  const { data: caller } = await supabase.from('profiles').select('role, club_id').eq('id', userId).single()
-  if (caller?.role === 'super_admin') return null
-  if (caller?.role === 'champion') {
-    return clubIds.every(id => id === caller.club_id) ? null : 'You can only link an event to your own club.'
+async function getCaller(supabase: ServerClient): Promise<EventCaller> {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+  const { data: profile } = await supabase.from('profiles').select('role, club_id').eq('id', user.id).single()
+  return { id: user.id, role: profile?.role ?? null, club_id: profile?.club_id ?? null }
+}
+
+async function activeClubIds(supabase: ServerClient): Promise<Set<string>> {
+  const { data } = await supabase.from('clubs').select('id').eq('is_active', true)
+  return new Set((data ?? []).map(c => c.id as string))
+}
+
+// The event as the caller can see it (RLS), with its clubs.
+async function loadEvent(supabase: ServerClient, eventId: string) {
+  const { data } = await supabase
+    .from('events')
+    .select(`id, title, created_by, is_cancelled, ${EVENT_CLUBS_EMBED}`)
+    .eq('id', eventId)
+    .maybeSingle()
+  return data
+}
+
+// The database refuses anything the checks above miss (RLS, save_event,
+// the "all clubs or at least one club" trigger); turn those into plain words.
+function describeSaveError(error: { code?: string; message?: string }): string {
+  const message = error.message ?? ''
+  if (error.code === '42501' || message.includes('row-level security')) {
+    return message.includes('row-level security') ? "You don't have permission to do that for this event or club." : message
   }
-  return 'Not authorized.'
+  if (error.code === '23514') return message
+  return 'The event could not be saved. Please try again.'
 }
 
-// Replaces the event's clubs in one step (see set_event_clubs in the migration).
-async function saveEventClubs(supabase: ServerClient, eventId: string, clubIds: string[]) {
-  const { error } = await supabase.rpc('set_event_clubs', { p_event_id: eventId, p_club_ids: clubIds })
-  return error
+function saveArgs(fields: ReturnType<typeof readFields>, allClubs: boolean, clubIds: string[]) {
+  // The form's date and times are Sri Lanka time (see lib/org-date.ts).
+  const startsAt = orgDateTimeToIso(fields.eventDate!, fields.startTime!)
+  const endsAt = fields.endTime ? orgDateTimeToIso(fields.eventDate!, fields.endTime) : null
+  return {
+    p_title: fields.title,
+    p_type: fields.type,
+    p_starts_at: startsAt,
+    p_ends_at: endsAt,
+    p_venue: fields.venue,
+    p_description: fields.description,
+    p_max_participants: fields.maxParticipants ? parseInt(fields.maxParticipants, 10) : null,
+    p_facilitator: fields.facilitator,
+    p_virtual_link: fields.virtualLink,
+    p_is_all_clubs: allClubs,
+    p_club_ids: clubIds,
+  }
 }
 
+function revalidateEvents() {
+  revalidatePath('/super-admin/events')
+  revalidatePath('/champion/events')
+  revalidatePath('/super-admin')
+  revalidatePath('/champion')
+}
+
+// Super Admin: all clubs or any active clubs. Champion: their own club only.
+// save_event creates the event and its clubs in one transaction, under the
+// caller's own RLS.
 export async function createEventAction(
   _prev: EventActionState,
   formData: FormData
@@ -66,62 +116,30 @@ export async function createEventAction(
   const validationError = validate(fields)
   if (validationError) return { error: validationError }
 
-  // The form's date and times are Sri Lanka time (see lib/org-date.ts).
-  const startsAt = orgDateTimeToIso(fields.eventDate!, fields.startTime!)
-  const endsAt = fields.endTime ? orgDateTimeToIso(fields.eventDate!, fields.endTime) : null
-
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
-  const clubError = await checkClubChoice(supabase, user.id, fields.clubIds)
+  const caller = await getCaller(supabase)
+  const choice = readClubChoice(formData)
+  const clubError = checkClubChoice(caller, choice, await activeClubIds(supabase))
   if (clubError) return { error: clubError }
 
-  const { data: event, error } = await supabase
-    .from('events')
-    .insert({
-      title: fields.title,
-      type: fields.type,
-      starts_at: startsAt,
-      ends_at: endsAt,
-      venue: fields.venue,
-      description: fields.description,
-      max_participants: fields.maxParticipants ? parseInt(fields.maxParticipants, 10) : null,
-      club_id: null, // clubs live in event_clubs now
-      facilitator: fields.facilitator,
-      virtual_link: fields.virtualLink,
-      created_by: user.id,
-    })
-    .select('id')
-    .single()
-
-  if (error) return { error: error.message }
-
-  const linkError = await saveEventClubs(supabase, event.id, fields.clubIds)
-  if (linkError) {
-    // Don't leave a half-saved event behind (neither role may delete
-    // events through RLS, so this uses the admin client).
-    await createAdminClient().from('events').delete().eq('id', event.id)
-    return { error: 'The event could not be linked to the selected clubs. Please try again.' }
-  }
+  const args = saveArgs(fields, choice.allClubs, choice.clubIds)
+  const { data: eventId, error } = await supabase.rpc('save_event', { p_event_id: null, ...args })
+  if (error || !eventId) return { error: describeSaveError(error ?? {}) }
 
   await writeAuditLog({
-    actorId: user.id,
+    actorId: caller.id,
     action: 'event.created',
     entityType: 'event',
-    entityId: event.id,
-    details: { title: fields.title, type: fields.type, starts_at: startsAt, club_ids: fields.clubIds },
+    entityId: eventId as string,
+    details: { title: fields.title, type: fields.type, starts_at: args.p_starts_at, all_clubs: choice.allClubs, club_ids: choice.clubIds },
   })
 
-  revalidatePath('/super-admin/events')
-  revalidatePath('/champion/events')
+  revalidateEvents()
   return { success: true }
 }
 
-// Uses the regular authenticated client — RLS ("events: champion update own
-// events") is what actually enforces that a Champion can only edit events
-// they created, and event_clubs' policies that they can only link their
-// own club.
+// Super Admin: any event, including its clubs. Champion: only an event they
+// created for their own club alone, and its club stays their club.
 export async function updateEventAction(
   _prev: EventActionState,
   formData: FormData
@@ -131,55 +149,33 @@ export async function updateEventAction(
   const validationError = validate(fields)
   if (validationError) return { error: validationError }
 
-  // The form's date and times are Sri Lanka time (see lib/org-date.ts).
-  const startsAt = orgDateTimeToIso(fields.eventDate!, fields.startTime!)
-  const endsAt = fields.endTime ? orgDateTimeToIso(fields.eventDate!, fields.endTime) : null
-
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const caller = await getCaller(supabase)
+  const event = await loadEvent(supabase, eventId)
+  if (!event) return { error: 'Event not found.' }
+  if (!canManageEvent(caller, event)) return { error: MSG_CANT_MANAGE }
 
-  const clubError = await checkClubChoice(supabase, user.id, fields.clubIds)
+  const choice = readClubChoice(formData)
+  const clubError = checkClubChoice(caller, choice, await activeClubIds(supabase), eventClubIds(event))
   if (clubError) return { error: clubError }
 
-  const { data: updated, error } = await supabase
-    .from('events')
-    .update({
-      title: fields.title,
-      type: fields.type,
-      starts_at: startsAt,
-      ends_at: endsAt,
-      venue: fields.venue,
-      description: fields.description,
-      max_participants: fields.maxParticipants ? parseInt(fields.maxParticipants, 10) : null,
-      facilitator: fields.facilitator,
-      virtual_link: fields.virtualLink,
-      club_id: null, // clubs live in event_clubs now
-    })
-    .eq('id', eventId)
-    .select('id')
-
-  if (error) return { error: error.message }
-  if (!updated || updated.length === 0) return { error: 'Event not found, or you do not have permission to edit it.' }
-
-  const linkError = await saveEventClubs(supabase, eventId, fields.clubIds)
-  if (linkError) return { error: 'The event was saved, but its clubs could not be updated. Please try again.' }
+  const args = saveArgs(fields, choice.allClubs, choice.clubIds)
+  const { error } = await supabase.rpc('save_event', { p_event_id: eventId, ...args })
+  if (error) return { error: describeSaveError(error) }
 
   await writeAuditLog({
-    actorId: user.id,
+    actorId: caller.id,
     action: 'event.updated',
     entityType: 'event',
     entityId: eventId,
-    details: { title: fields.title, type: fields.type, starts_at: startsAt, club_ids: fields.clubIds },
+    details: { title: fields.title, type: fields.type, starts_at: args.p_starts_at, all_clubs: choice.allClubs, club_ids: choice.clubIds },
   })
 
-  revalidatePath('/champion/events')
-  revalidatePath('/super-admin/events')
+  revalidateEvents()
   return { success: true }
 }
 
-// Events are cancelled, never deleted (Story 6.1 / checklist 2.4 convention
-// — no DELETE RLS policy exists for champions either).
+// Events are cancelled, never deleted (Story 6.1 / checklist 2.4).
 export async function cancelEventAction(
   _prev: EventActionState,
   formData: FormData
@@ -187,8 +183,10 @@ export async function cancelEventAction(
   const eventId = formData.get('event_id') as string
 
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const caller = await getCaller(supabase)
+  const event = await loadEvent(supabase, eventId)
+  if (!event) return { error: 'Event not found.' }
+  if (!canManageEvent(caller, event)) return { error: MSG_CANT_MANAGE }
 
   const { data: updated, error } = await supabase
     .from('events')
@@ -196,18 +194,17 @@ export async function cancelEventAction(
     .eq('id', eventId)
     .select('id')
 
-  if (error) return { error: error.message }
-  if (!updated || updated.length === 0) return { error: 'Event not found, or you do not have permission to cancel it.' }
+  if (error) return { error: describeSaveError(error) }
+  if (!updated || updated.length === 0) return { error: MSG_CANT_MANAGE }
 
   await writeAuditLog({
-    actorId: user.id,
+    actorId: caller.id,
     action: 'event.cancelled',
     entityType: 'event',
     entityId: eventId,
-    details: {},
+    details: { title: event.title },
   })
 
-  revalidatePath('/champion/events')
-  revalidatePath('/super-admin/events')
+  revalidateEvents()
   return { success: true }
 }

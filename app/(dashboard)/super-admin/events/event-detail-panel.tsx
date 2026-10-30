@@ -30,9 +30,9 @@ function Field({ label, value }: { label: string; value: string }) {
   )
 }
 
-// editHref is only passed when the viewer may edit this event (a Champion,
-// for events they created) — Super Admin's calendar remains view-only,
-// matching Story 6.1's original scope.
+// editHref is only passed when the viewer may edit and cancel this event:
+// a Super Admin (any event) or a Champion (events they created for their
+// own club alone) — see canManageEvent in lib/event-clubs.ts.
 export function EventDetailPanel({ event, closeHref, editHref }: { event: EventDetail; closeHref: string; editHref?: string }) {
   const style = eventTypeStyle(event.type)
   // Shown in Sri Lanka time (see lib/org-date.ts).
@@ -43,6 +43,7 @@ export function EventDetailPanel({ event, closeHref, editHref }: { event: EventD
     : formatOrgTime(event.starts_at, timeOpts)
 
   const [confirmCancel, setConfirmCancel] = useState(false)
+  const [cancelError, setCancelError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
 
@@ -86,6 +87,10 @@ export function EventDetailPanel({ event, closeHref, editHref }: { event: EventD
           </div>
         )}
 
+        {cancelError && (
+          <div className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">{cancelError}</div>
+        )}
+
         {editHref && (
           <div className="mt-5 flex items-center justify-end gap-2.5 border-t border-[#E2E8F0] pt-4">
             {confirmCancel ? (
@@ -102,6 +107,7 @@ export function EventDetailPanel({ event, closeHref, editHref }: { event: EventD
                   action={(fd) => startTransition(async () => {
                     const result = await cancelEventAction(null, fd)
                     if (result?.success) router.push(closeHref)
+                    else setCancelError(result?.error ?? 'The event could not be cancelled. Please try again.')
                   })}
                 >
                   <input type="hidden" name="event_id" value={event.id} />
