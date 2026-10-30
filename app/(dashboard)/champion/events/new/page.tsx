@@ -21,7 +21,7 @@ export default async function NewChampionEventPage() {
 
   return (
     <div className="flex justify-center p-8">
-      <CreateEventForm clubs={[]} lockedClub={{ id: club.id, name: club.name }} fallbackPath="/champion/events" />
+      <CreateEventForm clubs={[]} ownClub={{ id: club.id, name: club.name }} fallbackPath="/champion/events" />
     </div>
   )
 }

@@ -5,6 +5,7 @@ import { ChampionStatusControls } from './champion-status-controls'
 import { eventTypeStyle } from '@/app/(dashboard)/super-admin/events/event-type'
 // Event dates/times are shown in Sri Lanka time (see lib/org-date.ts).
 import { ORG_TIME_ZONE } from '@/lib/org-date'
+import { EVENT_CLUBS_EMBED, isEventForClub } from '@/lib/event-clubs'
 
 export const metadata = { title: 'Champion Details — HMM Super Admin' }
 
@@ -125,16 +126,16 @@ export default async function ChampionDetailPage({
     clubId
       ? supabase
           .from('events')
-          .select('id, title, type, starts_at, ends_at, venue, max_participants, is_cancelled')
-          .eq('club_id', clubId)
+          .select(`id, title, type, starts_at, ends_at, venue, max_participants, is_cancelled, ${EVENT_CLUBS_EMBED}`)
           .eq('is_cancelled', false)
           .order('starts_at', { ascending: true })
-      : Promise.resolve({ data: [] as { id: string; title: string; type: string; starts_at: string; ends_at: string | null; venue: string; max_participants: number | null; is_cancelled: boolean }[] }),
+      : Promise.resolve({ data: [] as { id: string; title: string; type: string; starts_at: string; ends_at: string | null; venue: string; max_participants: number | null; is_cancelled: boolean; is_all_clubs?: boolean; event_clubs?: { club_id: string }[] }[] }),
   ])
 
   const clubChampionList = clubChampions ?? []
   const gatekeeperList   = gatekeepers ?? []
-  const eventList        = events ?? []
+  // Events linked to this club, plus events open to all clubs.
+  const eventList        = (events ?? []).filter(e => clubId !== null && isEventForClub(e, clubId))
 
   // ── KPI computations ──────────────────────────────────────────────────────
   const activeGatekeepers   = gatekeeperList.filter(g => g.is_active)

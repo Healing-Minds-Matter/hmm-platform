@@ -5,6 +5,7 @@ import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { useRouter } from 'next/navigation'
 import { createEventAction } from '@/actions/events'
 import { EVENT_TYPE_STYLES } from './event-type'
+import { EventClubsField } from './event-clubs-field'
 
 const TYPE_OPTIONS = [
   { value: 'qpr_session', label: 'QPR Session', caption: 'Certification & credits', dot: EVENT_TYPE_STYLES.qpr_session.dot },
@@ -17,14 +18,16 @@ function todayInputValue() {
   return new Date().toISOString().slice(0, 10)
 }
 
+// Super Admin passes every active club (all clubs, or pick any); a
+// Champion passes ownClub (fixed, read-only).
 export function CreateEventForm({
   clubs,
-  lockedClub,
+  ownClub,
   fallbackPath = '/super-admin/events',
   onClose,
 }: {
   clubs: { id: string; name: string }[]
-  lockedClub?: { id: string; name: string }
+  ownClub?: { id: string; name: string }
   fallbackPath?: string
   onClose?: () => void
 }) {
@@ -147,51 +150,22 @@ export function CreateEventForm({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="club_id" className="mb-1.5 block text-[13px] font-medium tracking-[0.24px] text-[#0F172A]">
-                  Assigned Club <span className="text-[#DC2626]">*</span>
-                </label>
-                {lockedClub ? (
-                  <>
-                    <input type="hidden" name="club_id" value={lockedClub.id} />
-                    <div className="flex h-10 items-center gap-2 rounded-lg border border-[#E2E8F0] bg-[#EFF4FF] px-3.5">
-                      <span className="text-sm font-semibold text-[#0F172A]">{lockedClub.name}</span>
-                      <span className="ml-auto text-[11px] text-[#64748B]">Your club</span>
-                    </div>
-                  </>
-                ) : (
-                  <div className="relative">
-                    <select
-                      id="club_id"
-                      name="club_id"
-                      required
-                      defaultValue=""
-                      className="h-10 w-full appearance-none rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 pr-9 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
-                    >
-                      <option value="" disabled>Select an active club…</option>
-                      {clubs.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src="/icons/chevron-down.svg" alt="" className="pointer-events-none absolute right-3.5 top-1/2 h-[6px] w-[9px] -translate-y-1/2" />
-                  </div>
-                )}
-              </div>
-              <div>
-                <label htmlFor="facilitator" className="mb-1.5 block text-[13px] font-medium tracking-[0.24px] text-[#0F172A]">
-                  Primary Facilitator <span className="text-[#DC2626]">*</span>
-                </label>
-                <input
-                  id="facilitator"
-                  name="facilitator"
-                  type="text"
-                  required
-                  autoComplete="off"
-                  placeholder="e.g., Dr. Elena Vance"
-                  className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
-                />
-              </div>
+            <div>
+              <label htmlFor="facilitator" className="mb-1.5 block text-[13px] font-medium tracking-[0.24px] text-[#0F172A]">
+                Primary Facilitator <span className="text-[#DC2626]">*</span>
+              </label>
+              <input
+                id="facilitator"
+                name="facilitator"
+                type="text"
+                required
+                autoComplete="off"
+                placeholder="e.g., Dr. Elena Vance"
+                className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
+              />
             </div>
+
+            <EventClubsField clubs={clubs} ownClub={ownClub} />
 
             <div>
               <label htmlFor="venue" className="mb-1.5 block text-[13px] font-medium tracking-[0.24px] text-[#0F172A]">

@@ -30,9 +30,9 @@ function Field({ label, value }: { label: string; value: string }) {
   )
 }
 
-// editHref is only passed when the viewer manages this event's club (a
-// Champion, for their own club's events) — Super Admin's calendar remains
-// view-only, matching Story 6.1's original scope.
+// editHref is only passed when the viewer may edit and cancel this event:
+// a Super Admin (any event) or a Champion (events they created for their
+// own club alone) — see canManageEvent in lib/event-clubs.ts.
 export function EventDetailPanel({ event, closeHref, editHref }: { event: EventDetail; closeHref: string; editHref?: string }) {
   const style = eventTypeStyle(event.type)
   // Shown in Sri Lanka time (see lib/org-date.ts).
@@ -43,6 +43,7 @@ export function EventDetailPanel({ event, closeHref, editHref }: { event: EventD
     : formatOrgTime(event.starts_at, timeOpts)
 
   const [confirmCancel, setConfirmCancel] = useState(false)
+  const [cancelError, setCancelError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
 
@@ -73,7 +74,7 @@ export function EventDetailPanel({ event, closeHref, editHref }: { event: EventD
         <dl className="mt-5 grid grid-cols-2 gap-4">
           <Field label="Date & Time" value={`${dateLabel} · ${timeLabel}`} />
           <Field label="Venue" value={event.venue} />
-          <Field label="Club" value={event.club_name} />
+          <Field label="Clubs" value={event.club_name} />
           <Field label="Facilitator" value={event.facilitator ?? 'Not specified'} />
           <Field label="Maximum Participants" value={event.max_participants ? String(event.max_participants) : 'Not specified'} />
           {event.virtual_link && <Field label="Link" value={event.virtual_link} />}
@@ -84,6 +85,10 @@ export function EventDetailPanel({ event, closeHref, editHref }: { event: EventD
             <dt className="text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">Description</dt>
             <dd className="mt-1 whitespace-pre-wrap text-[14px] leading-5 text-[#0F172A]">{event.description}</dd>
           </div>
+        )}
+
+        {cancelError && (
+          <div className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">{cancelError}</div>
         )}
 
         {editHref && (
@@ -102,6 +107,7 @@ export function EventDetailPanel({ event, closeHref, editHref }: { event: EventD
                   action={(fd) => startTransition(async () => {
                     const result = await cancelEventAction(null, fd)
                     if (result?.success) router.push(closeHref)
+                    else setCancelError(result?.error ?? 'The event could not be cancelled. Please try again.')
                   })}
                 >
                   <input type="hidden" name="event_id" value={event.id} />

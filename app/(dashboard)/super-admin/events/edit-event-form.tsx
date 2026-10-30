@@ -4,7 +4,8 @@ import { useActionState, useEffect, useState } from 'react'
 import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { useRouter } from 'next/navigation'
 import { updateEventAction } from '@/actions/events'
-import { EVENT_TYPE_STYLES } from '@/app/(dashboard)/super-admin/events/event-type'
+import { EVENT_TYPE_STYLES } from './event-type'
+import { EventClubsField, type ClubOption } from './event-clubs-field'
 
 const TYPE_OPTIONS = [
   { value: 'qpr_session', label: 'QPR Session', caption: 'Certification & credits', dot: EVENT_TYPE_STYLES.qpr_session.dot },
@@ -13,7 +14,7 @@ const TYPE_OPTIONS = [
   { value: 'other', label: 'Other', caption: 'Anything else', dot: EVENT_TYPE_STYLES.other.dot },
 ]
 
-interface EventValues {
+export interface EventValues {
   id: string
   title: string
   type: string
@@ -25,16 +26,24 @@ interface EventValues {
   virtual_link: string
   max_participants: string
   description: string
-  club_name: string
+  is_all_clubs: boolean
+  club_ids: string[] // the event's current clubs
 }
 
+// Shared by both portals: a Super Admin passes clubs (active clubs plus any
+// inactive club already linked) and can change them; a Champion passes
+// ownClub, shown read-only.
 export function EditEventForm({
   event,
-  fallbackPath = '/champion/events',
+  clubs,
+  ownClub,
+  fallbackPath,
   onClose,
 }: {
   event: EventValues
-  fallbackPath?: string
+  clubs?: ClubOption[]
+  ownClub?: { id: string; name: string }
+  fallbackPath: string
   onClose?: () => void
 }) {
   const router = useRouter()
@@ -138,23 +147,17 @@ export function EditEventForm({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="mb-1.5 block text-[13px] font-medium tracking-[0.24px] text-[#0F172A]">Assigned Club</label>
-                <div className="flex h-10 items-center rounded-lg border border-[#E2E8F0] bg-[#EFF4FF] px-3.5 text-sm font-semibold text-[#0F172A]">
-                  {event.club_name}
-                </div>
-              </div>
-              <div>
-                <label htmlFor="facilitator" className="mb-1.5 block text-[13px] font-medium tracking-[0.24px] text-[#0F172A]">
-                  Primary Facilitator <span className="text-[#DC2626]">*</span>
-                </label>
-                <input
-                  id="facilitator" name="facilitator" type="text" required autoComplete="off" defaultValue={event.facilitator}
-                  className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
-                />
-              </div>
+            <div>
+              <label htmlFor="facilitator" className="mb-1.5 block text-[13px] font-medium tracking-[0.24px] text-[#0F172A]">
+                Primary Facilitator <span className="text-[#DC2626]">*</span>
+              </label>
+              <input
+                id="facilitator" name="facilitator" type="text" required autoComplete="off" defaultValue={event.facilitator}
+                className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
+              />
             </div>
+
+            <EventClubsField clubs={clubs} ownClub={ownClub} defaultAllClubs={event.is_all_clubs} defaultClubIds={event.club_ids} />
 
             <div>
               <label htmlFor="venue" className="mb-1.5 block text-[13px] font-medium tracking-[0.24px] text-[#0F172A]">

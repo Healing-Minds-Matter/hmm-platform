@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { EventsCalendar } from './events-calendar'
 import { monthGridRange, weekRange } from './date-grid'
 import { fromOrgWallClock, toOrgWallClock } from '@/lib/org-date'
+import { EVENT_CLUBS_EMBED, eventClubsLabel, isEventForClub } from '@/lib/event-clubs'
 
 export default async function EventsPage({
   searchParams,
@@ -26,7 +27,7 @@ export default async function EventsPage({
   const { data: clubs } = await supabase.from('clubs').select('id, name').order('name')
   const clubNameById = Object.fromEntries((clubs ?? []).map(c => [c.id, c.name]))
 
-  const EVENT_COLUMNS = 'id, title, type, starts_at, ends_at, venue, description, max_participants, club_id, facilitator, virtual_link'
+  const EVENT_COLUMNS = `id, title, type, starts_at, ends_at, venue, description, max_participants, created_by, facilitator, virtual_link, ${EVENT_CLUBS_EMBED}`
 
   let eventsQuery = supabase
     .from('events')
@@ -46,7 +47,6 @@ export default async function EventsPage({
     endExclusive.setUTCDate(endExclusive.getUTCDate() + 1)
     eventsQuery = eventsQuery.gte('starts_at', fromOrgWallClock(start).toISOString()).lt('starts_at', fromOrgWallClock(endExclusive).toISOString())
   }
-  if (clubFilter) eventsQuery = eventsQuery.eq('club_id', clubFilter)
   if (typeFilter) eventsQuery = eventsQuery.eq('type', typeFilter)
   if (q) eventsQuery = eventsQuery.or(`title.ilike.%${q}%,venue.ilike.%${q}%`)
 
@@ -63,9 +63,12 @@ export default async function EventsPage({
       .limit(4),
   ])
 
-  const upcomingQprWithClub = (upcomingQpr ?? []).map(e => ({ ...e, club_name: clubNameById[e.club_id] ?? '—' }))
+  const upcomingQprWithClub = (upcomingQpr ?? []).map(e => ({ ...e, club_name: eventClubsLabel(e, clubNameById) }))
 
-  const eventsWithClub = (events ?? []).map(e => ({ ...e, club_name: clubNameById[e.club_id] ?? '—' }))
+  // Club filter: events linked to that club, plus events open to all clubs.
+  const eventsWithClub = (events ?? [])
+    .filter(e => !clubFilter || isEventForClub(e, clubFilter))
+    .map(e => ({ ...e, club_name: eventClubsLabel(e, clubNameById) }))
 
   const typeCounts: Record<string, number> = {}
   for (const e of allForCounts ?? []) typeCounts[e.type] = (typeCounts[e.type] ?? 0) + 1
@@ -77,7 +80,8 @@ export default async function EventsPage({
       .select(EVENT_COLUMNS)
       .eq('id', selectedEventId)
       .maybeSingle()
-    if (data) selectedEvent = { ...data, club_name: clubNameById[data.club_id] ?? '—' }
+    // Super Admins may edit and cancel any event.
+    if (data) selectedEvent = { ...data, club_name: eventClubsLabel(data, clubNameById), can_manage: true }
   }
 
   return (

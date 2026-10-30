@@ -18,8 +18,8 @@ interface EventItem {
   venue: string
   description: string | null
   max_participants: number | null
-  club_id: string
-  club_name: string
+  created_by: string
+  club_name: string // the event's clubs, or "All clubs"
   facilitator: string | null
   virtual_link: string | null
 }
@@ -41,13 +41,14 @@ interface Props {
   clubs: ClubOption[]
   typeCounts: Record<string, number>
   totalCount: number
-  selectedEvent: EventItem | null
+  // can_manage: decided on the server (lib/event-clubs canManageEvent) —
+  // shows Edit / Cancel in the detail view.
+  selectedEvent: (EventItem & { can_manage?: boolean }) | null
   generatedAt: string
   upcomingQpr: EventItem[]
   upcomingQprTotal: number
   basePath?: string
   newEventHref?: string
-  manageClubId?: string | null
 }
 
 const EVENT_TYPES = [
@@ -66,7 +67,7 @@ function ymd(d: Date) {
   return { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() }
 }
 
-export function EventsCalendar({ view, year, month, day, club, type, q, events, clubs, typeCounts, totalCount, selectedEvent, generatedAt, upcomingQpr, upcomingQprTotal, basePath = '/super-admin/events', newEventHref, manageClubId = null }: Props) {
+export function EventsCalendar({ view, year, month, day, club, type, q, events, clubs, typeCounts, totalCount, selectedEvent, generatedAt, upcomingQpr, upcomingQprTotal, basePath = '/super-admin/events', newEventHref }: Props) {
   const router = useRouter()
 
   function hrefWith(overrides: Partial<{ view: string; year: string; month: string; day: string; club: string; type: string; q: string; event: string }>) {
@@ -264,7 +265,7 @@ export function EventsCalendar({ view, year, month, day, club, type, q, events, 
         <EventDetailPanel
           event={selectedEvent}
           closeHref={hrefWith({ event: '' })}
-          editHref={manageClubId && selectedEvent.club_id === manageClubId ? `${basePath}/${selectedEvent.id}/edit` : undefined}
+          editHref={selectedEvent.can_manage ? `${basePath}/${selectedEvent.id}/edit` : undefined}
         />
       )}
     </div>
