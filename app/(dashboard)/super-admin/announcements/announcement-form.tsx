@@ -3,13 +3,14 @@
 import { useActionState, useEffect, useState } from 'react'
 import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { useRouter } from 'next/navigation'
+import { EventClubsField, type ClubOption } from '@/app/(dashboard)/super-admin/events/event-clubs-field'
 import { updateAnnouncementAction, type AnnouncementActionState } from '@/actions/announcements'
 
 const AUDIENCE_OPTIONS = [
   { value: 'all', label: 'All Users', caption: 'Admins & Field', icon: '/icons/audience-all.svg', iconClass: 'h-[10px] w-5' },
   { value: 'champions', label: 'Champions', caption: 'Peer advocates', icon: '/icons/audience-champions.svg', iconClass: 'h-[17px] w-[17.5px]' },
   { value: 'gatekeepers', label: 'Gatekeepers', caption: 'Clinical leads', icon: '/icons/audience-gatekeepers.svg', iconClass: 'h-[17px] w-[13px]' },
-  { value: 'specific_clubs', label: 'Specific Cohort', caption: 'Selected club', icon: '/icons/audience-cohort.svg', iconClass: 'h-[13px] w-[18px]' },
+  { value: 'specific_clubs', label: 'Specific Cohort', caption: 'Selected clubs', icon: '/icons/audience-cohort.svg', iconClass: 'h-[13px] w-[18px]' },
 ]
 
 const PRIORITY_OPTIONS = [
@@ -18,7 +19,7 @@ const PRIORITY_OPTIONS = [
   { value: 'urgent', label: 'Urgent Broadcast', icon: '/icons/priority-urgent.svg' },
 ]
 
-interface AnnouncementValues {
+export interface AnnouncementValues {
   id: string
   title: string
   body: string
@@ -27,7 +28,8 @@ interface AnnouncementValues {
   priority: 'standard' | 'mandatory' | 'urgent'
   audience: 'all' | 'champions' | 'gatekeepers' | 'specific_clubs'
   status: 'draft' | 'published'
-  club_id: string | null
+  is_all_clubs: boolean
+  club_ids: string[] // "Specific Cohort" clubs
   is_pinned: boolean
 }
 
@@ -41,7 +43,7 @@ export function AnnouncementForm({
   onClose,
 }: {
   announcement: AnnouncementValues
-  clubs: { id: string; name: string }[]
+  clubs: ClubOption[]
   onClose?: () => void
 }) {
   const router = useRouter()
@@ -122,18 +124,8 @@ export function AnnouncementForm({
                 ))}
               </div>
               {audience === 'specific_clubs' && (
-                <div className="relative mt-1">
-                  <select
-                    name="club_id"
-                    required
-                    defaultValue={announcement.club_id ?? ''}
-                    className="h-10 w-full appearance-none rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 pr-9 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
-                  >
-                    <option value="" disabled>Select an active club…</option>
-                    {clubs.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="/icons/chevron-down.svg" alt="" className="pointer-events-none absolute right-3.5 top-1/2 h-[6px] w-[9px] -translate-y-1/2" />
+                <div className="mt-1">
+                  <EventClubsField clubs={clubs} label="Clubs" defaultAllClubs={announcement.is_all_clubs} defaultClubIds={announcement.club_ids} />
                 </div>
               )}
             </div>

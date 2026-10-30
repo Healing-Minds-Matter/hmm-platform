@@ -4,6 +4,13 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { writeAuditLog } from '@/lib/audit'
+import { readClubChoice } from '@/lib/event-clubs'
+import {
+  ANNOUNCEMENT_CLUBS_EMBED,
+  announcementClubIds,
+  resolveAnnouncementScope,
+  type AnnouncementScope,
+} from '@/lib/announcement-clubs'
 
 export type AnnouncementActionState = { error?: string; success?: boolean } | null
 
@@ -14,49 +21,70 @@ function readFields(formData: FormData) {
   const expiryDate  = (formData.get('expiry_date') as string | null) || null
   const priority    = (formData.get('priority') as string | null) || 'standard'
   const audience    = (formData.get('audience') as string | null) || 'all'
-  const clubId      = (formData.get('club_id') as string | null) || null
+  const clubChoice  = readClubChoice(formData) // "Specific Cohort" only
   const intent      = (formData.get('intent') as string | null) || 'publish'
   const isPinned    = formData.get('is_pinned') ? true : false
 
-  return { title, body, publishDate, expiryDate, priority, audience, clubId, intent, isPinned }
+  return { title, body, publishDate, expiryDate, priority, audience, clubChoice, intent, isPinned }
 }
 
 function validate(fields: ReturnType<typeof readFields>): string | null {
-  const { title, body, publishDate, expiryDate, audience, clubId } = fields
+  const { title, body, publishDate, expiryDate } = fields
   if (!title) return 'Title is required.'
   if (!body) return 'Content is required.'
   if (!publishDate) return 'Publication date is required.'
   if (expiryDate && expiryDate < publishDate) return 'Expiry date must be on or after the publication date.'
-  if (audience === 'specific_clubs' && !clubId) return 'Select a club for Specific Cohort visibility.'
   return null
 }
 
-// The Champion insert/update RLS policies require club_id = their own club
-// on every row, unlike Super Admin who can post platform-wide (club_id NULL)
-// or to any specific club. A Champion's announcements are therefore always
-// genuinely single-club — audience is forced to 'specific_clubs' (an honest
-// description, not a fabricated one) and club_id to their own, regardless of
-// what the Champion-only create/edit form submits (it exposes no
-// audience/club picker at all, matching the literal requirement scope).
-async function resolveAnnouncementScope(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  fields: { audience: string; clubId: string | null }
-): Promise<{ audience: string; clubId: string | null } | { error: string }> {
+type ServerClient = Awaited<ReturnType<typeof createClient>>
+
+async function getCaller(supabase: ServerClient) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+  const { data: profile } = await supabase.from('profiles').select('role, club_id').eq('id', user.id).single()
+  return { id: user.id, role: profile?.role ?? null, club_id: profile?.club_id ?? null }
+}
 
-  const { data: caller } = await supabase
-    .from('profiles')
-    .select('role, club_id')
-    .eq('id', user.id)
-    .single()
+async function activeClubIds(supabase: ServerClient): Promise<Set<string>> {
+  const { data } = await supabase.from('clubs').select('id').eq('is_active', true)
+  return new Set((data ?? []).map(c => c.id as string))
+}
 
-  if (caller?.role === 'champion') {
-    if (!caller.club_id) return { error: 'Your account has no assigned club.' }
-    return { audience: 'specific_clubs', clubId: caller.club_id }
-  }
+// The database refuses anything the checks above miss (RLS, save_announcement).
+function describeSaveError(error: { code?: string; message?: string }): string {
+  const message = error.message ?? ''
+  if (message.includes('row-level security')) return "You don't have permission to do that for this announcement or club."
+  if (error.code === '42501' || error.code === '23514') return message
+  return 'The announcement could not be saved. Please try again.'
+}
 
-  return { audience: fields.audience, clubId: fields.audience === 'specific_clubs' ? fields.clubId : null }
+// save_announcement saves the announcement and its clubs in one
+// transaction, under the caller's own RLS (migration 20261031000000).
+async function save(
+  supabase: ServerClient,
+  announcementId: string | null,
+  fields: ReturnType<typeof readFields>,
+  scope: AnnouncementScope
+) {
+  return supabase.rpc('save_announcement', {
+    p_announcement_id: announcementId,
+    p_title: fields.title,
+    p_body: fields.body,
+    p_publish_date: fields.publishDate,
+    p_expiry_date: fields.expiryDate,
+    p_priority: fields.priority,
+    p_audience: scope.audience,
+    p_status: fields.intent === 'draft' ? 'draft' : 'published',
+    p_is_pinned: fields.isPinned,
+    p_is_all_clubs: scope.allClubs,
+    p_club_ids: scope.clubIds,
+  })
+}
+
+function revalidateAnnouncements() {
+  revalidatePath('/super-admin/announcements')
+  revalidatePath('/champion/announcements')
 }
 
 export async function createAnnouncementAction(
@@ -68,41 +96,25 @@ export async function createAnnouncementAction(
   if (validationError) return { error: validationError }
 
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
-  const scope = await resolveAnnouncementScope(supabase, { audience: fields.audience, clubId: fields.clubId })
+  const caller = await getCaller(supabase)
+  const scope = resolveAnnouncementScope(caller, fields.audience, fields.clubChoice, await activeClubIds(supabase))
   if ('error' in scope) return { error: scope.error }
 
-  const { data: announcement, error } = await supabase
-    .from('announcements')
-    .insert({
-      title: fields.title,
-      body: fields.body,
-      publish_date: fields.publishDate,
-      expiry_date: fields.expiryDate,
-      priority: fields.priority,
-      audience: scope.audience,
-      club_id: scope.clubId,
-      status: fields.intent === 'draft' ? 'draft' : 'published',
-      is_pinned: fields.isPinned,
-      created_by: user.id,
-    })
-    .select('id')
-    .single()
-
-  if (error) return { error: error.message }
+  const { data: announcementId, error } = await save(supabase, null, fields, scope)
+  if (error || !announcementId) return { error: describeSaveError(error ?? {}) }
 
   await writeAuditLog({
-    actorId: user.id,
+    actorId: caller.id,
     action: 'announcement.created',
     entityType: 'announcement',
-    entityId: announcement.id,
-    details: { title: fields.title, publish_date: fields.publishDate, priority: fields.priority, audience: scope.audience, status: fields.intent === 'draft' ? 'draft' : 'published' },
+    entityId: announcementId as string,
+    details: {
+      title: fields.title, publish_date: fields.publishDate, priority: fields.priority, audience: scope.audience,
+      all_clubs: scope.allClubs, club_ids: scope.clubIds, status: fields.intent === 'draft' ? 'draft' : 'published',
+    },
   })
 
-  revalidatePath('/super-admin/announcements')
-  revalidatePath('/champion/announcements')
+  revalidateAnnouncements()
   return { success: true }
 }
 
@@ -116,39 +128,34 @@ export async function updateAnnouncementAction(
   if (validationError) return { error: validationError }
 
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const caller = await getCaller(supabase)
+  const { data: existing } = await supabase
+    .from('announcements')
+    .select(`id, ${ANNOUNCEMENT_CLUBS_EMBED}`)
+    .eq('id', announcementId)
+    .maybeSingle()
+  if (!existing) return { error: 'Announcement not found.' }
 
-  const scope = await resolveAnnouncementScope(supabase, { audience: fields.audience, clubId: fields.clubId })
+  const scope = resolveAnnouncementScope(
+    caller, fields.audience, fields.clubChoice, await activeClubIds(supabase), announcementClubIds(existing)
+  )
   if ('error' in scope) return { error: scope.error }
 
-  const { error } = await supabase
-    .from('announcements')
-    .update({
-      title: fields.title,
-      body: fields.body,
-      publish_date: fields.publishDate,
-      expiry_date: fields.expiryDate,
-      priority: fields.priority,
-      audience: scope.audience,
-      club_id: scope.clubId,
-      status: fields.intent === 'draft' ? 'draft' : 'published',
-      is_pinned: fields.isPinned,
-    })
-    .eq('id', announcementId)
-
-  if (error) return { error: error.message }
+  const { error } = await save(supabase, announcementId, fields, scope)
+  if (error) return { error: describeSaveError(error) }
 
   await writeAuditLog({
-    actorId: user.id,
+    actorId: caller.id,
     action: 'announcement.updated',
     entityType: 'announcement',
     entityId: announcementId,
-    details: { title: fields.title, publish_date: fields.publishDate, priority: fields.priority, audience: scope.audience },
+    details: {
+      title: fields.title, publish_date: fields.publishDate, priority: fields.priority, audience: scope.audience,
+      all_clubs: scope.allClubs, club_ids: scope.clubIds,
+    },
   })
 
-  revalidatePath('/super-admin/announcements')
-  revalidatePath('/champion/announcements')
+  revalidateAnnouncements()
   return { success: true }
 }
 

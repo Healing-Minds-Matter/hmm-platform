@@ -12,7 +12,7 @@ export type AnnouncementCardData = {
   audience: 'all' | 'champions' | 'gatekeepers' | 'specific_clubs'
   status: 'draft' | 'published'
   is_pinned: boolean
-  club_name: string | null
+  club_name: string | null // "Specific Cohort": "All clubs" or the clubs' names
 }
 
 function formatDate(value: string) {
@@ -31,7 +31,7 @@ export function AnnouncementCard({
   const status = computeStatus(a.status, a.publish_date, a.expiry_date)
   const priorityBadge = PRIORITY_BADGE[a.priority]
   const audienceText = a.audience === 'specific_clubs' && a.club_name
-    ? `Selected Club: ${a.club_name}`
+    ? (a.club_name === 'All clubs' ? 'All Clubs' : `Selected Clubs: ${a.club_name}`)
     : AUDIENCE_LABEL[a.audience]
 
   return (

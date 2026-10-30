@@ -4,6 +4,7 @@ import { AnnouncementFilters } from './announcement-filters'
 import { AnnouncementStatusTabs } from './announcement-status-tabs'
 import { AnnouncementCard, type AnnouncementCardData } from './announcement-card'
 import { computeStatus } from './announcement-status'
+import { ANNOUNCEMENT_CLUBS_EMBED, announcementClubsLabel } from '@/lib/announcement-clubs'
 
 export const metadata = { title: 'Announcements — HMM Super Admin' }
 
@@ -15,22 +16,21 @@ export default async function AnnouncementsPage({
   const { q, audience, status } = await searchParams
   const supabase = await createClient()
 
-  // Super Admin manages announcements regardless of audience scope — club_id
-  // is just cohort-targeting metadata here, not a data boundary (Champions
-  // can't create announcements yet, so there's no other author to scope
-  // against).
+  // Super Admin manages every announcement, whatever its audience or clubs.
   let query = supabase
     .from('announcements')
-    .select('id, title, body, publish_date, expiry_date, priority, audience, status, club_id, is_pinned, clubs(name)')
+    .select(`id, title, body, publish_date, expiry_date, priority, audience, status, is_pinned, ${ANNOUNCEMENT_CLUBS_EMBED}`)
     .order('publish_date', { ascending: false })
 
   if (q) query = query.ilike('title', `%${q}%`)
   if (audience) query = query.eq('audience', audience)
 
-  const [{ data: announcements }, { data: allForStats }] = await Promise.all([
+  const [{ data: announcements }, { data: allForStats }, { data: clubs }] = await Promise.all([
     query,
     supabase.from('announcements').select('publish_date, expiry_date, status'),
+    supabase.from('clubs').select('id, name'),
   ])
+  const clubNameById = Object.fromEntries((clubs ?? []).map(c => [c.id, c.name]))
 
   const filtered = status
     ? (announcements ?? []).filter(a => computeStatus(a.status, a.publish_date, a.expiry_date).tab === status)
@@ -46,7 +46,7 @@ export default async function AnnouncementsPage({
     audience: a.audience,
     status: a.status,
     is_pinned: a.is_pinned,
-    club_name: (a.clubs as unknown as { name: string } | null)?.name ?? null,
+    club_name: announcementClubsLabel(a, clubNameById),
   }))
 
   const pinnedCount = filtered.filter(a => a.is_pinned).length

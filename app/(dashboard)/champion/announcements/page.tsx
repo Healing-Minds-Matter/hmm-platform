@@ -2,6 +2,8 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { AnnouncementCard, type AnnouncementCardData } from '@/app/(dashboard)/super-admin/announcements/announcement-card'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { ANNOUNCEMENT_CLUBS_EMBED, announcementClubsLabel } from '@/lib/announcement-clubs'
 
 export const metadata = { title: 'Announcements — HMM Champion' }
 
@@ -11,13 +13,18 @@ export default async function ChampionAnnouncementsPage() {
   if (!user) redirect('/login')
 
   // No extra .eq() filters needed — RLS ("announcements: champion read")
-  // already scopes this to active platform-wide announcements plus every
-  // announcement belonging to the Champion's own club, which is exactly
+  // already scopes this to published, active announcements meant for them
+  // plus every announcement for the Champion's own club, which is exactly
   // the set this page is meant to show.
   const { data: announcements } = await supabase
     .from('announcements')
-    .select('id, title, body, publish_date, expiry_date, priority, audience, status, club_id, created_by, is_pinned, clubs(name)')
+    .select(`id, title, body, publish_date, expiry_date, priority, audience, status, created_by, is_pinned, ${ANNOUNCEMENT_CLUBS_EMBED}`)
     .order('publish_date', { ascending: false })
+
+  // Champions may only read their own club (RLS), but an announcement can be
+  // for several clubs — names only, read with the admin client.
+  const { data: clubs } = await createAdminClient().from('clubs').select('id, name')
+  const clubNameById = Object.fromEntries((clubs ?? []).map(c => [c.id, c.name]))
 
   const cards: (AnnouncementCardData & { canManage: boolean })[] = (announcements ?? []).map(a => ({
     id: a.id,
@@ -29,7 +36,7 @@ export default async function ChampionAnnouncementsPage() {
     audience: a.audience,
     status: a.status,
     is_pinned: a.is_pinned,
-    club_name: (a.clubs as unknown as { name: string } | null)?.name ?? null,
+    club_name: announcementClubsLabel(a, clubNameById),
     // Only the authoring Champion may edit/delete their own club's
     // announcement — matches "announcements: champion update/delete own"
     // RLS exactly, so a second Champion sharing the same club sees this
