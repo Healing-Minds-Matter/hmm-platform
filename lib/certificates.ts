@@ -4,6 +4,7 @@
 // rules (migration 20261103000000); these give clear messages first.
 
 import { formatCertDate, isRealDate, type CertificationTypeRow, type RetirementOption } from '@/lib/certification-types'
+import type { SelfReportedRow } from '@/lib/self-reported'
 
 export type CertificateStatus = 'valid' | 'expiring_soon' | 'expired' | 'stopped' | 'renewed' | 'removed'
 export type CertificateFormat = 'physical' | 'digital' | 'both'
@@ -132,6 +133,8 @@ export type JourneyEntry =
   | { key: string; date: string; kind: 'event'; cert: CertificateRow; event: CertificateEvent }
   | { key: string; date: string; kind: 'retired'; typeId: string; option: RetirementOption }
   | { key: string; date: string; kind: 'reactivated'; typeId: string; stoppedCerts: number }
+  | { key: string; date: string; kind: 'self'; self: SelfReportedRow }
+  | { key: string; date: string; kind: 'self_outcome'; self: SelfReportedRow; at: string }
 
 export type RetirementForJourney = { id: string; type_id: string; retire_on: string; option: RetirementOption; reactivated_on: string | null }
 
@@ -139,8 +142,14 @@ const dayOf = (iso: string) => iso.slice(0, 10)
 
 // Newest first. Events are dated by when they happened; retirements only appear for
 // types the person held a certificate of before the retirement took effect.
-export function buildJourney(certs: CertificateRow[], events: CertificateEvent[], retirements: RetirementForJourney[], today: string, toOrgDate: (iso: string) => string = dayOf): JourneyEntry[] {
+export function buildJourney(certs: CertificateRow[], events: CertificateEvent[], retirements: RetirementForJourney[], today: string, toOrgDate: (iso: string) => string = dayOf, selfReported: SelfReportedRow[] = []): JourneyEntry[] {
   const entries: JourneyEntry[] = []
+  // Self-reported: when achieved, and its review outcome or withdrawal.
+  for (const sr of selfReported) {
+    entries.push({ key: `s-${sr.id}`, date: sr.achieved_on, kind: 'self', self: sr })
+    const at = sr.state === 'withdrawn' ? sr.withdrawn_at : sr.state === 'unverified' ? null : sr.reviewed_at
+    if (at) entries.push({ key: `so-${sr.id}`, date: toOrgDate(at), kind: 'self_outcome', self: sr, at })
+  }
   const certById = new Map(certs.map(c => [c.id, c]))
   for (const c of certs) {
     entries.push({ key: `c-${c.id}`, date: c.achieved_on, kind: 'certificate', cert: c })
@@ -163,9 +172,9 @@ export function buildJourney(certs: CertificateRow[], events: CertificateEvent[]
       entries.push({ key: `ra-${r.id}`, date: r.reactivated_on, kind: 'reactivated', typeId: r.type_id, stoppedCerts: r.option === 'stop' ? held.length : 0 })
     }
   }
-  const rank = { reactivated: 0, retired: 1, event: 2, expired: 3, certificate: 4 } as const
+  const rank = { reactivated: 0, retired: 1, event: 2, self_outcome: 2, expired: 3, certificate: 4, self: 4 } as const
   // Same day: events first, newest of them first.
-  const at = (e: JourneyEntry) => (e.kind === 'event' ? e.event.created_at : '')
+  const at = (e: JourneyEntry) => (e.kind === 'event' ? e.event.created_at : e.kind === 'self_outcome' ? e.at : '')
   return entries.sort((a, b) => b.date.localeCompare(a.date) || rank[a.kind] - rank[b.kind] || at(b).localeCompare(at(a)))
 }
 

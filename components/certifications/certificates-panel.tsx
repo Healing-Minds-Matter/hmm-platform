@@ -18,6 +18,8 @@ import {
   type CertActionState,
 } from '@/actions/certificates'
 import type { CertPermissions } from '@/lib/certificates.server'
+import { SELF_STATE_BADGE, selfExpiryLabel, type SelfReportedRow } from '@/lib/self-reported'
+import { SelfReportedList } from '@/components/certifications/self-reported-list'
 
 type Popup =
   | { kind: 'add' }
@@ -30,6 +32,7 @@ type Props = {
   holderId: string
   holderName: string
   certs: CertificateRow[]
+  selfReported: SelfReportedRow[]
   types: CertificationTypeRow[]
   journey: JourneyEntry[]
   names: Record<string, string>
@@ -38,7 +41,7 @@ type Props = {
 }
 
 export function CertificatesPanel(props: Props) {
-  const { certs, types, journey, names, perms } = props
+  const { certs, selfReported, types, journey, names, perms } = props
   const [popup, setPopup] = useState<Popup | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const typeById = new Map(types.map(t => [t.id, t]))
@@ -63,7 +66,9 @@ export function CertificatesPanel(props: Props) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-[16px] font-bold text-[#0F172A]">Certifications</h2>
-          <p className="mt-0.5 text-xs text-[#64748B]">Current official certificates. Older and removed ones are in the journey below.</p>
+          <p className="mt-0.5 text-xs text-[#64748B]">
+            Current official certificates{perms.self ? ', added by a Super Admin' : ''}. Older and removed ones are in the journey below.
+          </p>
         </div>
         {perms.award && (
           <button type="button" onClick={() => setPopup({ kind: 'add' })} className={PRIMARY_BTN}>+ Add certification</button>
@@ -119,6 +124,22 @@ export function CertificatesPanel(props: Props) {
         </div>
       )}
 
+      <div className="flex flex-col gap-3">
+        <div className="border-b border-[#E2E8F0] pb-2">
+          <h3 className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#64748B]">{perms.self ? 'Added by you' : `Added by ${props.holderName}`}</h3>
+          <p className="mt-0.5 text-xs text-[#64748B]">Certifications from other organisations. These never count as official certificates, even when verified.</p>
+        </div>
+        <SelfReportedList
+          rows={selfReported}
+          perms={{ self: perms.self, verify: perms.verify, reviewRemove: perms.reviewRemove }}
+          names={names}
+          today={props.today}
+          holderName={props.holderName}
+          onNotice={setNotice}
+          emptyText={perms.self ? 'You haven’t added any certifications from other organisations.' : 'None added.'}
+        />
+      </div>
+
       <div>
         <h3 className="border-b border-[#E2E8F0] pb-2 text-[11px] font-bold uppercase tracking-[0.05em] text-[#64748B]">Certification journey</h3>
         {journey.length === 0 ? (
@@ -126,7 +147,7 @@ export function CertificatesPanel(props: Props) {
         ) : (
           <ol className="mt-3 flex flex-col">
             {journey.map(e => (
-              <JourneyItem key={e.key} entry={e} typeById={typeById} names={names} actions={e.kind === 'certificate' ? actionsFor(e.cert) : null} />
+              <JourneyItem key={e.key} entry={e} typeById={typeById} names={names} today={props.today} actions={e.kind === 'certificate' ? actionsFor(e.cert) : null} />
             ))}
           </ol>
         )}
@@ -146,10 +167,11 @@ export function CertificatesPanel(props: Props) {
 }
 
 // ── Journey ──────────────────────────────────────────────────────────────────
-function JourneyItem({ entry, typeById, names, actions }: {
+function JourneyItem({ entry, typeById, names, today, actions }: {
   entry: JourneyEntry
   typeById: Map<string, CertificationTypeRow>
   names: Record<string, string>
+  today: string
   actions: React.ReactNode
 }) {
   const typeName = (id: string) => typeById.get(id)?.name ?? 'Unknown type'
@@ -199,6 +221,22 @@ function JourneyItem({ entry, typeById, names, actions }: {
       title = `${typeName(entry.typeId)} programme retired`
       detail = entry.option === 'stop' ? 'Existing certificates stopped being valid.' : 'Existing certificates stayed valid until their own expiry.'
       break
+    case 'self': {
+      const sr = entry.self
+      const b = SELF_STATE_BADGE[sr.state]
+      tone = b.tone
+      title = <>{sr.name} achieved (self-reported) <Badge tone={b.tone}>{b.label}</Badge></>
+      detail = `${sr.organisation} · ${selfExpiryLabel(sr.expires_on, today)}`
+      break
+    }
+    case 'self_outcome': {
+      const sr = entry.self
+      const by = sr.reviewed_by ? names[sr.reviewed_by] ?? 'a reviewer' : 'a reviewer'
+      if (sr.state === 'verified') { tone = 'ok'; title = `${sr.name} verified by ${by}` }
+      else if (sr.state === 'removed') { tone = 'bad'; title = `${sr.name} removed by ${by}`; detail = `Reason: ${sr.removed_reason_category}: ${sr.removed_reason}` }
+      else { tone = 'grey'; title = `${sr.name} withdrawn by holder` }
+      break
+    }
     case 'reactivated':
       tone = 'ok'
       title = `${typeName(entry.typeId)} programme reactivated`

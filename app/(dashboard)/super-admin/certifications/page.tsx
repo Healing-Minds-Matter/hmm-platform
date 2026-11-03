@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { holderCounts, loadTypes } from '@/lib/certifications.server'
+import { holderCounts, loadTypes, waitingReviewCount } from '@/lib/certifications.server'
 import { CertTabs, PageHeader, PrimaryLink } from '@/components/certifications/cert-ui'
 import { TypesTable } from '@/components/certifications/types-table'
 
@@ -7,7 +7,7 @@ export const metadata = { title: 'Certifications — HMM Super Admin' }
 
 export default async function CertificationsPage() {
   const supabase = await createClient()
-  const [types, holders] = await Promise.all([loadTypes(supabase), holderCounts(supabase)])
+  const [types, holders, waiting] = await Promise.all([loadTypes(supabase), holderCounts(supabase), waitingReviewCount(supabase)])
 
   return (
     <div className="flex flex-col gap-4 p-8 font-[family-name:var(--font-inter)]">
@@ -22,7 +22,7 @@ export default async function CertificationsPage() {
           </PrimaryLink>
         }
       />
-      <CertTabs current="types" base="/super-admin/certifications" showAudit />
+      <CertTabs current="types" base="/super-admin/certifications" showAudit reviews={waiting} />
       <TypesTable types={types} holders={holders} manage base="/super-admin/certifications" />
     </div>
   )

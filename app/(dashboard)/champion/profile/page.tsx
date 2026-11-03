@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { CertificatesSection } from '@/components/certifications/certificates-section'
 import { ProfileForm } from '@/app/(dashboard)/super-admin/profile/profile-form'
 
 export const metadata = { title: 'My Profile — HMM Champion' }
@@ -221,6 +222,10 @@ export default async function ChampionProfilePage() {
             )}
           </div>
         </div>
+      </div>
+
+      <div className="mt-6">
+        <CertificatesSection holderId={user.id} holderName={profile.full_name} />
       </div>
     </div>
   )

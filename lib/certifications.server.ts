@@ -68,6 +68,16 @@ export async function isSuperAdmin(supabase: ServerClient): Promise<boolean> {
   return data?.role === 'super_admin'
 }
 
+// Self-reported certifications waiting for review by this user (not their own),
+// or null when they may not review at all.
+export async function waitingReviewCount(supabase: ServerClient): Promise<number | null> {
+  if (!(await certCan(supabase, 'certifications.review.view'))) return null
+  const { data: { user } } = await supabase.auth.getUser()
+  const { count } = await supabase.from('self_reported_certificates').select('id', { count: 'exact', head: true })
+    .eq('state', 'unverified').neq('holder_id', user?.id ?? '')
+  return count ?? 0
+}
+
 export async function certCan(supabase: ServerClient, permission: string): Promise<boolean> {
   const { data } = await supabase.rpc('cert_can', { p_permission: permission })
   return data === true

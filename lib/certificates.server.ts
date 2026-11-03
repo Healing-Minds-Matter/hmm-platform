@@ -9,13 +9,19 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { todayDateString, isoToOrgDateTime } from '@/lib/org-date'
 import { TYPE_COLUMNS, type CertificationTypeRow, type RetirementOption } from '@/lib/certification-types'
 import { CERTIFICATE_COLUMNS, buildJourney, type CertificateEvent, type CertificateRow, type JourneyEntry } from '@/lib/certificates'
+import { SELF_REPORTED_COLUMNS, type SelfReportedRow } from '@/lib/self-reported'
 
 type ServerClient = Awaited<ReturnType<typeof createClient>>
 
-export type CertPermissions = { award: boolean; edit: boolean; remove: boolean; restore: boolean }
+export type CertPermissions = {
+  award: boolean; edit: boolean; remove: boolean; restore: boolean
+  verify: boolean; reviewRemove: boolean   // reviewing this person's self-reported certifications
+  self: boolean                            // this is the viewer's own profile and they may add their own
+}
 
 export type ProfileCertificates = {
   certs: CertificateRow[]
+  selfReported: SelfReportedRow[]
   types: CertificationTypeRow[]
   journey: JourneyEntry[]
   names: Record<string, string>
@@ -30,7 +36,8 @@ export async function loadProfileCertificates(supabase: ServerClient, holderId: 
     supabase.from('certification_type_statuses').select(TYPE_COLUMNS).order('name'),
     supabase.rpc('cert_in_scope', { p_holder: holderId }),
     supabase.auth.getUser(),
-    ...['certifications.award', 'certifications.official.edit', 'certifications.official.remove'].map(p =>
+    ...['certifications.award', 'certifications.official.edit', 'certifications.official.remove',
+        'certifications.review.verify', 'certifications.review.remove', 'certifications.self.manage'].map(p =>
       supabase.rpc('cert_can', { p_permission: p })),
   ])
   const certs = (certData as CertificateRow[] | null) ?? []
@@ -38,7 +45,7 @@ export async function loadProfileCertificates(supabase: ServerClient, holderId: 
   const ids = certs.map(c => c.id)
   const heldTypes = [...new Set(certs.map(c => c.type_id))]
 
-  const [{ data: eventData }, { data: retData }, { data: me }] = await Promise.all([
+  const [{ data: eventData }, { data: retData }, { data: me }, { data: selfData }] = await Promise.all([
     ids.length
       ? supabase.from('certificate_events').select('id, certificate_id, kind, actor_label, reason, changes, created_at').in('certificate_id', ids)
       : Promise.resolve({ data: [] }),
@@ -46,13 +53,18 @@ export async function loadProfileCertificates(supabase: ServerClient, holderId: 
       ? supabase.from('certification_type_retirements').select('id, type_id, retire_on, option, reactivated_on').in('type_id', heldTypes)
       : Promise.resolve({ data: [] }),
     user ? supabase.from('profiles').select('role').eq('id', user.id).single() : Promise.resolve({ data: null }),
+    // Others never see what the holder withdrew (RLS).
+    supabase.from('self_reported_certificates').select(SELF_REPORTED_COLUMNS).eq('holder_id', holderId).order('achieved_on', { ascending: false }),
   ])
+  const selfReported = (selfData as SelfReportedRow[] | null) ?? []
 
-  const peopleIds = [...new Set(certs.flatMap(c => [c.added_by, c.removed_by]).filter((v): v is string => !!v))]
+  const peopleIds = [...new Set([...certs.flatMap(c => [c.added_by, c.removed_by]), ...selfReported.map(r => r.reviewed_by)]
+    .filter((v): v is string => !!v))]
   const names: Record<string, string> = {}
   if (peopleIds.length) {
-    const { data: people } = await createAdminClient().from('profiles').select('id, full_name').in('id', peopleIds)
-    for (const p of people ?? []) names[p.id] = p.full_name
+    const { data: people } = await createAdminClient().from('profiles').select('id, full_name, role').in('id', peopleIds)
+    // With the role, as the stories ask for reviewers (“Verified by … with their role”).
+    for (const p of people ?? []) names[p.id] = `${p.full_name} (${p.role === 'super_admin' ? 'Super Admin' : p.role === 'champion' ? 'Champion' : 'Gatekeeper'})`
   }
 
   const scoped = inScope === true
@@ -62,14 +74,18 @@ export async function loadProfileCertificates(supabase: ServerClient, holderId: 
     ((retData ?? []) as { id: string; type_id: string; retire_on: string; option: RetirementOption; reactivated_on: string | null }[]),
     today,
     iso => isoToOrgDateTime(iso).date,
+    selfReported,
   )
   return {
-    certs, types, journey, names, today,
+    certs, selfReported, types, journey, names, today,
     perms: {
       award: scoped && can[0].data === true,
       edit: scoped && can[1].data === true,
       remove: scoped && can[2].data === true,
       restore: scoped && me?.role === 'super_admin',
+      verify: scoped && can[3].data === true,
+      reviewRemove: scoped && can[4].data === true,
+      self: user?.id === holderId && can[5].data === true,
     },
   }
 }

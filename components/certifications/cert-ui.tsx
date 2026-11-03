@@ -39,9 +39,17 @@ export function SecondaryLink({ href, children, danger = false }: { href: string
   )
 }
 
-export function CertTabs({ current, base, showAudit }: { current: 'types' | 'audit'; base: string; showAudit: boolean }) {
-  const tabs = [
+// `reviews`: how many self-reported certifications are waiting, or null to hide the tab.
+export function CertTabs({ current, base, showAudit, reviews = null }: {
+  current: 'types' | 'reviews' | 'audit'; base: string; showAudit: boolean; reviews?: number | null
+}) {
+  const tabs: { key: string; label: React.ReactNode; href: string }[] = [
     { key: 'types', label: 'Certification types', href: base },
+    ...(reviews !== null ? [{
+      key: 'reviews',
+      label: <>Reviews{reviews > 0 && <span className="ml-1.5 rounded-full bg-[#DC2626] px-1.5 py-0.5 text-[10px] font-bold text-white">{reviews}</span>}</>,
+      href: `${base}/reviews`,
+    }] : []),
     ...(showAudit ? [{ key: 'audit', label: 'Audit history', href: `${base}/audit` }] : []),
   ]
   return (
