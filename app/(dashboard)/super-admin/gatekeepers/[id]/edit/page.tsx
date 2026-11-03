@@ -11,7 +11,7 @@ export default async function EditGatekeeperPage({ params }: { params: Promise<{
   const [{ data: gatekeeper }, { data: clubs }] = await Promise.all([
     supabase
       .from('profiles')
-      .select('id, full_name, email, phone, preferred_language, club_id, qpr_certification_date, version')
+      .select('id, full_name, email, phone, preferred_language, club_id, version')
       .eq('id', id)
       .eq('role', 'gatekeeper')
       .single(),

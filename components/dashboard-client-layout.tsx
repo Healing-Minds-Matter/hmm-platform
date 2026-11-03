@@ -6,6 +6,7 @@ import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { useSessionTimeout } from '@/hooks/use-session-timeout'
 import { SessionTimeoutModal } from '@/components/session-timeout-modal'
+import { NotificationBell, type BellNotification } from '@/components/notification-bell'
 import { logoutAction, sessionTimeoutLogoutAction } from '@/actions/auth'
 
 const TIMEOUT_MS = 20 * 60 * 1000
@@ -243,9 +244,11 @@ function ProfileMenu({ fullName, roleLabel, initials, profileHref }: { fullName:
 export function DashboardClientLayout({
   children,
   profile,
+  bell,
 }: {
   children: React.ReactNode
   profile: Profile
+  bell: { notifications: BellNotification[]; unread: number }
 }) {
   const [showWarning, setShowWarning] = useState(false)
   const [, startTransition]  = useTransition()
@@ -354,11 +357,7 @@ export function DashboardClientLayout({
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src="/icons/help-circle.svg" alt="" width={15} height={15} />
               </button>
-              <button type="button" aria-label="Notifications" className="relative flex h-8 w-8 items-center justify-center rounded-lg hover:bg-gray-50 transition-colors">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/icons/notification-bell.svg" alt="" width={11} height={15} />
-                <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[#DC2626] shadow-[0_0_0_2px_white]" />
-              </button>
+              <NotificationBell notifications={bell.notifications} unread={bell.unread} />
             </div>
             <div className="h-6 w-px bg-[#E2E8F0]" />
             <ProfileMenu

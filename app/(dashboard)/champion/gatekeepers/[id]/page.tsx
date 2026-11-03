@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { CertificatesSection } from '@/components/certifications/certificates-section'
 import { GatekeeperStatusControls } from './gatekeeper-status-controls'
 import { ResendInviteButton } from '@/app/(dashboard)/super-admin/gatekeepers/[id]/resend-invite-button'
 import { qprStatus, QPR_STATUS_LABEL, QPR_STATUS_BADGE, QPR_STATUS_DOT, todayBounds } from '@/app/(dashboard)/super-admin/gatekeepers/gatekeeper-status'
@@ -9,10 +10,6 @@ export const metadata = { title: 'Gatekeeper Details — HMM Champion' }
 
 function getInitials(name: string): string {
   return name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
-}
-
-function formatDate(value: string) {
-  return new Date(value).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
 }
 
 export default async function ChampionGatekeeperDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -98,15 +95,7 @@ export default async function ChampionGatekeeperDetailPage({ params }: { params:
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 rounded-2xl bg-white p-6 sm:grid-cols-3">
-        <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">Certification Date</p>
-          <p className="mt-1 text-sm text-[#0F172A]">{gatekeeper.qpr_certification_date ? formatDate(gatekeeper.qpr_certification_date) : 'Not on file'}</p>
-        </div>
-        <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">Expiry Date</p>
-          <p className="mt-1 text-sm text-[#0F172A]">{gatekeeper.qpr_expiry_date ? formatDate(gatekeeper.qpr_expiry_date) : 'Not on file'}</p>
-        </div>
+      <div className="rounded-2xl bg-white p-6">
         <div>
           <p className="text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">Preferred Language</p>
           <p className="mt-1 text-sm text-[#0F172A]">
@@ -114,6 +103,8 @@ export default async function ChampionGatekeeperDetailPage({ params }: { params:
           </p>
         </div>
       </div>
+
+      <CertificatesSection holderId={id} holderName={gatekeeper.full_name} />
     </div>
   )
 }

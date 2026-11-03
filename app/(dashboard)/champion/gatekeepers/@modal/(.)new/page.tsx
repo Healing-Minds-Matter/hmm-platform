@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { awardableTypes } from '@/lib/certifications.server'
 import { NewGatekeeperModal } from './new-gatekeeper-modal'
 
 export default async function InterceptedNewGatekeeperPage() {
@@ -17,6 +18,7 @@ export default async function InterceptedNewGatekeeperPage() {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const club = profile.clubs as any
+  const certTypes = await awardableTypes(supabase)
 
-  return <NewGatekeeperModal clubName={club?.name ?? 'Your Club'} />
+  return <NewGatekeeperModal clubName={club?.name ?? 'Your Club'} certTypes={certTypes} />
 }

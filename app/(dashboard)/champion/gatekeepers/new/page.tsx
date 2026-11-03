@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { awardableTypes } from '@/lib/certifications.server'
 import { CreateGatekeeperForm } from '@/app/(dashboard)/super-admin/gatekeepers/create-gatekeeper-form'
 
 export const metadata = { title: 'Add Gatekeeper — HMM Champion' }
@@ -19,12 +20,14 @@ export default async function NewGatekeeperPage() {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const club = profile.clubs as any
+  const certTypes = await awardableTypes(supabase)
 
   return (
     <div className="flex justify-center p-8">
       <CreateGatekeeperForm
         scope={{ mode: 'fixed', clubName: club?.name ?? 'Your Club' }}
         redirectPath="/champion/gatekeepers"
+        certTypes={certTypes}
       />
     </div>
   )

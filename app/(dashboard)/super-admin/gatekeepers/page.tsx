@@ -1,5 +1,8 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { awardableTypes } from '@/lib/certifications.server'
+import { todayDateString } from '@/lib/org-date'
+import { BulkAwardButton } from '@/components/certifications/bulk-award-button'
 import { GatekeeperFilters } from './gatekeeper-filters'
 import { qprStatus, QPR_STATUS_LABEL, QPR_STATUS_BADGE, QPR_STATUS_DOT, todayBounds } from './gatekeeper-status'
 
@@ -32,9 +35,12 @@ export default async function GatekeepersPage({
   const supabase = await createClient()
   const { today, in90Days } = todayBounds()
 
-  const [{ data: clubs }, { data: champions }] = await Promise.all([
+  const [{ data: clubs }, { data: champions }, certTypes, { data: activeGatekeepers }] = await Promise.all([
     supabase.from('clubs').select('id, name, club_code, is_active').order('name'),
     supabase.from('profiles').select('id, full_name, club_id').eq('role', 'champion').eq('is_active', true).order('full_name'),
+    awardableTypes(supabase),
+    // Everyone a certification can be added to in one go (Story 10.5 Sc07).
+    supabase.from('profiles').select('id, full_name, gatekeeper_code, club_id').eq('role', 'gatekeeper').eq('is_active', true).order('full_name'),
   ])
 
   const clubList = clubs ?? []
@@ -83,6 +89,15 @@ export default async function GatekeepersPage({
             Monitor, search, and manage all QPR-certified Gatekeepers across all {activeClubCount} active regional clubs, and audit 3-year certification lifecycles.
           </p>
         </div>
+        <div className="flex flex-shrink-0 items-center gap-2">
+        {certTypes && certTypes.length > 0 && (
+          <BulkAwardButton
+            types={certTypes}
+            today={todayDateString()}
+            clubs={clubList.filter(c => c.is_active).map(c => ({ id: c.id, name: c.name }))}
+            people={(activeGatekeepers ?? []).map(g => ({ id: g.id, name: g.full_name, code: g.gatekeeper_code, clubId: g.club_id, clubName: clubById[g.club_id ?? '']?.name ?? null }))}
+          />
+        )}
         <Link
           href="/super-admin/gatekeepers/new"
           className="flex flex-shrink-0 items-center gap-2 rounded-lg bg-[#F4AC1E] px-4 py-2 text-[12px] font-semibold tracking-[0.24px] text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F]"
@@ -91,6 +106,7 @@ export default async function GatekeepersPage({
           <img src="/icons/plus-small.svg" alt="" width={10.5} height={10.5} />
           Add Gatekeeper
         </Link>
+        </div>
       </div>
 
       <GatekeeperFilters
