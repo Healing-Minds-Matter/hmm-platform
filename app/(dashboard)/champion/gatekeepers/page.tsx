@@ -1,6 +1,9 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { awardableTypes } from '@/lib/certifications.server'
+import { todayDateString } from '@/lib/org-date'
+import { BulkAwardButton } from '@/components/certifications/bulk-award-button'
 import { ChampionGatekeeperFilters } from './champion-gatekeeper-filters'
 import { qprStatus, QPR_STATUS_LABEL, QPR_STATUS_BADGE, QPR_STATUS_DOT, todayBounds } from '@/app/(dashboard)/super-admin/gatekeepers/gatekeeper-status'
 
@@ -46,8 +49,12 @@ export default async function ChampionGatekeepersPage({
 
   if (q) query = query.or(`full_name.ilike.%${q}%,email.ilike.%${q}%,phone.ilike.%${q}%,gatekeeper_code.ilike.%${q}%`)
 
-  const { data: gatekeepers } = await query
+  const [{ data: gatekeepers }, certTypes] = await Promise.all([query, awardableTypes(supabase)])
   const allMatching = gatekeepers ?? []
+  // The club's active Gatekeepers, for adding a certification to several at once (Story 10.5 Sc07).
+  const { data: activeGatekeepers } = certTypes?.length
+    ? await supabase.from('profiles').select('id, full_name, gatekeeper_code').eq('role', 'gatekeeper').eq('club_id', profile.club_id).eq('is_active', true).order('full_name')
+    : { data: [] }
 
   const withStatus = allMatching.map(g => ({
     ...g,
@@ -74,6 +81,14 @@ export default async function ChampionGatekeepersPage({
             Add, edit, and track QPR-certified Gatekeepers in your club.
           </p>
         </div>
+        <div className="flex flex-shrink-0 items-center gap-2">
+        {certTypes && certTypes.length > 0 && (
+          <BulkAwardButton
+            types={certTypes}
+            today={todayDateString()}
+            people={(activeGatekeepers ?? []).map(g => ({ id: g.id, name: g.full_name, code: g.gatekeeper_code, clubId: profile.club_id, clubName: null }))}
+          />
+        )}
         <Link
           href="/champion/gatekeepers/new"
           className="flex flex-shrink-0 items-center gap-2 rounded-lg bg-[#F4AC1E] px-4 py-2 text-[12px] font-semibold tracking-[0.24px] text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F]"
@@ -82,6 +97,7 @@ export default async function ChampionGatekeepersPage({
           <img src="/icons/plus-small.svg" alt="" width={10.5} height={10.5} />
           Add Gatekeeper
         </Link>
+        </div>
       </div>
 
       <ChampionGatekeeperFilters q={q} status={status} />

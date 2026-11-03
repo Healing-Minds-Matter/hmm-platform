@@ -3,7 +3,6 @@
 import { useActionState, useEffect } from 'react'
 import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { useRouter } from 'next/navigation'
-import { certificationDateInputProps } from '@/lib/certification-date'
 import { updateGatekeeperAction } from '@/actions/gatekeepers'
 
 interface Gatekeeper {
@@ -13,7 +12,6 @@ interface Gatekeeper {
   phone: string | null
   preferred_language: string
   club_id: string
-  qpr_certification_date: string | null
   version: number
 }
 
@@ -135,17 +133,9 @@ export function GatekeeperEditForm({
                 </div>
               </div>
             </div>
-            <div>
-              <label htmlFor="certification_date" className="mb-1.5 block text-[13px] font-medium text-[#0F172A]">
-                Certification Date
-              </label>
-              <input
-                id="certification_date" name="certification_date" type="date" {...certificationDateInputProps()}
-                defaultValue={gatekeeper.qpr_certification_date ?? ''}
-                className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
-              />
-              <p className="mt-1.5 text-[11px] text-[#94A3B8]">Changing this recalculates the expiry date (certification date + 3 years). Leave blank if they aren&apos;t QPR-certified yet.</p>
-            </div>
+            <p className="rounded-lg bg-[#EFF6FF] px-3.5 py-2.5 text-[12px] text-[#265BA2]">
+              Certifications are managed in the Certifications section of the Gatekeeper&apos;s profile.
+            </p>
           </div>
         </div>
 

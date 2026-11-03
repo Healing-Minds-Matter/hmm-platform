@@ -72,3 +72,14 @@ export async function certCan(supabase: ServerClient, permission: string): Promi
   const { data } = await supabase.rpc('cert_can', { p_permission: permission })
   return data === true
 }
+
+export type AwardableType = Pick<CertificationTypeRow, 'id' | 'name' | 'code' | 'offered_from' | 'validity_value' | 'validity_unit'>
+
+// Types the signed-in user can add to people (for the Add Gatekeeper form),
+// or null when they may not add certificates at all.
+export async function awardableTypes(supabase: ServerClient): Promise<AwardableType[] | null> {
+  if (!(await certCan(supabase, 'certifications.award'))) return null
+  return (await loadTypes(supabase))
+    .filter(t => t.status !== 'retired')
+    .map(({ id, name, code, offered_from, validity_value, validity_unit }) => ({ id, name, code, offered_from, validity_value, validity_unit }))
+}

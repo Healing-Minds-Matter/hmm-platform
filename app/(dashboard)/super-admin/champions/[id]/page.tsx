@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { CertificatesSection } from '@/components/certifications/certificates-section'
 import { ChampionStatusControls } from './champion-status-controls'
 import { eventTypeStyle } from '@/app/(dashboard)/super-admin/events/event-type'
 // Event dates/times are shown in Sri Lanka time (see lib/org-date.ts).
@@ -301,6 +302,8 @@ export default async function ChampionDetailPage({
           caption={club ? `${certifiedCount} certified, ${expiringSoonCount} expiring soon` : 'No club assigned'}
         />
       </div>
+
+      <CertificatesSection holderId={id} holderName={champion.full_name} />
 
       {/* Gatekeeper Roster / Club Events */}
       <div className="overflow-hidden rounded-2xl border border-[#E2E8F0] bg-white shadow-[0px_1px_2px_rgba(0,0,0,0.05)]">

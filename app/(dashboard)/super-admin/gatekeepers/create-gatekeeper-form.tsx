@@ -3,7 +3,10 @@
 import { useActionState, useEffect, useState } from 'react'
 import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { useRouter } from 'next/navigation'
-import { certificationDateInputProps } from '@/lib/certification-date'
+import { todayDateString } from '@/lib/org-date'
+import { formatCertDate } from '@/lib/certification-types'
+import { expiryFor } from '@/lib/certificates'
+import type { AwardableType } from '@/lib/certifications.server'
 import { createGatekeeperAction, createGatekeepersBulkAction } from '@/actions/gatekeepers'
 import { BulkCsvUpload } from '@/components/bulk-csv-upload'
 import { GATEKEEPER_CSV_COLUMNS, gatekeeperCsvHeaderError } from '@/lib/gatekeeper-csv'
@@ -19,13 +22,7 @@ const LANGUAGE_OPTIONS = [
   { value: 'ta', label: 'Tamil' },
 ]
 
-function threeYearsLabel(dateStr: string): string | null {
-  if (!dateStr) return null
-  const d = new Date(dateStr)
-  if (isNaN(d.getTime())) return null
-  d.setUTCFullYear(d.getUTCFullYear() + 3)
-  return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-}
+type CertDraft = { key: number; typeId: string; date: string }
 
 // Shared by both Super Admin (/super-admin/gatekeepers/new) and Champion
 // (/champion/gatekeepers/new) — per explicit request, reused rather than
@@ -45,10 +42,13 @@ export function CreateGatekeeperForm({
   scope,
   redirectPath,
   onClose,
+  certTypes,
 }: {
   scope: ClubScope
   redirectPath: string
   onClose?: () => void
+  // Types the user may add (null: no permission to add certifications).
+  certTypes: AwardableType[] | null
 }) {
   const router = useRouter()
   const close = onClose ?? (() => router.push(redirectPath))
@@ -59,17 +59,17 @@ export function CreateGatekeeperForm({
 
   const [email, setEmail] = useState('')
   const [clubId, setClubId] = useState('')
-  const [certDate, setCertDate] = useState('')
+  const [certRows, setCertRows] = useState<CertDraft[]>([])
+  const today = todayDateString()
 
   const linkedChampion = scope.mode === 'select' ? scope.champions.find(c => c.club_id === clubId) ?? null : null
-  const expiryLabel = threeYearsLabel(certDate)
 
   useEffect(() => {
     // When the welcome email was skipped, tempPassword comes back so it
     // can be shown once on screen — the account only ever has that
     // temp password shared this one way in that case, so this can't
     // auto-close like the emailed path does.
-    if (singleState?.success && !singleState.tempPassword) close()
+    if (singleState?.success && !singleState.tempPassword && !singleState.warning) close()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [singleState])
 
@@ -115,17 +115,24 @@ export function CreateGatekeeperForm({
         aria-labelledby={`add-gatekeeper-tab-${mode}`}
         className="flex flex-1 flex-col overflow-hidden"
       >
-      {mode === 'single' && singleState?.success && singleState.tempPassword ? (
+      {mode === 'single' && singleState?.success && (singleState.tempPassword || singleState.warning) ? (
         <div className="flex flex-1 flex-col overflow-hidden">
           <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-6">
-            <p className="text-[13px] text-[#0F172A]">
-              Gatekeeper registered. Share these credentials with them yourself — this password is shown only
-              once and isn&apos;t emailed.
-            </p>
-            <div className="flex flex-col gap-2 rounded-xl bg-[#F8FAFC] p-4 text-[13px]">
-              <div><span className="text-[#64748B]">Email: </span><span className="font-mono">{email}</span></div>
-              <div><span className="text-[#64748B]">Temporary password: </span><span className="font-mono font-semibold">{singleState.tempPassword}</span></div>
-            </div>
+            {singleState.warning && (
+              <div className="rounded-lg bg-[#FFFBEB] p-3 text-[13px] text-[#B45309]" role="alert">{singleState.warning}</div>
+            )}
+            {singleState.tempPassword && (
+              <>
+                <p className="text-[13px] text-[#0F172A]">
+                  Gatekeeper registered. Share these credentials with them yourself — this password is shown only
+                  once and isn&apos;t emailed.
+                </p>
+                <div className="flex flex-col gap-2 rounded-xl bg-[#F8FAFC] p-4 text-[13px]">
+                  <div><span className="text-[#64748B]">Email: </span><span className="font-mono">{email}</span></div>
+                  <div><span className="text-[#64748B]">Temporary password: </span><span className="font-mono font-semibold">{singleState.tempPassword}</span></div>
+                </div>
+              </>
+            )}
           </div>
           <div className="flex items-center justify-end gap-2.5 border-t border-[#E2E8F0] px-6 py-4">
             <button type="button" onClick={close} className="flex h-10 items-center rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] hover:bg-[#E09B0F]">
@@ -251,35 +258,76 @@ export function CreateGatekeeperForm({
                 </>
               )}
 
-              <h2 className="pt-1 text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">QPR Certification &amp; Lifecycle Details</h2>
-              <div className="rounded-xl border border-[#E5E7EB] bg-[#F8FAFC] p-3.5">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label htmlFor="certification_date" className="mb-1.5 block text-[13px] font-medium text-[#0F172A]">
-                      Certification Date
-                    </label>
-                    <input
-                      id="certification_date" name="certification_date" type="date" {...certificationDateInputProps()}
-                      value={certDate} onChange={e => setCertDate(e.target.value)}
-                      className="h-10 w-full rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1.5 block text-[13px] font-medium text-[#0F172A]">System Gatekeeper ID</label>
-                    <div className="flex h-10 items-center justify-between rounded-lg border border-[#E5E7EB] bg-white px-3">
-                      <span className="font-mono text-[13px] font-bold text-[#003495]">GK-••••</span>
-                      <span className="text-[12px] text-[#64748B]">Auto-generated</span>
-                    </div>
-                  </div>
-                </div>
-                {expiryLabel ? (
-                  <div className="mt-3 rounded-lg bg-[rgba(13,130,117,0.1)] px-3 py-1.5 text-[12px] font-medium text-[#0D8275]">
-                    Active for 3 Years • Valid until {expiryLabel}
-                  </div>
-                ) : (
-                  <p className="mt-2 text-[11px] text-[#94A3B8]">Leave blank if they aren&apos;t QPR-certified yet. You can add the date later by editing the Gatekeeper.</p>
-                )}
+              <div className="flex items-center justify-between gap-3 border-b border-[#E2E8F0] pb-2">
+                <h2 className="text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">Certifications</h2>
+                <span className="text-[12px] text-[#64748B]">
+                  Gatekeeper ID <span className="font-mono font-bold text-[#003495]">GK-••••</span> (auto-generated)
+                </span>
               </div>
+              {certTypes === null ? (
+                <p className="text-[12px] text-[#64748B]">You don&apos;t have permission to add certifications.</p>
+              ) : certTypes.length === 0 ? (
+                <p className="text-[12px] text-[#64748B]">There are no active certification types yet.</p>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {certRows.map((row, i) => {
+                    const type = certTypes.find(t => t.id === row.typeId)
+                    const expiry = type && row.date ? expiryFor(row.date, type.validity_value, type.validity_unit) : null
+                    const update = (patch: Partial<CertDraft>) => setCertRows(rows => rows.map(r => (r.key === row.key ? { ...r, ...patch } : r)))
+                    return (
+                      <div key={row.key} className="rounded-xl border border-[#E5E7EB] bg-[#F8FAFC] p-3.5">
+                        <div className="grid grid-cols-[minmax(0,1fr)_160px_32px] items-end gap-3">
+                          <div>
+                            <label htmlFor={`cert_type_${row.key}`} className="mb-1.5 block text-[13px] font-medium text-[#0F172A]">Certification {i + 1}</label>
+                            <select
+                              id={`cert_type_${row.key}`} name="cert_type_id" value={row.typeId} required
+                              onChange={e => update({ typeId: e.target.value })}
+                              className="h-10 w-full rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
+                            >
+                              <option value="">Choose a type…</option>
+                              {certTypes.map(t => (
+                                <option key={t.id} value={t.id} disabled={certRows.some(r => r.key !== row.key && r.typeId === t.id)}>
+                                  {t.name} ({t.code})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label htmlFor={`cert_date_${row.key}`} className="mb-1.5 block text-[13px] font-medium text-[#0F172A]">Date achieved</label>
+                            <input
+                              id={`cert_date_${row.key}`} name="cert_achieved_on" type="date" required max={today} min={type?.offered_from}
+                              value={row.date} onChange={e => update({ date: e.target.value })}
+                              className="h-10 w-full rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
+                            />
+                          </div>
+                          <button
+                            type="button" aria-label={`Remove certification ${i + 1}`}
+                            onClick={() => setCertRows(rows => rows.filter(r => r.key !== row.key))}
+                            className="flex h-10 w-8 items-center justify-center rounded-lg text-[#64748B] hover:bg-[#E2E8F0]"
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src="/icons/x-close.svg" alt="" width={10} height={10} />
+                          </button>
+                        </div>
+                        {type && (type.validity_value == null || expiry) && (
+                          <p className="mt-2 text-[12px] font-medium text-[#0D8275]">
+                            {type.validity_value == null ? 'Lifetime certificate (no expiry)' : `Valid until ${formatCertDate(expiry)}`}
+                          </p>
+                        )}
+                      </div>
+                    )
+                  })}
+                  <button
+                    type="button"
+                    onClick={() => setCertRows(rows => [...rows, { key: Date.now(), typeId: '', date: '' }])}
+                    disabled={certRows.length >= certTypes.length}
+                    className="self-start rounded-lg border border-dashed border-[#CBD5E1] px-3 py-2 text-[13px] font-medium text-[#022C51] hover:bg-[#F1F5F9] disabled:opacity-50"
+                  >
+                    + Add certification
+                  </button>
+                  <p className="text-[11px] text-[#94A3B8]">Optional. The format and attachments can be added later from their profile.</p>
+                </div>
+              )}
             </div>
 
             <label className="flex items-start gap-2.5 rounded-xl bg-[rgba(220,233,255,0.6)] p-3">
