@@ -55,6 +55,16 @@ function IconGatekeepers({ active }: { active: boolean }) {
   )
 }
 
+function IconCertifications({ active }: { active: boolean }) {
+  const c = active ? '#022C51' : '#64748B'
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <circle cx="10" cy="7.5" r="5" stroke={c} strokeWidth="1.8" />
+      <path d="M7.2 11.6 6.2 18l3.8-1.9 3.8 1.9-1-6.4" stroke={c} strokeWidth="1.8" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 function IconResources({ active }: { active: boolean }) {
   const c = active ? '#022C51' : '#64748B'
   return (
@@ -115,6 +125,7 @@ const SUPER_ADMIN_NAV: NavCfg[] = [
   { href: '/super-admin/clubs',         label: 'Clubs',         Icon: IconClubs },
   { href: '/super-admin/champions',     label: 'Champions',     Icon: IconChampions },
   { href: '/super-admin/gatekeepers',   label: 'Gatekeepers',   Icon: IconGatekeepers },
+  { href: '/super-admin/certifications', label: 'Certifications', Icon: IconCertifications },
   { href: '/super-admin/resources',     label: 'Resources',     Icon: IconResources },
   { href: '/super-admin/announcements', label: 'Announcements', Icon: IconAnnouncements },
   { href: '/super-admin/events',        label: 'Events',        Icon: IconEvents },
@@ -124,6 +135,7 @@ const SUPER_ADMIN_NAV: NavCfg[] = [
 const CHAMPION_NAV: NavCfg[] = [
   { href: '/champion', label: 'Dashboard', Icon: IconDashboard, exact: true },
   { href: '/champion/gatekeepers', label: 'Gatekeepers', Icon: IconGatekeepers },
+  { href: '/champion/certifications', label: 'Certifications', Icon: IconCertifications },
   { href: '/champion/events', label: 'Events', Icon: IconEvents },
   { href: '/champion/announcements', label: 'Announcements', Icon: IconAnnouncements },
   { href: '/champion/resources', label: 'Resources', Icon: IconResources },
