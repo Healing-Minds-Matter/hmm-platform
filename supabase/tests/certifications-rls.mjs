@@ -63,6 +63,11 @@ async function main() {
   check(`Mobile "Certified" count unchanged (${validNow} valid)`, stats?.[0]?.total_certified >= validNow)
   const { data: cat } = await admin.from('permission_catalog').select('key, restricted_to').eq('category', 'Certifications')
   check('14 certification permission keys, 3 of them Super Admins only', cat.length === 14 && cat.filter(k => k.restricted_to === 'super_admin').length === 3)
+  const { data: defs } = await admin.from('permissions').select('role, permission, is_enabled').like('permission', 'certifications.%')
+  const on = r => defs.filter(d => d.role === r && d.is_enabled).map(d => d.permission.replace('certifications.', '')).sort().join(',')
+  check('Champion defaults: everything except the 3 Super-Admin-only keys', defs.filter(d => d.role === 'champion').length === 14
+    && on('champion') === 'attachments.manage,award,digital.generate,journey.view,official.edit,official.remove,review.remove,review.verify,review.view,self.manage,types.view', on('champion'))
+  check('Gatekeeper defaults: only adding their own', defs.filter(d => d.role === 'gatekeeper').length === 14 && on('gatekeeper') === 'self.manage', on('gatekeeper'))
 
   // ── People ──
   const A = await mkClub('A'), B = await mkClub('B')
