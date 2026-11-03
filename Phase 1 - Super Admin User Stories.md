@@ -1211,7 +1211,7 @@ GIVEN a text box contains {full_name}, {certification_name}, {date_achieved}, {e
 WHEN a certificate is generated  
 THEN each placeholder shall be replaced with that person's values; {expiry_date} prints "Lifetime" for a Lifetime type. The preview can show a sample person or the placeholders themselves
 
-**Scenario 06: Sinhala and Tamil (Proposed — to confirm)**  
+**Scenario 06: Sinhala and Tamil**  
 GIVEN a text box will contain Sinhala or Tamil text  
 WHEN the Super Admin chooses a font for that text box  
 THEN fonts that support Sinhala and Tamil shall be available, and the generated PDF shall show the text correctly
@@ -1306,7 +1306,7 @@ GIVEN the person already holds a certificate of the chosen type
 WHEN the pop-up is open  
 THEN it shall say that this renews the existing certificate and that the older one stays in the history as Renewed
 
-**Scenario 07: Add to Several People at Once (Proposed — to confirm)**  
+**Scenario 07: Add to Several People at Once**  
 GIVEN a Champion has run a training session  
 WHEN they choose a type and a date achieved and tick the Gatekeepers who attended  
 THEN the certificate shall be added to each of them in one step, with the same rules as Scenario 01
@@ -1423,7 +1423,7 @@ GIVEN a certificate is removed
 WHEN the removal completes  
 THEN the holder shall be notified with the reason and told to contact their Club Champion if they think it is a mistake; if someone other than their Champion removed it, the Champion shall be notified too
 
-**Scenario 05: Undo a Removal (Proposed — to confirm)**  
+**Scenario 05: Undo a Removal**  
 GIVEN a certificate was removed by mistake  
 WHEN a Super Admin chooses Undo removal in the person's journey  
 THEN the certificate shall be restored, the holder and their Champion notified, and the audit history shall record it. Only Super Admins can undo a removal
@@ -1543,7 +1543,7 @@ GIVEN the dashboard is opened
 WHEN certification figures are shown  
 THEN they shall be per certification type (valid, expiring in 90 days, expired, holders), plus the number of people with no certifications; a Champion's dashboard covers their club's Gatekeepers only
 
-**Scenario 04: Existing QPR Displays (Proposed — to confirm)**  
+**Scenario 04: Existing QPR Displays**  
 GIVEN the existing screens that show one QPR status per person (Super Admin dashboard QPR Certified widget, Champion dashboard, QPR badges in lists, mobile Home QPR card)  
 WHEN they are shown  
 THEN they shall read the person's current QPR certificate, using the status rules of Story 10.0
@@ -1616,7 +1616,7 @@ GIVEN a user has unread notifications
 WHEN they open the bell or the Alerts tab  
 THEN the unread count shall be shown, and opening them marks them read
 
-**Scenario 04: Expiry Reminders (Proposed — to confirm)**  
+**Scenario 04: Expiry Reminders**  
 GIVEN an official certificate expires in 90 days, and again in 30 days  
 WHEN that day arrives  
 THEN the holder and, for a Gatekeeper, their Champion shall get an in-app reminder
