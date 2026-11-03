@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { waitingReviewCount } from '@/lib/certifications.server'
 import { AUDIT_ACTION_LABEL, auditTone, describeAudit } from '@/lib/certification-types'
 import { formatOrgDate } from '@/lib/org-date'
 import { Badge, CertTabs, PageHeader } from '@/components/certifications/cert-ui'
@@ -19,7 +20,7 @@ export default async function CertificationAuditPage({ searchParams }: { searchP
     .order('created_at', { ascending: false })
     .limit(PAGE)
   if (action && AUDIT_ACTION_LABEL[action]) query = query.eq('action', action)
-  const { data } = await query
+  const [{ data }, waiting] = await Promise.all([query, waitingReviewCount(supabase)])
 
   const needle = q.trim().toLowerCase()
   const rows = (data ?? []).map(r => {
@@ -39,7 +40,7 @@ export default async function CertificationAuditPage({ searchParams }: { searchP
   return (
     <div className="flex flex-col gap-4 p-8 font-[family-name:var(--font-inter)]">
       <PageHeader title="Certifications" description="Every change to certifications, types and designs: who did it, when and why. Only Super Admins can see this." />
-      <CertTabs current="audit" base="/super-admin/certifications" showAudit />
+      <CertTabs current="audit" base="/super-admin/certifications" showAudit reviews={waiting} />
 
       <form className="flex flex-wrap items-center gap-3 rounded-xl bg-white px-6 py-3">
         <label htmlFor="action" className="text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">Action</label>

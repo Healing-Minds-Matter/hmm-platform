@@ -109,3 +109,13 @@ describe('describeChanges', () => {
     expect(describeChanges(null)).toBe('')
   })
 })
+
+describe('buildJourney with self-reported certifications', () => {
+  it('shows when achieved and the review outcome, but nothing extra while waiting', () => {
+    const base = { holder_id: 'h', organisation: 'Red Cross', expires_on: null, attachment_path: null, reviewed_by: 'r', removed_reason_category: null, removed_reason: null, withdrawn_at: null, created_at: '2026-01-01T00:00:00Z' }
+    const verified = { ...base, id: 'v', name: 'First Aid', achieved_on: '2026-01-10', state: 'verified' as const, reviewed_at: '2026-02-01T04:00:00Z' }
+    const waiting = { ...base, id: 'w', name: 'CPR', achieved_on: '2026-03-01', state: 'unverified' as const, reviewed_by: null, reviewed_at: null }
+    const j = buildJourney([], [], [], TODAY, undefined, [verified, waiting])
+    expect(j.map(e => `${e.date} ${e.kind}`)).toEqual(['2026-03-01 self', '2026-02-01 self_outcome', '2026-01-10 self'])
+  })
+})

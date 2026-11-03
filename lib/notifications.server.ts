@@ -1,7 +1,8 @@
 import 'server-only'
 // The signed-in user's latest notifications for the top-bar bell (Story 10.14),
 // each with a link to where it applies. Certificate notifications link to the
-// holder's profile page for this viewer, or to their own profile.
+// holder's profile page for this viewer, or to their own profile; self-reported
+// ones (verified/removed) to the holder's own profile.
 import { createClient } from '@/lib/supabase/server'
 import type { BellNotification } from '@/components/notification-bell'
 
@@ -37,7 +38,9 @@ export async function loadBell(supabase: ServerClient, me: { id: string; role: s
     notifications: list.map(n => {
       const link = n.link as { type?: string; id?: string } | null
       const holder = link?.type === 'certificate' && link.id ? holderOf.get(link.id) : undefined
-      return { id: n.id, body: n.body, created_at: n.created_at, read: !!n.read_at, href: holder ? profileHref(holder) : null }
+      // Self-reported notifications only ever go to their holder.
+      const href = holder ? profileHref(holder) : link?.type === 'self_reported' ? profileHref({ id: me.id, role: me.role }) : null
+      return { id: n.id, body: n.body, created_at: n.created_at, read: !!n.read_at, href }
     }),
   }
 }
