@@ -1005,3 +1005,726 @@ GIVEN any delegation event (created, activated, expired, manually ended)
 WHEN it occurs  
 THEN the system shall log the delegator, delegate, role delegated, time period, and event type with timestamp
 
+
+---
+
+**Epic 10: Certifications**
+
+This epic replaces the single QPR certification date with a general certification system: any number of certification types, each person holding any number of certificates, digital certificates generated from editable designs, and certifications added by the holders themselves. It applies to the Super Admin portal, the Champion portal and the Gatekeeper mobile app.
+
+The clickable prototype agreed with the stakeholders (November 2026) is the visual reference for every story below.
+
+**Terms used in this epic**
+
+* **Certification type**: a certification HMM recognises, for example QPR or Psychological First Aid. Nothing is built in; QPR is an ordinary type.
+* **Official certificate**: a certificate of a type, added to a person by a Super Admin or by the person's Club Champion.
+* **Self-reported certificate**: a certification a Gatekeeper or Champion adds themselves, from another organisation. It never counts as an official certificate.
+* **Current certificate**: for each person and type, the official certificate with the latest date achieved that has not been removed.
+
+**Open items, not part of Phase 1 until decided**
+
+* QR code on certificates: left out until it is known how certificates will be issued.
+
+---
+
+**Story 10.0 — Certificate Status Rules**
+
+| As a | Super Admin, Champion or Gatekeeper |
+| :---- | :---- |
+| **I want to** | see each certificate with a clear, consistent status |
+| **So that** | everyone reads the same answer in every screen, report and in the mobile app |
+
+**Description**  
+Every official certificate has its own status. There is no single "certified" status per person: each certification is shown separately, with its own status. These rules are calculated in one place and used by every screen.
+
+**Acceptance Criteria**
+
+**Scenario 01: Valid**  
+GIVEN an official certificate whose expiry date is today or later, or which has no expiry (Lifetime)  
+WHEN its status is shown  
+THEN it shall be shown as Valid. A certificate is still valid on its expiry date
+
+**Scenario 02: Expiring Soon**  
+GIVEN a valid certificate whose expiry date is within the next 90 days  
+WHEN its status is shown  
+THEN it shall be shown as Expiring Soon
+
+**Scenario 03: Expired**  
+GIVEN an official certificate whose expiry date has passed  
+WHEN its status is shown  
+THEN it shall be shown as Expired
+
+**Scenario 04: Renewed**  
+GIVEN a person holds two or more certificates of the same type  
+WHEN their certificates are shown  
+THEN only the one with the latest date achieved shall be current; older ones shall be shown as Renewed in the certification journey
+
+**Scenario 05: Stopped by a Retired Programme**  
+GIVEN a certification type was retired with the "Stop existing certificates" option (Story 10.2)  
+WHEN the retirement date arrives  
+THEN every certificate of that type achieved before that date shall be shown as Stopped (programme retired) and shall no longer count as valid
+
+**Scenario 06: Removed**  
+GIVEN an official certificate has been removed (Story 10.8)  
+WHEN statuses are calculated  
+THEN it shall never count, and the person's previous certificate of the same type, if any, shall become the current one
+
+**Scenario 07: Deactivated People Keep Their Certificates**  
+GIVEN a Champion or Gatekeeper is deactivated, manually or because their club was deactivated  
+WHEN their certificates are shown  
+THEN their certificates shall keep their own statuses; deactivation affects access only, not certifications
+
+**Scenario 08: Self-Reported Certificates Are Separate**  
+GIVEN a person has self-reported certificates  
+WHEN official statuses, dashboards or reports are calculated  
+THEN self-reported certificates shall never be included
+
+---
+
+**Story 10.1 — Manage Certification Types**
+
+| As a | Super Admin |
+| :---- | :---- |
+| **I want to** | create and edit the certification types HMM recognises |
+| **So that** | Champions can award them and the platform can track them |
+
+**Description**  
+Certification types are listed in a new Certifications menu item. Create and edit open as pop-ups. Champions can see the list but cannot change it.
+
+**Acceptance Criteria**
+
+**Scenario 01: Create a Type**  
+GIVEN a Super Admin opens New certification type  
+WHEN they enter a name, a code, a validity (Lifetime, or a fixed number of months or years), an Offered from date and optionally a description, issuing body and Offered until date  
+THEN the type shall be created as Active and the change recorded in the audit history
+
+**Scenario 02: Unique Name and Code**  
+GIVEN a name or code is already used by another type, in any combination of capitals  
+WHEN the Super Admin saves  
+THEN the system shall refuse and say which one is already used. Codes may contain only letters, numbers and hyphens and are stored in capitals
+
+**Scenario 03: Code Locked Once Awarded**  
+GIVEN a type has been awarded at least once  
+WHEN a Super Admin edits it  
+THEN the code shall be read-only
+
+**Scenario 04: Changing Validity**  
+GIVEN a Super Admin changes a type's validity  
+WHEN they save  
+THEN only certificates awarded afterwards shall use the new validity; each existing certificate keeps the validity it was awarded with
+
+**Scenario 05: List of Types**  
+GIVEN any Super Admin or Champion opens Certifications  
+WHEN the list is shown  
+THEN each type shall show its name, code, validity, offered dates and status (Active, Active · retires on a date, or Retired); Super Admins also see the digital certificate design version, the number of holders, and View and Edit actions
+
+**Scenario 06: Type Details**  
+GIVEN a Super Admin views a type  
+WHEN the page opens  
+THEN it shall show the type's details, its digital certificate design (Story 10.4), and a Retirement section only if a retirement date has been set
+
+---
+
+**Story 10.2 — Retire and Reactivate a Certification Type**
+
+| As a | Super Admin |
+| :---- | :---- |
+| **I want to** | retire a certification type, and bring it back later if needed |
+| **So that** | programmes that end stop being awarded, without losing anyone's history |
+
+**Description**  
+Retiring never deletes anything. The Offered until date and the retirement date are the same thing.
+
+**Acceptance Criteria**
+
+**Scenario 01: Retire or Schedule a Retirement**  
+GIVEN a Super Admin chooses Retire type, or sets an Offered until date  
+WHEN they choose a date (today or later) and what happens to existing certificates: Keep them valid until their own expiry, or Stop them on the retirement date  
+THEN the retirement shall be saved, shown in the type's Retirement section and recorded in the audit history; before the date the type shows "Active · retires on" that date
+
+**Scenario 02: Impact Shown Before Confirming**  
+GIVEN a Super Admin is choosing the retirement option  
+WHEN the pop-up is open  
+THEN it shall show how many people hold the type and how many valid certificates would stop
+
+**Scenario 03: Retired Types Cannot Be Awarded**  
+GIVEN a type is retired  
+WHEN anyone adds or renews a certificate  
+THEN the type shall not be offered
+
+**Scenario 04: No Design Changes While Retired**  
+GIVEN a type is retired  
+WHEN a Super Admin views its digital certificate design  
+THEN existing design versions can be viewed and issued certificates downloaded, but no design can be created or edited
+
+**Scenario 05: Change the Retirement Option Later**  
+GIVEN a type is retired  
+WHEN a Super Admin changes Keep or Stop  
+THEN the change shall apply to all its certificates and be recorded in the audit history
+
+**Scenario 06: Reactivate**  
+GIVEN a type is retired  
+WHEN a Super Admin chooses Reactivate type and a date it is offered again from (today or later), and optionally a new Offered until date  
+THEN the type shall become Active from that date, can be awarded again, and its design can be edited again
+
+**Scenario 07: Certificates After Reactivation**  
+GIVEN a type is reactivated  
+WHEN its existing certificates are shown  
+THEN certificates that stopped at retirement shall stay stopped and can be renewed (Story 10.7); certificates kept valid at retirement are unaffected; the certification journey shows both the retirement and the reactivation
+
+---
+
+**Story 10.3 — Design a Digital Certificate**
+
+| As a | Super Admin |
+| :---- | :---- |
+| **I want to** | design the digital certificate for each certification type |
+| **So that** | certificates can be issued as PDFs that look the way HMM wants |
+
+**Description**  
+Each type has at most one current design, with a full version history. The design is a page (a built-in layout, or HMM's own uploaded artwork) with text boxes and images placed on it.
+
+**Acceptance Criteria**
+
+**Scenario 01: Start From a Layout or Own Template**  
+GIVEN a Super Admin opens the designer  
+WHEN they choose a built-in layout (Landscape classic, Landscape modern, Portrait) or upload their own template (a PNG or JPG of the whole A4 page, up to 5 MB, landscape or portrait)  
+THEN the preview shall show that page
+
+**Scenario 02: Every Word Is Editable**  
+GIVEN the designer is open  
+WHEN the Super Admin selects a text box  
+THEN they can change its text, size, width, position, font, weight, italic, capital letters, alignment, colour and line style, or delete it; and they can add any number of new text boxes
+
+**Scenario 03: Move Anything**  
+GIVEN text boxes and images are on the page  
+WHEN the Super Admin drags one, or focuses it and uses the arrow keys  
+THEN it shall move, and its position fields update
+
+**Scenario 04: Images**  
+GIVEN the designer is open  
+WHEN the Super Admin adds one or more images (PNG, JPG or SVG, up to 2 MB each) for logos, signatures, seals or photos  
+THEN each can be moved, resized, replaced or deleted
+
+**Scenario 05: Placeholders**  
+GIVEN a text box contains {full_name}, {certification_name}, {date_achieved}, {expiry_date}, {certificate_number}, {club_name} or {issuing_body}  
+WHEN a certificate is generated  
+THEN each placeholder shall be replaced with that person's values; {expiry_date} prints "Lifetime" for a Lifetime type. The preview can show a sample person or the placeholders themselves
+
+**Scenario 06: Sinhala and Tamil**  
+GIVEN a text box will contain Sinhala or Tamil text  
+WHEN the Super Admin chooses a font for that text box  
+THEN fonts that support Sinhala and Tamil shall be available, and the generated PDF shall show the text correctly
+
+**Scenario 07: Save as a New Version**  
+GIVEN the Super Admin has changed the design  
+WHEN they save  
+THEN a new version shall be created; earlier versions are never overwritten, and certificates already issued keep the version they were made with
+
+**Scenario 08: Discard Changes**  
+GIVEN the designer is open  
+WHEN the Super Admin chooses Discard changes, which is always available  
+THEN the design shall go back to the current saved version
+
+**Scenario 09: Download and Print**  
+GIVEN the designer or a saved version is open  
+WHEN the Super Admin chooses Download PDF or Print  
+THEN an A4 PDF of exactly what the preview shows shall be produced, including unsaved changes
+
+---
+
+**Story 10.4 — View and Edit Certificate Designs**
+
+| As a | Super Admin |
+| :---- | :---- |
+| **I want to** | see a type's designs and versions from the type itself |
+| **So that** | I don't need a separate place to manage designs |
+
+**Acceptance Criteria**
+
+**Scenario 01: Design Section on the Type Page**  
+GIVEN a Super Admin views a type that has a design  
+WHEN the page opens  
+THEN it shall show a preview of the current design and a list of versions with the date saved, who saved it and how many certificates were issued with each, each with View and Edit
+
+**Scenario 02: No Design Yet**  
+GIVEN a type has no design  
+WHEN a Super Admin views it  
+THEN it shall say so and offer Create design (only while the type is active); certificates of this type can then only be recorded as physical
+
+**Scenario 03: View a Version**  
+GIVEN a Super Admin chooses View on a version  
+WHEN the pop-up opens  
+THEN it shall show that version with sample data, allow switching between versions, and offer Download PDF, Print and Edit
+
+**Scenario 04: Edit a Copy of an Older Version**  
+GIVEN a Super Admin chooses Edit on an older version  
+WHEN the designer opens  
+THEN it shall start from a copy of that version, and saving creates a new version
+
+---
+
+**Story 10.5 — Add an Official Certificate to a Person**
+
+| As a | Super Admin or Champion |
+| :---- | :---- |
+| **I want to** | add a certificate to a Champion's or Gatekeeper's profile |
+| **So that** | their certifications are on record |
+
+**Description**  
+Super Admins can add certificates to any Champion or Gatekeeper. Champions can add them only to Gatekeepers in their own club, not to themselves or to other Champions. The old single "Certification Date" field on the Add and Edit Gatekeeper forms is replaced by this.
+
+**Acceptance Criteria**
+
+**Scenario 01: Add Certification**  
+GIVEN a Super Admin or the person's Champion opens their profile and chooses Add certification  
+WHEN they choose an active type, a date achieved, a format (Physical, Digital or Both) and optionally an attachment  
+THEN the certificate shall be saved, with its expiry calculated from the type's validity and shown read-only
+
+**Scenario 02: Date Rules**  
+GIVEN a date achieved is in the future, or before the type's Offered from date  
+WHEN the certificate is saved  
+THEN the system shall refuse with a clear message
+
+**Scenario 03: Attachment Rules**  
+GIVEN an attachment is added  
+WHEN it is not a PDF, JPG or PNG, or is larger than 10 MB  
+THEN the system shall refuse it
+
+**Scenario 04: Generate a Digital Certificate**  
+GIVEN the type has a design  
+WHEN the person adding the certificate chooses Generate digital certificate  
+THEN an A4 PDF shall be created from the current design version, with a certificate number HMM-{CODE}-{YEAR}-{six-digit number}, numbered per type per year (for example HMM-QPR-2026-000042)
+
+**Scenario 05: When Registering a Gatekeeper**  
+GIVEN a Super Admin or Champion is registering a new Gatekeeper  
+WHEN they add one or more certifications in the form (each with a type and date achieved)  
+THEN each shall be saved as in Scenario 01; certifications are optional
+
+**Scenario 06: Renewal Notice**  
+GIVEN the person already holds a certificate of the chosen type  
+WHEN the pop-up is open  
+THEN it shall say that this renews the existing certificate and that the older one stays in the history as Renewed
+
+**Scenario 07: Add to Several People at Once**  
+GIVEN a Champion has run a training session  
+WHEN they choose a type and a date achieved and tick the Gatekeepers who attended  
+THEN the certificate shall be added to each of them in one step, with the same rules as Scenario 01
+
+---
+
+**Story 10.6 — View and Edit an Issued Certificate**
+
+| As a | Super Admin or Champion |
+| :---- | :---- |
+| **I want to** | view an issued certificate and correct it if needed |
+| **So that** | mistakes can be fixed without removing and re-adding the certificate |
+
+**Description**  
+Same scope as Story 10.5: Super Admins for anyone, Champions for Gatekeepers in their own club.
+
+**Acceptance Criteria**
+
+**Scenario 01: View a Digital Certificate**  
+GIVEN a certificate has a digital PDF  
+WHEN a Super Admin or Champion chooses View  
+THEN it shall show the certificate with the person's details, using the design version it was issued with, with Download PDF and Print
+
+**Scenario 02: Edit**  
+GIVEN a Super Admin or Champion chooses Edit on a certificate  
+WHEN they change the date achieved, the format or the attachment  
+THEN the expiry shall be recalculated using the validity the certificate was awarded with; the type itself cannot be changed
+
+**Scenario 03: Re-issue or Generate the PDF**  
+GIVEN the certificate has a digital PDF  
+WHEN the editor chooses to re-issue it  
+THEN a new PDF shall be produced with the same certificate number, using the original design version or the current one, as chosen. If it has no PDF yet and the type has a design, one can be generated with a new number
+
+**Scenario 04: Reason Required**  
+GIVEN an edit is being saved  
+WHEN no reason has been entered, or nothing has changed  
+THEN the system shall refuse
+
+**Scenario 05: Recorded and Notified**  
+GIVEN an edit is saved  
+WHEN it completes  
+THEN the certification journey shall show who changed what and why, the audit history shall record it, and the holder shall be notified with the changes and the reason
+
+---
+
+**Story 10.7 — Renew an Expired Certificate**
+
+| As a | Super Admin or Champion |
+| :---- | :---- |
+| **I want to** | renew an expired certificate |
+| **So that** | a person who has completed the renewal is valid again |
+
+**Description**  
+Only Super Admins (for anyone) and Champions (for Gatekeepers in their own club) can renew. Gatekeepers cannot, and Champions cannot renew their own certificates.
+
+**Acceptance Criteria**
+
+**Scenario 01: Where Renew Appears**  
+GIVEN a person's current certificate of a type is Expired, or Stopped after its type was reactivated, and the type is active  
+WHEN a Super Admin or their Champion views the Gatekeepers list, the Champions list or the person's profile  
+THEN a Renew button shall appear next to that certificate
+
+**Scenario 02: Renew**  
+GIVEN Renew is chosen  
+WHEN the person renewing enters a date achieved  
+THEN a new certificate of the same type shall be added with the rules of Story 10.5; the type cannot be changed; the old certificate stays in the journey as Renewed
+
+**Scenario 03: Date Must Follow the Previous Certificate**  
+GIVEN the date achieved is on or before the previous certificate's date  
+WHEN the renewal is saved  
+THEN the system shall refuse
+
+**Scenario 04: Not Renewable**  
+GIVEN a certificate is still valid or expiring soon, has been removed, or its type is retired  
+WHEN it is shown  
+THEN no Renew button shall appear
+
+**Scenario 05: Recorded and Notified**  
+GIVEN a renewal is saved  
+WHEN it completes  
+THEN the holder shall be notified with the new expiry date, and the audit history shall record it
+
+---
+
+**Story 10.8 — Remove an Official Certificate**
+
+| As a | Super Admin or Champion |
+| :---- | :---- |
+| **I want to** | remove an official certificate that should not be on someone's profile |
+| **So that** | records stay accurate |
+
+**Description**  
+Same scope as Story 10.5. Removing never deletes: the certificate is hidden from current certifications but kept in the journey and audit history.
+
+**Acceptance Criteria**
+
+**Scenario 01: Valid Reason Required**  
+GIVEN a Super Admin or Champion chooses Remove on a certificate, from the profile or the journey  
+WHEN they confirm  
+THEN they must choose a reason (Added by mistake, Added to the wrong person, Training was not completed, Certificate could not be verified, Duplicate record, or Other) and write an explanation of at least 10 characters; otherwise the system shall refuse
+
+**Scenario 02: Impact Shown**  
+GIVEN the remove pop-up is open  
+WHEN it is shown  
+THEN it shall say that the certificate stops counting straight away, and whether a previous certificate of the same type becomes the current one
+
+**Scenario 03: After Removal**  
+GIVEN a certificate is removed  
+WHEN the person's certificates are shown  
+THEN the status rules of Story 10.0 Scenario 06 shall apply, and the journey shows who removed it, when and why
+
+**Scenario 04: Notified**  
+GIVEN a certificate is removed  
+WHEN the removal completes  
+THEN the holder shall be notified with the reason and told to contact their Club Champion if they think it is a mistake; if someone other than their Champion removed it, the Champion shall be notified too
+
+**Scenario 05: Undo a Removal**  
+GIVEN a certificate was removed by mistake  
+WHEN a Super Admin chooses Undo removal in the person's journey  
+THEN the certificate shall be restored, the holder and their Champion notified, and the audit history shall record it. Only Super Admins can undo a removal
+
+---
+
+**Story 10.9 — Add a Certification I Hold (Self-Reported)**
+
+| As a | Gatekeeper or Champion |
+| :---- | :---- |
+| **I want to** | add certifications I hold from other organisations |
+| **So that** | my wider training is on record |
+
+**Description**  
+Gatekeepers add these in the mobile app; Champions add them from My Profile in the Champion portal.
+
+**Acceptance Criteria**
+
+**Scenario 01: Add**  
+GIVEN a Gatekeeper or Champion chooses Add a certification  
+WHEN they enter a certification name, issuing organisation, date achieved, an expiry date or No expiry, and optionally an attachment (PDF, JPG or PNG, up to 10 MB; a photo on the phone)  
+THEN it shall be saved as Self-reported – not verified
+
+**Scenario 02: Rules**  
+GIVEN a required field is missing, the date achieved is in the future, or the expiry date is before the date achieved  
+WHEN it is saved  
+THEN the system shall refuse with a clear message
+
+**Scenario 03: Withdraw**  
+GIVEN a self-reported certificate has not been reviewed yet  
+WHEN its holder chooses Withdraw  
+THEN it shall be shown as Withdrawn by holder, kept in their own history only, and hidden from others
+
+**Scenario 04: Never Official**  
+GIVEN a self-reported certificate is verified  
+WHEN statuses are calculated  
+THEN it still shall not count as an official certificate (Story 10.0 Scenario 08)
+
+---
+
+**Story 10.10 — Review Self-Reported Certifications**
+
+| As a | Super Admin or Champion |
+| :---- | :---- |
+| **I want to** | review certifications people have added themselves |
+| **So that** | only genuine certifications are shown as verified |
+
+**Description**  
+Super Admins review everyone's self-reported certifications, including Champions'. Champions review only those of Gatekeepers in their own club.
+
+**Acceptance Criteria**
+
+**Scenario 01: Review Queue**  
+GIVEN a Super Admin or Champion opens Certifications → Reviews  
+WHEN the queue is shown  
+THEN it shall list the self-reported certifications in their scope with the person, certification, organisation, dates and attachment, filterable by Waiting for review, Verified, Removed or Everything; the tab shows how many are waiting
+
+**Scenario 02: Verify**  
+GIVEN a reviewer chooses Verify  
+WHEN it completes  
+THEN it shall be shown as Verified by the reviewer, with their role and the date, and the holder notified
+
+**Scenario 03: Remove**  
+GIVEN a reviewer chooses Remove  
+WHEN they confirm  
+THEN they must choose a reason (Attachment doesn't show a completed certificate, Details don't match the attachment, Not a recognised certification, Already recorded as an official certification, or Other) and write an explanation of at least 10 characters; the holder shall be notified with the reason and told they can add it again
+
+---
+
+**Story 10.11 — Certification Journey**
+
+| As a | Super Admin, Champion or Gatekeeper |
+| :---- | :---- |
+| **I want to** | see the full history of a person's certifications |
+| **So that** | it is clear what they hold and what changed over time |
+
+**Acceptance Criteria**
+
+**Scenario 01: Contents**  
+GIVEN a person's certification journey is opened (on their portal profile, or View certification journey in the mobile app)  
+WHEN it is shown  
+THEN it shall list, newest first, every official certificate with its status, dates, format, who added it and its certificate number and design version; every self-reported certificate with its review outcome; and every renewal, expiry, edit (with reason), removal (with reason), undo, programme retirement and programme reactivation
+
+**Scenario 02: Migrated Certificates**  
+GIVEN a certificate was created from the old QPR certification date (Story 10.17)  
+WHEN it is shown  
+THEN it shall be marked as migrated
+
+**Scenario 03: Actions in the Journey**  
+GIVEN a Super Admin or the person's Champion views the journey  
+WHEN a certificate is shown  
+THEN View certificate, Edit and Remove shall be available, with the same rules as Stories 10.6 and 10.8
+
+---
+
+**Story 10.12 — Certifications in Lists and Dashboards**
+
+| As a | Super Admin or Champion |
+| :---- | :---- |
+| **I want to** | see each person's certifications in lists and dashboards |
+| **So that** | I can see who is certified in what at a glance |
+
+**Acceptance Criteria**
+
+**Scenario 01: Gatekeepers and Champions Lists**  
+GIVEN a Super Admin opens the Gatekeepers or Champions list, or a Champion opens their Gatekeepers list  
+WHEN it is shown  
+THEN each person shall show every current certificate with its own status and expiry, or "No certifications"; the list can be filtered by certification (or No certifications) and by status (Valid, Expiring soon, Expired)
+
+**Scenario 02: Profile**  
+GIVEN a person's profile is opened  
+WHEN it is shown  
+THEN it shall list their current certificates with status, dates achieved and expiry, certificate number and actions (View, Renew, Edit, Remove, as permitted), followed by the certification journey
+
+**Scenario 03: Dashboard Figures**  
+GIVEN the dashboard is opened  
+WHEN certification figures are shown  
+THEN they shall be per certification type (valid, expiring in 90 days, expired, holders), plus the number of people with no certifications; a Champion's dashboard covers their club's Gatekeepers only
+
+**Scenario 04: Existing QPR Displays**  
+GIVEN the existing screens that show one QPR status per person (Super Admin dashboard QPR Certified widget, Champion dashboard, QPR badges in lists, mobile Home QPR card)  
+WHEN they are shown  
+THEN they shall read the person's current QPR certificate, using the status rules of Story 10.0
+
+---
+
+**Story 10.13 — My Certifications in the Mobile App**
+
+| As a | Gatekeeper |
+| :---- | :---- |
+| **I want to** | see my certifications in the app |
+| **So that** | I know what I hold and when it expires |
+
+**Description**  
+Follows the existing app's screens and styles: the Home certification card, the Profile menu and the existing certificate screen.
+
+**Acceptance Criteria**
+
+**Scenario 01: Where to Find It**  
+GIVEN a Gatekeeper is signed in  
+WHEN they open Home or Profile  
+THEN Home shall show a My Certifications card (how many are active and the next expiry), and the Profile menu shall start with My certifications; both open the same screen
+
+**Scenario 02: Two Sections**  
+GIVEN My certifications is open  
+WHEN it is shown  
+THEN official certificates and certifications added by the Gatekeeper shall be in two separate sections (Official, and Added by you), each item with its status; removed items stay at the end of their section, greyed, with the reason when opened. The screen ends with Add a certification and View certification journey
+
+**Scenario 03: Certificate Details**  
+GIVEN the Gatekeeper opens an official certificate  
+WHEN it is shown  
+THEN it shall show the type, status, dates, issuing body, format and certificate number, with Download certificate when a digital PDF exists
+
+**Scenario 04: Expired**  
+GIVEN the certificate is expired  
+WHEN it is opened  
+THEN the app shall explain that after the renewal training their Club Champion records the renewal; the Gatekeeper cannot renew it themselves
+
+**Scenario 05: Removed**  
+GIVEN the certificate was removed  
+WHEN it is opened  
+THEN the app shall show who removed it, when and why, that it no longer counts, and to contact their Club Champion if they think it is a mistake
+
+---
+
+**Story 10.14 — Certification Notifications**
+
+| As a | Super Admin, Champion or Gatekeeper |
+| :---- | :---- |
+| **I want to** | be told when something changes on certifications that concern me |
+| **So that** | I don't have to check manually |
+
+**Description**  
+Notifications are shown in the bell in the portals and in the Alerts tab in the mobile app. The portal bell currently shows a fixed red dot; it becomes a real unread count.
+
+**Acceptance Criteria**
+
+**Scenario 01: Holder Notifications**  
+GIVEN a certificate is edited, renewed or removed, a removal is undone, or a self-reported certificate is verified or removed  
+WHEN the change is saved  
+THEN the holder shall be notified with who made the change and, where given, the reason
+
+**Scenario 02: Champion Notifications**  
+GIVEN a certificate of a Gatekeeper is removed, or a removal is undone, by someone other than their Champion  
+WHEN the change is saved  
+THEN the Gatekeeper's Champion shall be notified with the reason
+
+**Scenario 03: Unread Count**  
+GIVEN a user has unread notifications  
+WHEN they open the bell or the Alerts tab  
+THEN the unread count shall be shown, and opening them marks them read
+
+**Scenario 04: Expiry Reminders**  
+GIVEN an official certificate expires in 90 days, and again in 30 days  
+WHEN that day arrives  
+THEN the holder and, for a Gatekeeper, their Champion shall get an in-app reminder
+
+---
+
+**Story 10.15 — Certification Permissions**
+
+| As a | Super Admin |
+| :---- | :---- |
+| **I want to** | control who can do what with certifications |
+| **So that** | access follows the platform's permission system (Epic 9) |
+
+**Description**  
+Fourteen new permission keys, shown in a Certifications card on the Permissions screen. They are enforced on the server and in the database, not only hidden in the screens.
+
+| Key | Super Admin | Champion default | Gatekeeper default |
+| :---- | :---- | :---- | :---- |
+| certifications.types.view | Yes | Yes | No |
+| certifications.types.manage | Yes | Super Admins only | No |
+| certifications.types.retire | Yes | Super Admins only | No |
+| certifications.design.manage | Yes | Super Admins only | No |
+| certifications.award | Yes | Yes (own club's Gatekeepers) | No |
+| certifications.official.edit | Yes | Yes (own club's Gatekeepers) | No |
+| certifications.official.remove | Yes | Yes (own club's Gatekeepers) | No |
+| certifications.attachments.manage | Yes | Yes (own club's Gatekeepers) | No |
+| certifications.digital.generate | Yes | Yes (own club's Gatekeepers) | No |
+| certifications.self.manage | No | Yes | Yes |
+| certifications.review.view | Yes | Yes (own club's Gatekeepers) | No |
+| certifications.review.verify | Yes | Yes (own club's Gatekeepers) | No |
+| certifications.review.remove | Yes | Yes (own club's Gatekeepers) | No |
+| certifications.journey.view | Yes | Yes (own club's Gatekeepers) | Own only |
+
+**Acceptance Criteria**
+
+**Scenario 01: Enforced Everywhere**  
+GIVEN a user does not have a certification permission  
+WHEN they try the action, through the screens or directly against the server or database  
+THEN it shall be refused
+
+**Scenario 02: Super Admin–Only Keys**  
+GIVEN a key is marked Super Admins only  
+WHEN anyone tries to give it to a Champion through role defaults, individual exceptions, permission groups or delegation  
+THEN the system shall refuse, including at the database level
+
+**Scenario 03: Club Scope**  
+GIVEN a Champion has a certification permission  
+WHEN they act on a person  
+THEN it shall apply only to Gatekeepers in their own club, never to themselves or other Champions
+
+---
+
+**Story 10.16 — Certifications Audit History**
+
+| As a | Super Admin |
+| :---- | :---- |
+| **I want to** | review every change made to certifications |
+| **So that** | I can see who did what, when and why |
+
+**Acceptance Criteria**
+
+**Scenario 01: What Is Recorded**  
+GIVEN any of these happen: a certificate added, renewed, edited, removed or a removal undone; a self-reported certificate added, verified, removed or withdrawn; a type created, edited, retired or reactivated; a design saved  
+WHEN it happens  
+THEN the audit history shall record the date, the action, the person or type, the details including any reason, and who did it
+
+**Scenario 02: Audit History Screen**  
+GIVEN a Super Admin opens Certifications → Audit history  
+WHEN it is shown  
+THEN entries shall be listed newest first and can be filtered by action and searched by name, certification or reason
+
+**Scenario 03: Super Admins Only**  
+GIVEN a Champion or Gatekeeper  
+WHEN they use the platform  
+THEN the audit history shall not be available to them
+
+**Scenario 04: Kept Permanently**  
+GIVEN audit entries exist  
+WHEN any certificate, type or design changes or is removed  
+THEN existing audit entries shall never be changed or deleted
+
+---
+
+**Story 10.17 — Move Existing QPR Certification Dates**
+
+| As a | Super Admin |
+| :---- | :---- |
+| **I want to** | keep every existing QPR certification when the new system goes live |
+| **So that** | no one loses their certification and today's screens keep working |
+
+**Acceptance Criteria**
+
+**Scenario 01: QPR Type Created**  
+GIVEN the new system goes live  
+WHEN the data is moved  
+THEN a QPR certification type shall be created with 3-year validity, marked as created from existing data
+
+**Scenario 02: Certificates Created**  
+GIVEN a Champion or Gatekeeper has a QPR certification date  
+WHEN the data is moved  
+THEN they shall get a QPR certificate with that date achieved and the same expiry they have today, marked as migrated; people without a date get none
+
+**Scenario 03: Same Figures on Day One**  
+GIVEN the data has been moved  
+WHEN the dashboards and lists are compared with before  
+THEN the number of people with a valid QPR shall be the same as before
+
+**Scenario 04: Old Date Fields Kept Until the Mobile App Is Updated**  
+GIVEN the mobile app still reads the old QPR date fields  
+WHEN a person's current QPR certificate changes (added, renewed, edited, removed)  
+THEN the old fields shall be updated automatically to match it; they are removed once the mobile app no longer uses them
