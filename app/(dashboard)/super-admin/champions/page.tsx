@@ -2,16 +2,23 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { ChampionFilters } from './champion-filters'
 import { ExportChampionsButton, type ExportRow } from './export-champions-button'
+import { CertChips } from '@/components/certifications/cert-chips'
+import { CertListFilters } from '@/components/certifications/cert-list-filters'
+import { loadCertSummary } from '@/lib/cert-summary.server'
+import { matchesCertFilter } from '@/lib/cert-summary'
+import { todayDateString } from '@/lib/org-date'
 
 export const metadata = { title: 'Champions — HMM Super Admin' }
 
 const PAGE_SIZE = 10
 
-function buildHref(params: { q?: string; club?: string; status?: string; page?: number }) {
+function buildHref(params: { q?: string; club?: string; status?: string; cert?: string; cstatus?: string; page?: number }) {
   const usp = new URLSearchParams()
   if (params.q) usp.set('q', params.q)
   if (params.club) usp.set('club', params.club)
   if (params.status) usp.set('status', params.status)
+  if (params.cert) usp.set('cert', params.cert)
+  if (params.cstatus) usp.set('cstatus', params.cstatus)
   if (params.page && params.page > 1) usp.set('page', String(params.page))
   const qs = usp.toString()
   return qs ? `/super-admin/champions?${qs}` : '/super-admin/champions'
@@ -26,11 +33,21 @@ function displayName(fullName: string, title: string | null) {
 export default async function ChampionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; club?: string; status?: string; page?: string }>
+  searchParams: Promise<{ q?: string; club?: string; status?: string; cert?: string; cstatus?: string; page?: string }>
 }) {
-  const { q, club: clubFilter, status, page: pageParam } = await searchParams
+  const { q, club: clubFilter, status, cert, cstatus, page: pageParam } = await searchParams
   const requestedPage = Math.max(1, parseInt(pageParam ?? '1', 10) || 1)
   const supabase = await createClient()
+
+  // Certification filters (Story 10.12 Sc01) narrow the list to matching ids before paging.
+  const summary = await loadCertSummary(supabase)
+  const typeMap = new Map(summary.types.map(t => [t.id, t]))
+  let certIds: string[] | null = null
+  if (cert || cstatus) {
+    const { data: all } = await supabase.from('profiles').select('id').eq('role', 'champion')
+    certIds = (all ?? []).map(r => r.id).filter(id => matchesCertFilter(summary.byHolder.get(id) ?? [], cert, cstatus))
+  }
+  const NO_MATCH = '00000000-0000-0000-0000-000000000000'
 
   // Count matching rows first so an out-of-range page can be clamped before
   // the real data fetch (same convention as the Clubs list).
@@ -42,6 +59,7 @@ export default async function ChampionsPage({
   if (clubFilter) countQuery = countQuery.eq('club_id', clubFilter)
   if (status === 'active')   countQuery = countQuery.eq('is_active', true)
   if (status === 'inactive') countQuery = countQuery.eq('is_active', false)
+  if (certIds) countQuery = countQuery.in('id', certIds.length ? certIds : [NO_MATCH])
   const { count } = await countQuery
 
   const totalChampions = count ?? 0
@@ -58,6 +76,7 @@ export default async function ChampionsPage({
   if (clubFilter) query = query.eq('club_id', clubFilter)
   if (status === 'active')   query = query.eq('is_active', true)
   if (status === 'inactive') query = query.eq('is_active', false)
+  if (certIds) query = query.in('id', certIds.length ? certIds : [NO_MATCH])
 
   const from = (page - 1) * PAGE_SIZE
   const to = from + PAGE_SIZE - 1
@@ -146,11 +165,12 @@ export default async function ChampionsPage({
       </div>
 
       <ChampionFilters q={q} clubFilter={clubFilter} status={status} clubs={clubs ?? []} />
+      <CertListFilters types={summary.types} />
 
       <div className="overflow-hidden rounded-[12px] border border-[#E2E8F0] bg-white">
         {championList.length === 0 ? (
           <div className="p-12 text-center text-sm text-[#64748B]">
-            {q || clubFilter || status ? 'No champions match your filters.' : 'No champions yet.'}
+            {q || clubFilter || status || cert || cstatus ? 'No champions match your filters.' : 'No champions yet.'}
           </div>
         ) : (
           <>
@@ -162,6 +182,9 @@ export default async function ChampionsPage({
                   </th>
                   <th className="min-w-[180px] px-[16px] text-left text-[11px] font-semibold uppercase tracking-[0.55px] text-[#475569]">
                     Assigned Club
+                  </th>
+                  <th className="min-w-[200px] px-[16px] text-left text-[11px] font-semibold uppercase tracking-[0.55px] text-[#475569]">
+                    Certifications
                   </th>
                   <th className="w-[130px] px-[16px] text-center text-[11px] font-semibold uppercase tracking-[0.55px] text-[#475569]">
                     Gatekeepers
@@ -195,6 +218,11 @@ export default async function ChampionsPage({
                       {/* Assigned Club */}
                       <td className="px-[16px] py-3 text-[13px] font-medium text-[#0F172A]">
                         {clubName}
+                      </td>
+
+                      {/* Certifications (Story 10.12 Sc01). Only Super Admins can renew a Champion's certificate. */}
+                      <td className="px-[16px] py-3 text-[13px]">
+                        <CertChips certs={summary.byHolder.get(ch.id) ?? []} types={typeMap} today={todayDateString()} renewBase={`/super-admin/champions/${ch.id}`} />
                       </td>
 
                       {/* Gatekeepers */}
@@ -275,7 +303,7 @@ export default async function ChampionsPage({
                   </span>
                 ) : (
                   <Link
-                    href={buildHref({ q, club: clubFilter, status, page: page - 1 })}
+                    href={buildHref({ q, club: clubFilter, status, cert, cstatus, page: page - 1 })}
                     className="flex h-[22px] items-center justify-center rounded-[4px] bg-[#F1F5F9] px-[12px] py-[6px] text-[10px] font-semibold tracking-[0.24px] text-[#475569] hover:bg-slate-200 transition-colors"
                   >
                     Previous
@@ -293,7 +321,7 @@ export default async function ChampionsPage({
                   ) : (
                     <Link
                       key={n}
-                      href={buildHref({ q, club: clubFilter, status, page: n })}
+                      href={buildHref({ q, club: clubFilter, status, cert, cstatus, page: n })}
                       className="flex h-[26px] w-[26px] items-center justify-center rounded-[8px] text-[10px] font-semibold tracking-[0.24px] text-[#475569] hover:bg-gray-100 transition-colors"
                     >
                       {n}
@@ -307,7 +335,7 @@ export default async function ChampionsPage({
                   </span>
                 ) : (
                   <Link
-                    href={buildHref({ q, club: clubFilter, status, page: page + 1 })}
+                    href={buildHref({ q, club: clubFilter, status, cert, cstatus, page: page + 1 })}
                     className="flex h-[22px] items-center justify-center rounded-[4px] bg-[#F1F5F9] px-[12px] py-[6px] text-[10px] font-semibold tracking-[0.24px] text-[#475569] hover:bg-slate-200 transition-colors"
                   >
                     Next

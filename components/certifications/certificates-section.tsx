@@ -5,8 +5,9 @@ import { createClient } from '@/lib/supabase/server'
 import { loadProfileCertificates } from '@/lib/certificates.server'
 import { CertificatesPanel } from '@/components/certifications/certificates-panel'
 
-export async function CertificatesSection({ holderId, holderName }: { holderId: string; holderName: string }) {
+// openRenew: a certificate id from a list's Renew link (?renew=…), whose Renew pop-up opens straight away.
+export async function CertificatesSection({ holderId, holderName, openRenew }: { holderId: string; holderName: string; openRenew?: string }) {
   const supabase = await createClient()
   const data = await loadProfileCertificates(supabase, holderId)
-  return <CertificatesPanel holderId={holderId} holderName={holderName} {...data} />
+  return <CertificatesPanel holderId={holderId} holderName={holderName} openRenew={openRenew} {...data} />
 }

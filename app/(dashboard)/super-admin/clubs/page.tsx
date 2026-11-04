@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { loadCertSummary } from '@/lib/cert-summary.server'
 import { reactivateClubAction } from '@/actions/clubs'
 import { ClubFilters } from './club-filters'
 import { ExportClubsButton, type ExportRow } from './export-clubs-button'
@@ -113,7 +114,7 @@ export default async function ClubsPage({
           .in('club_id', clubIds),
         supabase
           .from('profiles')
-          .select('club_id, qpr_expiry_date')
+          .select('id, club_id')
           .in('role', ['champion', 'gatekeeper'])
           .eq('is_active', true)
           .in('club_id', clubIds),
@@ -133,13 +134,15 @@ export default async function ClubsPage({
     if (row.club_id) gatekeeperCountByClub[row.club_id] = (gatekeeperCountByClub[row.club_id] ?? 0) + 1
   }
 
-  const today = new Date().toISOString().split('T')[0]
+  // Certified = a current QPR certificate that is valid or expiring soon (Story 10.12 Sc04).
+  const { qprByHolder } = await loadCertSummary(supabase)
   const qprByClub: Record<string, { certified: number; total: number }> = {}
   for (const row of qprRows ?? []) {
     if (!row.club_id) continue
     qprByClub[row.club_id] ??= { certified: 0, total: 0 }
     qprByClub[row.club_id].total += 1
-    if (row.qpr_expiry_date && row.qpr_expiry_date >= today) qprByClub[row.club_id].certified += 1
+    const s = qprByHolder.get(row.id)?.status
+    if (s === 'valid' || s === 'expiring_soon') qprByClub[row.club_id].certified += 1
   }
 
   const showingFrom = totalClubs === 0 ? 0 : from + 1

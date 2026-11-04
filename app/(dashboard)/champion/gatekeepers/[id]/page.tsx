@@ -4,7 +4,9 @@ import { createClient } from '@/lib/supabase/server'
 import { CertificatesSection } from '@/components/certifications/certificates-section'
 import { GatekeeperStatusControls } from './gatekeeper-status-controls'
 import { ResendInviteButton } from '@/app/(dashboard)/super-admin/gatekeepers/[id]/resend-invite-button'
-import { qprStatus, QPR_STATUS_LABEL, QPR_STATUS_BADGE, QPR_STATUS_DOT, todayBounds } from '@/app/(dashboard)/super-admin/gatekeepers/gatekeeper-status'
+import { QPR_STATUS_LABEL, QPR_STATUS_BADGE, QPR_STATUS_DOT } from '@/app/(dashboard)/super-admin/gatekeepers/gatekeeper-status'
+import { loadCertSummary } from '@/lib/cert-summary.server'
+import { qprStatusOf } from '@/lib/cert-summary'
 
 export const metadata = { title: 'Gatekeeper Details — HMM Champion' }
 
@@ -12,8 +14,9 @@ function getInitials(name: string): string {
   return name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
 }
 
-export default async function ChampionGatekeeperDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ChampionGatekeeperDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ renew?: string }> }) {
   const { id } = await params
+  const { renew } = await searchParams
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -21,11 +24,10 @@ export default async function ChampionGatekeeperDetailPage({ params }: { params:
   const { data: callerProfile } = await supabase.from('profiles').select('club_id').eq('id', user.id).single()
   if (!callerProfile?.club_id) redirect('/champion')
 
-  const { today, in90Days } = todayBounds()
 
   const { data: gatekeeper } = await supabase
     .from('profiles')
-    .select('id, full_name, email, phone, gatekeeper_code, is_active, deactivation_reason, club_id, preferred_language, qpr_certification_date, qpr_expiry_date')
+    .select('id, full_name, email, phone, gatekeeper_code, is_active, deactivation_reason, club_id, preferred_language')
     .eq('id', id)
     .eq('role', 'gatekeeper')
     .eq('club_id', callerProfile.club_id)
@@ -33,7 +35,7 @@ export default async function ChampionGatekeeperDetailPage({ params }: { params:
 
   if (!gatekeeper) notFound()
 
-  const status = qprStatus(gatekeeper.is_active, gatekeeper.qpr_expiry_date, today, in90Days)
+  const status = qprStatusOf(gatekeeper.is_active, (await loadCertSummary(supabase)).qprByHolder.get(gatekeeper.id))
 
   return (
     <div className="flex flex-col gap-6 p-6 font-[family-name:var(--font-inter)]">
@@ -104,7 +106,7 @@ export default async function ChampionGatekeeperDetailPage({ params }: { params:
         </div>
       </div>
 
-      <CertificatesSection holderId={id} holderName={gatekeeper.full_name} />
+      <CertificatesSection holderId={id} holderName={gatekeeper.full_name} openRenew={renew} />
     </div>
   )
 }

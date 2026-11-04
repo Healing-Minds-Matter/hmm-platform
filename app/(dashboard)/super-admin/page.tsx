@@ -5,6 +5,7 @@ import { BarChartWidget } from '@/components/dashboard/bar-chart-widget'
 import { StackedBarWidget } from '@/components/dashboard/stacked-bar-widget'
 import { OnboardingWidget } from '@/components/dashboard/onboarding-widget'
 import { EventsWidget } from '@/components/dashboard/events-widget'
+import { CertificationFiguresCard } from '@/components/certifications/certification-figures-card'
 import { ExecutiveBanner } from '@/components/dashboard/executive-banner'
 
 export const metadata = { title: 'Dashboard — HMM Super Admin' }
@@ -133,6 +134,9 @@ export default async function SuperAdminDashboard() {
           <OnboardingWidget initialData={data.onboardingProgress} initialMomChangePct={data.onboardingMomChangePct} />
         </div>
       </div>
+
+      {/* ── Certifications by type (Story 10.12 Sc03) ── */}
+      <CertificationFiguresCard scope={{ kind: 'all' }} />
 
       {/* ── Row 3: Gatekeeper Activity by Club (full width) ── */}
       <div className="grid grid-cols-12 gap-5">

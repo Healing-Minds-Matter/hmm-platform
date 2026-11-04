@@ -25,7 +25,8 @@ export function GatekeeperFilters({
   const pathname = usePathname()
 
   const update = useCallback((key: string, value: string) => {
-    const params = new URLSearchParams()
+    const params = new URLSearchParams(window.location.search)
+    for (const k of ['q', 'club', 'status', 'champion', 'page']) params.delete(k)
     if (key !== 'q' && q) params.set('q', q)
     if (key !== 'club' && clubFilter) params.set('club', clubFilter)
     if (key !== 'status' && status) params.set('status', status)

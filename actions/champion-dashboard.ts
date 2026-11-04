@@ -1,6 +1,8 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { loadCertSummary } from '@/lib/cert-summary.server'
+import { qprFigures } from '@/lib/cert-summary'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { EVENT_CLUBS_EMBED, isEventForClub, type WithEventClubs } from '@/lib/event-clubs'
 
@@ -50,10 +52,6 @@ const EMPTY: ChampionDashboardData = {
   recentlyCompleted: [],
 }
 
-// Matches the >90-day "expiring soon" convention already established
-// elsewhere in the app (Club/Champion detail, Super Admin QPR widget).
-const EXPIRING_SOON_DAYS = 90
-
 export async function getChampionDashboardData(): Promise<ChampionDashboardData> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -77,7 +75,6 @@ export async function getChampionDashboardData(): Promise<ChampionDashboardData>
 
   const now = new Date()
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-  const soonCutoff = new Date(now.getTime() + EXPIRING_SOON_DAYS * 24 * 60 * 60 * 1000).toISOString()
   const twoWeeksOut = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString()
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()
   const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1).toISOString()
@@ -91,6 +88,7 @@ export async function getChampionDashboardData(): Promise<ChampionDashboardData>
     { data: gatekeeperRows },
     { data: upcomingRows },
     { data: completedRows },
+    certSummary,
   ] = await Promise.all([
     supabase.from('profiles').select('id', { count: 'exact', head: true })
       .eq('club_id', club.id).eq('role', 'gatekeeper').eq('is_active', true),
@@ -98,7 +96,7 @@ export async function getChampionDashboardData(): Promise<ChampionDashboardData>
       .eq('club_id', club.id).eq('role', 'gatekeeper').eq('is_active', false),
     supabase.from('profiles').select('id', { count: 'exact', head: true })
       .eq('club_id', club.id).eq('role', 'gatekeeper').gte('created_at', monthStart),
-    supabase.from('profiles').select('qpr_certification_date, qpr_expiry_date')
+    supabase.from('profiles').select('id')
       .eq('club_id', club.id).in('role', ['gatekeeper', 'champion']),
     supabase.from('profiles').select('created_at')
       .eq('club_id', club.id).eq('role', 'gatekeeper').gte('created_at', sixMonthsAgo),
@@ -113,17 +111,15 @@ export async function getChampionDashboardData(): Promise<ChampionDashboardData>
       .eq('is_cancelled', false)
       .lt('starts_at', now.toISOString()).gte('starts_at', thirtyDaysAgo)
       .order('starts_at', { ascending: false }),
+    loadCertSummary(supabase),
   ])
 
   // This club's events plus events open to all clubs, without the clubs list.
   const forClub = (rows: (EventSummary & WithEventClubs)[] | null): EventSummary[] =>
     (rows ?? []).filter(e => isEventForClub(e, club.id)).map(({ event_clubs: _clubs, is_all_clubs: _all, ...e }) => e)
 
-  const total = qprProfiles?.length ?? 0
-  const certified = (qprProfiles ?? []).filter(p => p.qpr_expiry_date && p.qpr_expiry_date > now.toISOString()).length
-  const expiringSoon = (qprProfiles ?? []).filter(
-    p => p.qpr_expiry_date && p.qpr_expiry_date > now.toISOString() && p.qpr_expiry_date <= soonCutoff
-  ).length
+  // From each person's current QPR certificate, with the certificate status rules (Story 10.12 Sc04).
+  const { certified, expiringSoon, total } = qprFigures(certSummary.qprByHolder, (qprProfiles ?? []).map(p => p.id))
 
   const monthBuckets: MonthlyCount[] = []
   for (let i = 5; i >= 0; i--) {

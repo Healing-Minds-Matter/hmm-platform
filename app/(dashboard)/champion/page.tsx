@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getChampionDashboardData } from '@/actions/champion-dashboard'
+import { CertificationFiguresCard } from '@/components/certifications/certification-figures-card'
 import { MonthlyTrendWidget } from '@/components/champion-dashboard/monthly-trend-widget'
 import { OnboardingStatusWidget } from '@/components/champion-dashboard/onboarding-status-widget'
 import { ClubEventsSummary } from '@/components/champion-dashboard/club-events-summary'
@@ -205,6 +206,8 @@ export default async function ChampionDashboard() {
           </div>
         </div>
       </div>
+
+      {data.clubId && <CertificationFiguresCard scope={{ kind: 'club', clubId: data.clubId }} />}
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <MonthlyTrendWidget data={data.monthlyTrend} />

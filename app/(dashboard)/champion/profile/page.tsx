@@ -2,6 +2,8 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { CertificatesSection } from '@/components/certifications/certificates-section'
+import { loadCertSummary } from '@/lib/cert-summary.server'
+import { formatCertDate } from '@/lib/certification-types'
 import { ProfileForm } from '@/app/(dashboard)/super-admin/profile/profile-form'
 
 export const metadata = { title: 'My Profile — HMM Champion' }
@@ -21,13 +23,14 @@ export default async function ChampionProfilePage() {
   const [{ data: profile }, { data: pwHistory }] = await Promise.all([
     supabase
       .from('profiles')
-      .select('id, full_name, email, phone, role, title, preferred_language, office_location, club_id, qpr_certification_date, qpr_expiry_date, created_at, clubs!profiles_club_id_fkey(name)')
+      .select('id, full_name, email, phone, role, title, preferred_language, office_location, club_id, created_at, clubs!profiles_club_id_fkey(name)')
       .eq('id', user.id)
       .single(),
     supabase.from('password_history').select('created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1),
   ])
 
   if (!profile) redirect('/login')
+  const myQpr = (await loadCertSummary(supabase)).qprByHolder.get(user.id)
   if (profile.role !== 'champion') redirect('/super-admin')
 
   // Real, not fabricated: pulls each currently-enabled permission for this
@@ -114,9 +117,11 @@ export default async function ChampionProfilePage() {
                 {club ? club.name : 'No club assigned'}
               </span>
               <span className="text-[12px] text-[#64748B]">
-                {profile.qpr_expiry_date
-                  ? `QPR valid until ${new Date(profile.qpr_expiry_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
-                  : 'QPR certification not on file'}
+                {!myQpr
+                  ? 'QPR certification not on file'
+                  : myQpr.status === 'expired' || myQpr.status === 'stopped'
+                    ? `QPR ${myQpr.status === 'stopped' ? 'stopped' : 'expired'}${myQpr.expires_on ? ` ${formatCertDate(myQpr.expires_on)}` : ''}`
+                    : myQpr.expires_on ? `QPR valid until ${formatCertDate(myQpr.expires_on)}` : 'QPR valid for life'}
               </span>
             </div>
           </div>

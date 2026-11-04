@@ -4,7 +4,9 @@ import { createClient } from '@/lib/supabase/server'
 import { CertificatesSection } from '@/components/certifications/certificates-section'
 import { GatekeeperStatusControls } from './gatekeeper-status-controls'
 import { ResendInviteButton } from './resend-invite-button'
-import { qprStatus, QPR_STATUS_LABEL, QPR_STATUS_BADGE, QPR_STATUS_DOT, todayBounds } from '../gatekeeper-status'
+import { QPR_STATUS_LABEL, QPR_STATUS_BADGE, QPR_STATUS_DOT } from '../gatekeeper-status'
+import { loadCertSummary } from '@/lib/cert-summary.server'
+import { qprStatusOf } from '@/lib/cert-summary'
 
 export const metadata = { title: 'Gatekeeper Details — HMM Super Admin' }
 
@@ -12,14 +14,14 @@ function getInitials(name: string): string {
   return name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
 }
 
-export default async function GatekeeperDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function GatekeeperDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ renew?: string }> }) {
   const { id } = await params
+  const { renew } = await searchParams
   const supabase = await createClient()
-  const { today, in90Days } = todayBounds()
 
   const { data: gatekeeper } = await supabase
     .from('profiles')
-    .select('id, full_name, email, phone, gatekeeper_code, is_active, deactivation_reason, club_id, preferred_language, qpr_certification_date, qpr_expiry_date, created_at, clubs!profiles_club_id_fkey(id, name, club_code, is_active)')
+    .select('id, full_name, email, phone, gatekeeper_code, is_active, deactivation_reason, club_id, preferred_language, created_at, clubs!profiles_club_id_fkey(id, name, club_code, is_active)')
     .eq('id', id)
     .eq('role', 'gatekeeper')
     .single()
@@ -33,7 +35,7 @@ export default async function GatekeeperDetailPage({ params }: { params: Promise
     ? await supabase.from('profiles').select('id, full_name, email').eq('club_id', club.id).eq('role', 'champion').eq('is_active', true).maybeSingle()
     : { data: null }
 
-  const status = qprStatus(gatekeeper.is_active, gatekeeper.qpr_expiry_date, today, in90Days)
+  const status = qprStatusOf(gatekeeper.is_active, (await loadCertSummary(supabase)).qprByHolder.get(gatekeeper.id))
 
   return (
     <div className="flex flex-col gap-6 p-6 font-[family-name:var(--font-inter)]">
@@ -113,7 +115,7 @@ export default async function GatekeeperDetailPage({ params }: { params: Promise
         </div>
       </div>
 
-      <CertificatesSection holderId={id} holderName={gatekeeper.full_name} />
+      <CertificatesSection holderId={id} holderName={gatekeeper.full_name} openRenew={renew} />
     </div>
   )
 }
