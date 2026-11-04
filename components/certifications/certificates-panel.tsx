@@ -7,6 +7,7 @@
 import { useActionState, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ModalOverlay } from '@/components/modal-overlay'
+import { downloadBlob, fetchPdf, printBlob } from '@/components/certifications/pdf-actions'
 import { Badge, Code, FormCard, CANCEL_BTN, DANGER_BTN, HINT, INPUT, LABEL, OPTION, PRIMARY_BTN } from '@/components/certifications/cert-ui'
 import { formatCertDate, validityLabel, type CertificationTypeRow } from '@/lib/certification-types'
 import {
@@ -14,7 +15,7 @@ import {
   type CertificateFormat, type CertificateRow, type JourneyEntry,
 } from '@/lib/certificates'
 import {
-  addCertificateAction, attachmentLinkAction, editCertificateAction, removeCertificateAction, restoreCertificateAction,
+  addCertificateAction, attachmentLinkAction, certificatePdfLinkAction, editCertificateAction, removeCertificateAction, restoreCertificateAction,
   type CertActionState,
 } from '@/actions/certificates'
 import type { CertPermissions } from '@/lib/certificates.server'
@@ -37,6 +38,7 @@ type Props = {
   journey: JourneyEntry[]
   names: Record<string, string>
   perms: CertPermissions
+  designVersions: Record<string, number>   // current design version per type
   today: string
 }
 
@@ -51,6 +53,7 @@ export function CertificatesPanel(props: Props) {
 
   const actionsFor = (c: CertificateRow) => (
     <div className="flex flex-wrap justify-end gap-1.5">
+      {c.pdf_path && <CertificateButton certId={c.id} />}
       {c.attachment_path && <AttachmentButton path={c.attachment_path} />}
       {perms.award && canRenew(c, typeById.get(c.type_id)?.status) && (
         <SmallButton tone="primary" onClick={() => setPopup({ kind: 'renew', cert: c })}>Renew</SmallButton>
@@ -157,7 +160,7 @@ export function CertificatesPanel(props: Props) {
         <ModalOverlay onClose={close}>
           {popup.kind === 'add' && <AwardForm {...props} onClose={close} onDone={done} />}
           {popup.kind === 'renew' && <AwardForm {...props} renew={popup.cert} onClose={close} onDone={done} />}
-          {popup.kind === 'edit' && <EditForm cert={popup.cert} type={typeById.get(popup.cert.type_id)} today={props.today} onClose={close} onDone={done} />}
+          {popup.kind === 'edit' && <EditForm cert={popup.cert} type={typeById.get(popup.cert.type_id)} designVersion={props.designVersions[popup.cert.type_id] ?? null} today={props.today} onClose={close} onDone={done} />}
           {popup.kind === 'remove' && <RemoveForm cert={popup.cert} certs={certs} type={typeById.get(popup.cert.type_id)} holderName={props.holderName} onClose={close} onDone={done} />}
           {popup.kind === 'restore' && <RestoreForm cert={popup.cert} type={typeById.get(popup.cert.type_id)} onClose={close} onDone={done} />}
         </ModalOverlay>
@@ -314,19 +317,77 @@ function Footer({ onClose, pending, label, danger = false }: { onClose: () => vo
   )
 }
 
-function FormatChoice({ value, onChange }: { value: CertificateFormat; onChange: (v: CertificateFormat) => void }) {
+// Digital and Both make a PDF from the type's design, so they need one (Story 10.4 Sc02).
+function FormatChoice({ value, onChange, designVersion, typeChosen = true }: {
+  value: CertificateFormat; onChange: (v: CertificateFormat) => void; designVersion: number | null; typeChosen?: boolean
+}) {
   return (
     <fieldset>
       <legend className={LABEL}>Format</legend>
       <div className="grid grid-cols-3 gap-2">
         {(Object.keys(FORMAT_LABEL) as CertificateFormat[]).map(f => (
           <label key={f} className={OPTION}>
-            <input type="radio" name="format" value={f} checked={value === f} onChange={() => onChange(f)} className="mt-0.5 accent-[#022C51]" />
+            <input type="radio" name="format" value={f} checked={value === f} onChange={() => onChange(f)} disabled={f !== 'physical' && !designVersion}
+              className="mt-0.5 accent-[#022C51]" />
             {FORMAT_LABEL[f]}
           </label>
         ))}
       </div>
+      {typeChosen && (
+        <p className={HINT}>
+          {designVersion
+            ? `Digital and Both create the certificate PDF from design version ${designVersion}, with a certificate number.`
+            : 'This type has no digital certificate design yet, so it can only be recorded as physical.'}
+        </p>
+      )}
     </fieldset>
+  )
+}
+
+function CertificateButton({ certId }: { certId: string }) {
+  const [state, setState] = useState<'idle' | 'busy' | 'failed'>('idle')
+  const [url, setUrl] = useState<string | null>(null)
+  return (
+    <>
+      <SmallButton onClick={async () => {
+        if (state === 'busy') return
+        setState('busy')
+        const link = await certificatePdfLinkAction(certId)
+        setState(link ? 'idle' : 'failed')
+        setUrl(link)
+      }}>
+        {{ idle: 'Certificate', busy: 'Opening…', failed: 'Couldn’t open, retry' }[state]}
+      </SmallButton>
+      {url && <CertificateViewer url={url} onClose={() => setUrl(null)} />}
+    </>
+  )
+}
+
+// View a digital certificate (Story 10.6 Sc01), with Download PDF and Print.
+function CertificateViewer({ url, onClose }: { url: string; onClose: () => void }) {
+  const [busy, setBusy] = useState(false)
+  const act = async (mode: 'download' | 'print') => {
+    setBusy(true)
+    try {
+      const blob = await fetchPdf(url)
+      if (mode === 'download') downloadBlob(blob, 'certificate.pdf')
+      else printBlob(blob)
+    } catch { window.open(url, '_blank', 'noopener') } finally { setBusy(false) }
+  }
+  return (
+    <ModalOverlay onClose={onClose} maxWidth={900}>
+      <div className="[&>div]:max-w-none">
+        <FormCard title="Digital certificate" subtitle="As issued, with the design version it was made with." onClose={onClose}>
+          <div className="flex flex-col gap-3 px-6 pb-6">
+            <div className="flex justify-end gap-2">
+              <SmallButton onClick={() => { if (!busy) void act('download') }}>Download PDF</SmallButton>
+              <SmallButton onClick={() => { if (!busy) void act('print') }}>Print</SmallButton>
+            </div>
+            <iframe src={url} title="Digital certificate" className="h-[65vh] w-full rounded-lg border border-[#E2E8F0]" />
+          </div>
+        </FormCard>
+      </div>
+    </ModalOverlay>
   )
 }
 
@@ -341,7 +402,7 @@ function AttachmentInput({ replacing }: { replacing?: boolean }) {
 }
 
 // ── Add / renew (Stories 10.5, 10.7) ─────────────────────────────────────────
-function AwardForm({ holderId, holderName, certs, types, today, renew, onClose, onDone }: Props & {
+function AwardForm({ holderId, holderName, certs, types, designVersions, today, renew, onClose, onDone }: Props & {
   renew?: CertificateRow
   onClose: () => void
   onDone: (m?: string) => void
@@ -350,7 +411,9 @@ function AwardForm({ holderId, holderName, certs, types, today, renew, onClose, 
   const offered = types.filter(t => t.status !== 'retired')
   const [typeId, setTypeId] = useState(renew?.type_id ?? '')
   const [date, setDate] = useState('')
-  const [format, setFormat] = useState<CertificateFormat>(renew?.format ?? 'physical')
+  const [chosenFormat, setFormat] = useState<CertificateFormat>(renew?.format ?? 'physical')
+  // Switching to a type with no design falls back to Physical.
+  const format: CertificateFormat = typeId && !designVersions[typeId] ? 'physical' : chosenFormat
   const type = types.find(t => t.id === typeId)
   const held = certs.find(c => c.type_id === typeId && c.is_current && !c.removed_at)
   const expiry = type && date ? expiryFor(date, type.validity_value, type.validity_unit) : null
@@ -396,7 +459,7 @@ function AwardForm({ holderId, holderName, certs, types, today, renew, onClose, 
               </div>
             </div>
           </div>
-          <FormatChoice value={format} onChange={setFormat} />
+          <FormatChoice value={format} onChange={setFormat} designVersion={typeId ? designVersions[typeId] ?? null : null} typeChosen={!!typeId} />
           <AttachmentInput />
         </div>
         <Footer onClose={onClose} pending={pending} label={renew || held ? 'Renew certificate' : 'Add certificate'} />
@@ -406,9 +469,10 @@ function AwardForm({ holderId, holderName, certs, types, today, renew, onClose, 
 }
 
 // ── Edit (Story 10.6) ────────────────────────────────────────────────────────
-function EditForm({ cert, type, today, onClose, onDone }: {
+function EditForm({ cert, type, designVersion, today, onClose, onDone }: {
   cert: CertificateRow
   type?: CertificationTypeRow
+  designVersion: number | null      // the type's current design version
   today: string
   onClose: () => void
   onDone: (m?: string) => void
@@ -418,7 +482,10 @@ function EditForm({ cert, type, today, onClose, onDone }: {
   const [format, setFormat] = useState<CertificateFormat>(cert.format)
   // Controlled, so a refused save doesn't clear what was typed.
   const [reason, setReason] = useState('')
+  const [pdf, setPdf] = useState<'keep' | 'original' | 'current'>('keep')
   const expiry = expiryFor(date, cert.validity_value, cert.validity_unit)
+  const numbered = !!cert.certificate_number
+  const stale = numbered && pdf === 'keep' && date !== cert.achieved_on
 
   return (
     <FormCard title={`Edit ${type?.name ?? 'certificate'}`} subtitle="The type can’t be changed. The person will be told what changed and why." onClose={onClose}>
@@ -439,7 +506,21 @@ function EditForm({ cert, type, today, onClose, onDone }: {
               <p className={HINT}>Uses the validity it was awarded with.</p>
             </div>
           </div>
-          <FormatChoice value={format} onChange={setFormat} />
+          {/* A numbered certificate keeps its number and PDF even if it becomes Physical. */}
+          <FormatChoice value={format} onChange={setFormat} designVersion={numbered ? cert.design_version ?? designVersion : designVersion} />
+          {numbered && (
+            <fieldset>
+              <legend className={LABEL}>Certificate PDF ({cert.certificate_number})</legend>
+              <div className="flex flex-col gap-2">
+                <label className={OPTION}><input type="radio" name="pdf" value="keep" checked={pdf === 'keep'} onChange={() => setPdf('keep')} className="mt-0.5 accent-[#022C51]" /> Keep the current PDF</label>
+                <label className={OPTION}><input type="radio" name="pdf" value="original" checked={pdf === 'original'} onChange={() => setPdf('original')} className="mt-0.5 accent-[#022C51]" /> Re-issue with the design it was made with (version {cert.design_version})</label>
+                {designVersion && designVersion !== cert.design_version && (
+                  <label className={OPTION}><input type="radio" name="pdf" value="current" checked={pdf === 'current'} onChange={() => setPdf('current')} className="mt-0.5 accent-[#022C51]" /> Re-issue with the current design (version {designVersion})</label>
+                )}
+              </div>
+              <p className={HINT}>{stale ? 'The PDF still shows the old date unless you re-issue it.' : 'A re-issued PDF keeps the same certificate number.'}</p>
+            </fieldset>
+          )}
           <AttachmentInput replacing={!!cert.attachment_path} />
           <div>
             <label className={LABEL} htmlFor="edit-reason">Reason for the change</label>

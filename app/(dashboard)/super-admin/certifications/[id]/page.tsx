@@ -4,24 +4,36 @@ import { createClient } from '@/lib/supabase/server'
 import { loadRetirements, loadType, typeImpact } from '@/lib/certifications.server'
 import { formatCertDate, retirementEffect, validityLabel } from '@/lib/certification-types'
 import { formatOrgDate } from '@/lib/org-date'
-import { Badge, Card, Code, Facts, SecondaryLink, TypeStatusBadge } from '@/components/certifications/cert-ui'
+import { Badge, Card, Code, Facts, PrimaryLink, SecondaryLink, TypeStatusBadge } from '@/components/certifications/cert-ui'
+import { placeholderValues, sampleValues } from '@/lib/certificate-design'
+import { loadDesignVersions, signedAssetUrls } from '@/lib/designs.server'
+import { CertificatePreview } from '@/components/certifications/certificate-preview'
+import { DesignVersions } from '@/components/certifications/design-versions'
 
 export const metadata = { title: 'Certification type — HMM Super Admin' }
 
 // A certification type's page (Story 10.1 Sc06): details, and its retirement
-// only when one has been set (Story 10.2). Its digital certificate design is
-// added here in a later phase (Story 10.4).
-export default async function CertificationTypePage({ params }: { params: Promise<{ id: string }> }) {
+// only when one has been set (Story 10.2), and its digital certificate design
+// with every saved version (Story 10.4).
+export default async function CertificationTypePage({ params, searchParams }: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ design_saved?: string }>
+}) {
   const { id } = await params
+  const { design_saved } = await searchParams
   const supabase = await createClient()
   const type = await loadType(supabase, id)
   if (!type) notFound()
 
-  const [impact, retirements, { count: awarded }] = await Promise.all([
+  const [impact, retirements, { count: awarded }, versions] = await Promise.all([
     typeImpact(supabase, id),
     loadRetirements(supabase, id),
     supabase.from('certificates').select('id', { count: 'exact', head: true }).eq('type_id', id),
+    loadDesignVersions(supabase, id),
   ])
+  const assets = await signedAssetUrls(versions.map(v => v.design))
+  const sample = sampleValues(type)
+  const currentDesign = versions[0] ?? null
   const open = retirements.find(r => r.id === type.open_retirement_id) ?? null
   const past = retirements.filter(r => r.reactivated_on)
   const retired = type.status === 'retired'
@@ -74,6 +86,40 @@ export default async function CertificationTypePage({ params }: { params: Promis
           </Card>
         )}
       </div>
+
+      {design_saved && (
+        <div role="status" className="rounded-lg bg-[#E6FFE7] px-4 py-2.5 text-[13px] font-medium text-[#0D8275]">
+          Design saved as version {design_saved}. New digital certificates of {type.name} use it from now on.
+        </div>
+      )}
+
+      <section className="rounded-2xl bg-white p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-[16px] font-bold text-[#0F172A]">Digital certificate design</h2>
+            <p className="mt-0.5 max-w-2xl text-xs text-[#64748B]">
+              {currentDesign
+                ? `Current version: ${currentDesign.version}. Certificates already issued keep the version they were made with.`
+                : `No design yet. Without one, certificates of ${type.name} can only be recorded as physical.`}
+            </p>
+          </div>
+          {!retired && <PrimaryLink href={`${base}/design`}>{currentDesign ? 'Edit design' : '+ Create design'}</PrimaryLink>}
+        </div>
+        {retired && (
+          <div className="mt-4 rounded-lg bg-[#FFFBEB] px-4 py-3 text-[13px] text-[#B45309]">
+            <b>Retired type: designs can’t be created or edited.</b> Existing versions can still be viewed, and issued certificates can still be downloaded. Reactivate the type to change its design.
+          </div>
+        )}
+        {currentDesign && (
+          <div className="mt-4 grid place-items-center rounded-2xl bg-[#E2E8F0]/60 p-4">
+            <CertificatePreview design={currentDesign.design} values={sample} assets={assets} maxWidth={560} />
+          </div>
+        )}
+      </section>
+
+      {versions.length > 0 && (
+        <DesignVersions typeId={id} versions={versions} assets={assets} sample={sample} placeholders={placeholderValues(true)} canEdit={!retired} />
+      )}
 
       {past.length > 0 && (
         <Card title="Retirement history">

@@ -12,6 +12,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { todayDateString } from '@/lib/org-date'
 import { TYPE_COLUMNS, formatCertDate, type CertificationTypeRow } from '@/lib/certification-types'
+import { currentDesignVersions, issueCertificatePdf } from '@/lib/certificate-issue.server'
 import { checkAttachment, describeCertError, validateAward, validateRemoval, type CertificateFormat } from '@/lib/certificates'
 
 type ServerClient = Awaited<ReturnType<typeof createClient>>
@@ -95,19 +96,33 @@ export async function addCertificateAction(_prev: CertActionState, formData: For
   const format = str(formData, 'format') || 'physical'
   const invalid = validateAward({ achievedOn, format }, type, todayDateString(), previous)
   if (invalid) return { error: invalid }
+  // Digital or Both generates the certificate PDF from the type's current design (Story 10.5 Sc04);
+  // without a design, a certificate can only be recorded as physical (Story 10.4 Sc02).
+  const digital = format !== 'physical'
+  const designVersion = digital ? (await currentDesignVersions([typeId]))[typeId] ?? null : null
+  if (digital && !designVersion) return { error: `${type!.name} has no digital certificate design yet, so it can only be recorded as physical.` }
 
   const uploaded = await uploadAttachment(formData, holderId)
   if ('error' in uploaded) return { error: uploaded.error }
 
-  const { error } = await supabase.from('certificates').insert({
+  const { data: inserted, error } = await supabase.from('certificates').insert({
     holder_id: holderId, type_id: typeId, achieved_on: achievedOn, format: format as CertificateFormat, attachment_path: uploaded.path,
-  })
-  if (error) {
+    design_version: designVersion,
+  }).select('id, certificate_number').single()
+  if (error || !inserted) {
     await deleteFile(uploaded.path)
     return { error: describeCertError(error) }
   }
   revalidateProfiles()
-  return { success: true, message: renewal ? `${type!.name} renewed.` : `${type!.name} added.` }
+  const done = renewal ? `${type!.name} renewed.` : `${type!.name} added.`
+  if (digital) {
+    const issued = await issueCertificatePdf(inserted.id)
+    if ('error' in issued) {
+      return { success: true, message: `${done} Certificate ${inserted.certificate_number} was numbered, but its PDF couldn’t be made (${issued.error}) Use Edit → re-issue the PDF to try again.` }
+    }
+    return { success: true, message: `${done} Digital certificate ${inserted.certificate_number} is ready.` }
+  }
+  return { success: true, message: done }
 }
 
 // ── Edit (Story 10.6) ────────────────────────────────────────────────────────
@@ -116,7 +131,7 @@ export async function editCertificateAction(_prev: CertActionState, formData: Fo
   const reason = str(formData, 'reason')
   const supabase = await createClient()
   const { data: cert } = UUID_RE.test(id)
-    ? await supabase.from('certificate_statuses').select('holder_id, type_id, achieved_on, format, attachment_path, removed_at').eq('id', id).maybeSingle()
+    ? await supabase.from('certificate_statuses').select('holder_id, type_id, achieved_on, format, attachment_path, removed_at, certificate_number, design_version').eq('id', id).maybeSingle()
     : { data: null }
   if (!cert) return { error: 'Certificate not found.' }
   if (cert.removed_at) return { error: 'A removed certificate can’t be edited.' }
@@ -130,15 +145,29 @@ export async function editCertificateAction(_prev: CertActionState, formData: Fo
   if (invalid) return { error: invalid }
   if (!reason) return { error: 'Give a reason for the change. The person will see it.' }
 
+  // The PDF (Story 10.6 Sc03): 'keep' it, or re-issue it with the 'original' design version or the
+  // 'current' one. A certificate with no PDF yet that becomes Digital or Both gets one from the current design.
+  const pdfChoice = str(formData, 'pdf') || 'keep'
+  const hasNumber = !!cert.certificate_number
+  const needsFirstPdf = !hasNumber && format !== 'physical'
+  let designVersion: number | null = null
+  if (needsFirstPdf || (hasNumber && pdfChoice === 'current')) {
+    designVersion = (await currentDesignVersions([cert.type_id]))[cert.type_id] ?? null
+    if (!designVersion) return { error: `${type?.name ?? 'This type'} has no digital certificate design yet, so it can only be recorded as physical.` }
+  } else if (hasNumber && pdfChoice === 'original') {
+    designVersion = cert.design_version
+  }
+  const reissue = designVersion != null
+
   const hasFile = !!checkAttachment(formData.get('attachment') as File | null)
-  if (achievedOn === cert.achieved_on && format === cert.format && !hasFile) return { error: 'Nothing has changed.' }
+  if (achievedOn === cert.achieved_on && format === cert.format && !hasFile && !reissue) return { error: 'Nothing has changed.' }
 
   const uploaded = await uploadAttachment(formData, cert.holder_id)
   if ('error' in uploaded) return { error: uploaded.error }
 
   const { error } = await supabase.rpc('edit_certificate', {
     p_id: id, p_achieved_on: achievedOn, p_format: format, p_attachment_path: uploaded.path,
-    p_reissue: false, p_design_version: null, p_reason: reason,
+    p_reissue: reissue, p_design_version: designVersion, p_reason: reason,
   })
   if (error) {
     await deleteFile(uploaded.path)
@@ -146,7 +175,23 @@ export async function editCertificateAction(_prev: CertActionState, formData: Fo
   }
   // The old attachment is kept: earlier versions of a certificate stay part of its history.
   revalidateProfiles()
+  if (reissue) {
+    const issued = await issueCertificatePdf(id)
+    if ('error' in issued) return { success: true, message: `Certificate updated, but its PDF couldn’t be made (${issued.error}) Try re-issuing it again.` }
+    return { success: true, message: needsFirstPdf ? 'Certificate updated and its digital certificate generated.' : 'Certificate updated and its PDF re-issued.' }
+  }
   return { success: true, message: 'Certificate updated.' }
+}
+
+// A short-lived link to an issued certificate's PDF (Story 10.6 Sc01). The
+// user's own client must be able to see the certificate; only then is it signed.
+export async function certificatePdfLinkAction(certificateId: string): Promise<string | null> {
+  if (!UUID_RE.test(certificateId)) return null
+  const supabase = await createClient()
+  const { data } = await supabase.from('certificates').select('pdf_path').eq('id', certificateId).maybeSingle()
+  if (!data?.pdf_path) return null
+  const { data: signed } = await createAdminClient().storage.from(BUCKET).createSignedUrl(data.pdf_path, 300)
+  return signed?.signedUrl ?? null
 }
 
 // ── Remove (Story 10.7) and undo (Story 10.8) ────────────────────────────────
