@@ -1,0 +1,31 @@
+/* Certificate fonts (Story 10.3 Sc06): the same files the PDF uses
+   (public/fonts/cert, read by lib/certificate-pdf.server.ts). Sinhala and Tamil
+   letters fall through to their Noto fonts by unicode-range, the same way the
+   PDF splits text into runs, so the preview and the PDF match. */
+@font-face { font-family: CertSerif; src: url(/fonts/cert/NotoSerif-Regular.ttf); font-weight: 400; font-style: normal; }
+@font-face { font-family: CertSerif; src: url(/fonts/cert/NotoSerif-Bold.ttf); font-weight: 700; font-style: normal; }
+@font-face { font-family: CertSerif; src: url(/fonts/cert/NotoSerif-Italic.ttf); font-weight: 400; font-style: italic; }
+@font-face { font-family: CertSerif; src: url(/fonts/cert/NotoSerif-BoldItalic.ttf); font-weight: 700; font-style: italic; }
+@font-face { font-family: CertSans; src: url(/fonts/cert/NotoSans-Regular.ttf); font-weight: 400; font-style: normal; }
+@font-face { font-family: CertSans; src: url(/fonts/cert/NotoSans-Bold.ttf); font-weight: 700; font-style: normal; }
+@font-face { font-family: CertSans; src: url(/fonts/cert/NotoSans-Italic.ttf); font-weight: 400; font-style: italic; }
+@font-face { font-family: CertSans; src: url(/fonts/cert/NotoSans-BoldItalic.ttf); font-weight: 700; font-style: italic; }
+/* Sinhala and Tamil have no italic, in the PDF either: the italic faces point at the upright files. */
+@font-face { font-family: CertSinhala; src: url(/fonts/cert/NotoSansSinhala-Regular.ttf); font-weight: 400; font-style: normal; }
+@font-face { font-family: CertSinhala; src: url(/fonts/cert/NotoSansSinhala-Bold.ttf); font-weight: 700; font-style: normal; }
+@font-face { font-family: CertSinhala; src: url(/fonts/cert/NotoSansSinhala-Regular.ttf); font-weight: 400; font-style: italic; }
+@font-face { font-family: CertSinhala; src: url(/fonts/cert/NotoSansSinhala-Bold.ttf); font-weight: 700; font-style: italic; }
+@font-face { font-family: CertTamil; src: url(/fonts/cert/NotoSansTamil-Regular.ttf); font-weight: 400; font-style: normal; }
+@font-face { font-family: CertTamil; src: url(/fonts/cert/NotoSansTamil-Bold.ttf); font-weight: 700; font-style: normal; }
+@font-face { font-family: CertTamil; src: url(/fonts/cert/NotoSansTamil-Regular.ttf); font-weight: 400; font-style: italic; }
+@font-face { font-family: CertTamil; src: url(/fonts/cert/NotoSansTamil-Bold.ttf); font-weight: 700; font-style: italic; }
+
+.cert-page { container-type: inline-size; position: relative; overflow: hidden; user-select: none; font-synthesis: none; }
+.cert-text { position: absolute; line-height: 1.35; white-space: pre-wrap; overflow-wrap: normal; }
+.cert-text.serif { font-family: CertSerif, CertSinhala, CertTamil, serif; }
+.cert-text.sans { font-family: CertSans, CertSinhala, CertTamil, sans-serif; }
+.cert-img { position: absolute; display: block; pointer-events: none; }
+.cert-page.editable .cert-item { cursor: move; touch-action: none; }
+.cert-page.editable .cert-item:hover { outline: 1px dashed #94A3B8; }
+.cert-page.editable .cert-item.selected { outline: 2px solid #1E4BB8; outline-offset: 2px; }
+.cert-page.editable .cert-item:focus-visible { outline: 3px solid #1E4BB8; outline-offset: 2px; }

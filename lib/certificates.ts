@@ -20,6 +20,7 @@ export type CertificateRow = {
   validity_unit: 'months' | 'years' | null
   format: CertificateFormat
   attachment_path: string | null
+  pdf_path: string | null
   certificate_number: string | null
   design_version: number | null
   migrated: boolean
@@ -35,7 +36,7 @@ export type CertificateRow = {
 }
 
 export const CERTIFICATE_COLUMNS =
-  'id, holder_id, type_id, achieved_on, expires_on, validity_value, validity_unit, format, attachment_path, certificate_number, design_version, migrated, added_by, created_at, removed_at, removed_by, removed_reason_category, removed_reason, is_current, stopped_on, status'
+  'id, holder_id, type_id, achieved_on, expires_on, validity_value, validity_unit, format, attachment_path, pdf_path, certificate_number, design_version, migrated, added_by, created_at, removed_at, removed_by, removed_reason_category, removed_reason, is_current, stopped_on, status'
 
 export type CertificateEvent = {
   id: string

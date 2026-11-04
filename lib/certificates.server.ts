@@ -9,6 +9,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { todayDateString, isoToOrgDateTime } from '@/lib/org-date'
 import { TYPE_COLUMNS, type CertificationTypeRow, type RetirementOption } from '@/lib/certification-types'
 import { CERTIFICATE_COLUMNS, buildJourney, type CertificateEvent, type CertificateRow, type JourneyEntry } from '@/lib/certificates'
+import { currentDesignVersions } from '@/lib/certificate-issue.server'
 import { SELF_REPORTED_COLUMNS, type SelfReportedRow } from '@/lib/self-reported'
 
 type ServerClient = Awaited<ReturnType<typeof createClient>>
@@ -26,6 +27,7 @@ export type ProfileCertificates = {
   journey: JourneyEntry[]
   names: Record<string, string>
   perms: CertPermissions
+  designVersions: Record<string, number>
   today: string
 }
 
@@ -78,6 +80,7 @@ export async function loadProfileCertificates(supabase: ServerClient, holderId: 
   )
   return {
     certs, selfReported, types, journey, names, today,
+    designVersions: await currentDesignVersions(types.filter(t => t.status !== 'retired' || certs.some(c => c.type_id === t.id)).map(t => t.id)),
     perms: {
       award: scoped && can[0].data === true,
       edit: scoped && can[1].data === true,

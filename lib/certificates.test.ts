@@ -16,7 +16,7 @@ const qpr = { name: 'QPR', status: 'active' as const, offered_from: '2021-12-15'
 function cert(over: Partial<CertificateRow>): CertificateRow {
   return {
     id: 'c1', holder_id: 'h', type_id: 't', achieved_on: '2025-06-01', expires_on: '2028-06-01', validity_value: 3, validity_unit: 'years',
-    format: 'physical', attachment_path: null, certificate_number: null, design_version: null, migrated: false, added_by: null,
+    format: 'physical', attachment_path: null, pdf_path: null, certificate_number: null, design_version: null, migrated: false, added_by: null,
     created_at: '2025-06-01T10:00:00Z', removed_at: null, removed_by: null, removed_reason_category: null, removed_reason: null,
     is_current: true, stopped_on: null, status: 'valid', ...over,
   }
