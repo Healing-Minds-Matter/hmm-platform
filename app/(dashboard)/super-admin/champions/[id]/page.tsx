@@ -2,6 +2,9 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { CertificatesSection } from '@/components/certifications/certificates-section'
+import { loadCertSummary } from '@/lib/cert-summary.server'
+import { qprFigures, type CurrentCert } from '@/lib/cert-summary'
+import { formatCertDate } from '@/lib/certification-types'
 import { ChampionStatusControls } from './champion-status-controls'
 import { eventTypeStyle } from '@/app/(dashboard)/super-admin/events/event-type'
 // Event dates/times are shown in Sri Lanka time (see lib/org-date.ts).
@@ -60,22 +63,17 @@ function KpiCard({
   )
 }
 
-// QPR convention (matches Club detail page): certified = expiry >= today;
-// expiring soon = certified AND expiry <= today+90d.
-function qprLine(qprExpiryDate: string | null, today: string, in90Days: string) {
-  if (!qprExpiryDate) {
-    return { text: 'QPR certification not on file', className: 'text-[#94A3B8]' }
+// The Champion's current QPR certificate, using the certificate status rules (Story 10.12 Sc04).
+function qprLine(qpr: CurrentCert | undefined) {
+  if (!qpr) return { text: 'QPR certification not on file', className: 'text-[#94A3B8]' }
+  const expiryLabel = qpr.expires_on ? formatCertDate(qpr.expires_on) : null
+  if (qpr.status === 'expired' || qpr.status === 'stopped') {
+    return { text: `QPR Certification ${qpr.status === 'stopped' ? 'Stopped' : 'Expired'}${expiryLabel ? ` (${expiryLabel})` : ''}`, className: 'text-[#94A3B8]' }
   }
-  const certified = qprExpiryDate >= today
-  const expiringSoon = certified && qprExpiryDate <= in90Days
-  const expiryLabel = formatEventDate(qprExpiryDate)
-  if (!certified) {
-    return { text: `QPR Certification Expired (${expiryLabel})`, className: 'text-[#94A3B8]' }
-  }
-  if (expiringSoon) {
+  if (qpr.status === 'expiring_soon') {
     return { text: `QPR Certified — Expiring Soon (Expires ${expiryLabel})`, className: 'text-[#D97706]' }
   }
-  return { text: `QPR Certified (Expires ${expiryLabel})`, className: 'text-[#16A34A]' }
+  return { text: expiryLabel ? `QPR Certified (Expires ${expiryLabel})` : 'QPR Certified (Lifetime)', className: 'text-[#16A34A]' }
 }
 
 export default async function ChampionDetailPage({
@@ -83,7 +81,7 @@ export default async function ChampionDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>
-  searchParams: Promise<{ tab?: string; gkQ?: string; evQ?: string; evType?: string; page?: string }>
+  searchParams: Promise<{ tab?: string; gkQ?: string; evQ?: string; evType?: string; page?: string; renew?: string }>
 }) {
   const { id } = await params
   const sp = await searchParams
@@ -97,7 +95,7 @@ export default async function ChampionDetailPage({
 
   const { data: champion } = await supabase
     .from('profiles')
-    .select('id, full_name, email, phone, title, is_active, deactivation_reason, club_id, qpr_certification_date, qpr_expiry_date, created_at, clubs!profiles_club_id_fkey(id, name, club_code, location, is_active)')
+    .select('id, full_name, email, phone, title, is_active, deactivation_reason, club_id, created_at, clubs!profiles_club_id_fkey(id, name, club_code, location, is_active)')
     .eq('id', id)
     .eq('role', 'champion')
     .single()
@@ -108,22 +106,22 @@ export default async function ChampionDetailPage({
   const club = champion.clubs as any
   const clubId: string | null = champion.club_id
 
-  const [{ data: clubChampions }, { data: gatekeepers }, { data: events }] = await Promise.all([
+  const [{ data: clubChampions }, { data: gatekeepers }, { data: events }, summary] = await Promise.all([
     clubId
       ? supabase
           .from('profiles')
-          .select('id, is_active, qpr_expiry_date')
+          .select('id, is_active')
           .eq('club_id', clubId)
           .eq('role', 'champion')
-      : Promise.resolve({ data: [] as { id: string; is_active: boolean; qpr_expiry_date: string | null }[] }),
+      : Promise.resolve({ data: [] as { id: string; is_active: boolean }[] }),
     clubId
       ? supabase
           .from('profiles')
-          .select('id, full_name, email, phone, is_active, qpr_certification_date, qpr_expiry_date')
+          .select('id, full_name, email, phone, is_active')
           .eq('club_id', clubId)
           .eq('role', 'gatekeeper')
           .order('full_name')
-      : Promise.resolve({ data: [] as { id: string; full_name: string; email: string; phone: string | null; is_active: boolean; qpr_certification_date: string | null; qpr_expiry_date: string | null }[] }),
+      : Promise.resolve({ data: [] as { id: string; full_name: string; email: string; phone: string | null; is_active: boolean }[] }),
     clubId
       ? supabase
           .from('events')
@@ -131,7 +129,9 @@ export default async function ChampionDetailPage({
           .eq('is_cancelled', false)
           .order('starts_at', { ascending: true })
       : Promise.resolve({ data: [] as { id: string; title: string; type: string; starts_at: string; ends_at: string | null; venue: string; max_participants: number | null; is_cancelled: boolean; is_all_clubs?: boolean; event_clubs?: { club_id: string }[] }[] }),
+    loadCertSummary(supabase),
   ])
+  const qprOf = (personId: string) => summary.qprByHolder.get(personId)
 
   const clubChampionList = clubChampions ?? []
   const gatekeeperList   = gatekeepers ?? []
@@ -142,9 +142,6 @@ export default async function ChampionDetailPage({
   const activeGatekeepers   = gatekeeperList.filter(g => g.is_active)
   const inactiveGatekeepers = gatekeeperList.filter(g => !g.is_active)
 
-  const now      = new Date()
-  const today    = now.toISOString().split('T')[0]
-  const in90Days = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
   // "Gatekeepers in this club" and "Club QPR Certification Rate" — reframed
   // honestly per the club-scope decision (a champion isn't individually
@@ -153,11 +150,10 @@ export default async function ChampionDetailPage({
   // Club detail page's QPR Certification Rate KPI, scoped to this champion's
   // club_id, among active champions + gatekeepers in that club.
   const certPool = [...clubChampionList, ...gatekeeperList].filter(p => p.is_active)
-  const certifiedCount    = certPool.filter(p => p.qpr_expiry_date && p.qpr_expiry_date >= today).length
-  const expiringSoonCount = certPool.filter(p => p.qpr_expiry_date && p.qpr_expiry_date >= today && p.qpr_expiry_date <= in90Days).length
+  const { certified: certifiedCount, expiringSoon: expiringSoonCount } = qprFigures(summary.qprByHolder, certPool.map(p => p.id))
   const qprPct = certPool.length > 0 ? Math.round((certifiedCount / certPool.length) * 100) : 0
 
-  const championQpr = qprLine(champion.qpr_expiry_date, today, in90Days)
+  const championQpr = qprLine(qprOf(champion.id))
 
   // ── Filtering ──────────────────────────────────────────────────────────────
   const gkFiltered = gkQ
@@ -303,7 +299,7 @@ export default async function ChampionDetailPage({
         />
       </div>
 
-      <CertificatesSection holderId={id} holderName={champion.full_name} />
+      <CertificatesSection holderId={id} holderName={champion.full_name} openRenew={sp.renew} />
 
       {/* Gatekeeper Roster / Club Events */}
       <div className="overflow-hidden rounded-2xl border border-[#E2E8F0] bg-white shadow-[0px_1px_2px_rgba(0,0,0,0.05)]">
@@ -401,7 +397,8 @@ export default async function ChampionDetailPage({
                 </thead>
                 <tbody className="divide-y divide-[#F1F5F9]">
                   {gkPage.map(g => {
-                    const expiringSoon = g.is_active && !!g.qpr_expiry_date && g.qpr_expiry_date >= today && g.qpr_expiry_date <= in90Days
+                    const qpr = qprOf(g.id)
+                    const expiringSoon = g.is_active && qpr?.status === 'expiring_soon'
                     return (
                       <tr key={g.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4">
@@ -417,10 +414,10 @@ export default async function ChampionDetailPage({
                           <p className="mt-0.5 text-xs text-[#64748B]">{g.phone ?? '—'}</p>
                         </td>
                         <td className="px-6 py-4 text-sm text-[#475569]">
-                          {g.qpr_certification_date ? formatEventDate(g.qpr_certification_date) : '—'}
+                          {qpr ? formatCertDate(qpr.achieved_on) : '—'}
                         </td>
                         <td className={`px-6 py-4 text-sm ${expiringSoon ? 'font-medium text-[#D97706]' : 'text-[#0F172A]'}`}>
-                          {g.qpr_expiry_date ? formatEventDate(g.qpr_expiry_date) : '—'}
+                          {qpr ? (qpr.expires_on ? formatCertDate(qpr.expires_on) : 'Lifetime') : '—'}
                         </td>
                         <td className="px-6 py-4">
                           {!g.is_active ? (

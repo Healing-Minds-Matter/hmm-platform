@@ -40,11 +40,15 @@ type Props = {
   perms: CertPermissions
   designVersions: Record<string, number>   // current design version per type
   today: string
+  openRenew?: string
 }
 
 export function CertificatesPanel(props: Props) {
   const { certs, selfReported, types, journey, names, perms } = props
-  const [popup, setPopup] = useState<Popup | null>(null)
+  const [popup, setPopup] = useState<Popup | null>(() => {
+    const c = props.openRenew ? certs.find(x => x.id === props.openRenew) : undefined
+    return c && perms.award && canRenew(c, types.find(t => t.id === c.type_id)?.status) ? { kind: 'renew', cert: c } : null
+  })
   const [notice, setNotice] = useState<string | null>(null)
   const typeById = new Map(types.map(t => [t.id, t]))
   const current = certs.filter(c => c.is_current && !c.removed_at)

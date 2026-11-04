@@ -14,7 +14,8 @@ export function ChampionGatekeeperFilters({
   const pathname = usePathname()
 
   const update = useCallback((key: string, value: string) => {
-    const params = new URLSearchParams()
+    const params = new URLSearchParams(window.location.search)
+    for (const k of ['q', 'status', 'page']) params.delete(k)
     if (key !== 'q' && q) params.set('q', q)
     if (key !== 'status' && status) params.set('status', status)
     if (value) params.set(key, value)

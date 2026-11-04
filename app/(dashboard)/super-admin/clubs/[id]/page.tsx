@@ -1,6 +1,8 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { loadCertSummary } from '@/lib/cert-summary.server'
+import { qprFigures } from '@/lib/cert-summary'
 import { ClubStatusToggle } from './club-status-toggle'
 import { eventTypeStyle } from '@/app/(dashboard)/super-admin/events/event-type'
 // Event dates/times are shown in Sri Lanka time (see lib/org-date.ts).
@@ -91,13 +93,13 @@ export default async function ClubDetailPage({
   const [{ data: champions }, { data: gatekeepers }, { data: events }] = await Promise.all([
     supabase
       .from('profiles')
-      .select('id, full_name, email, is_active, qpr_expiry_date')
+      .select('id, full_name, email, is_active')
       .eq('club_id', id)
       .eq('role', 'champion')
       .order('full_name'),
     supabase
       .from('profiles')
-      .select('id, full_name, email, is_active, qpr_expiry_date')
+      .select('id, full_name, email, is_active')
       .eq('club_id', id)
       .eq('role', 'gatekeeper')
       .order('full_name'),
@@ -119,15 +121,10 @@ export default async function ClubDetailPage({
   const activeChampions     = championList.filter(c => c.is_active)
 
   const now      = new Date()
-  const today    = now.toISOString().split('T')[0]
-  const in90Days = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-
-  // QPR convention (matches getDashboardData in actions/dashboard.ts): active
-  // champions + gatekeepers in this club, certified = expiry >= today, expiring
-  // soon = certified AND expiry <= today+90d.
+  // Active champions + gatekeepers in this club; certified = a current QPR certificate that is
+  // valid or expiring soon, using the certificate status rules (Story 10.12 Sc04).
   const certPool = [...championList, ...gatekeeperList].filter(p => p.is_active)
-  const certifiedCount    = certPool.filter(p => p.qpr_expiry_date && p.qpr_expiry_date >= today).length
-  const expiringSoonCount = certPool.filter(p => p.qpr_expiry_date && p.qpr_expiry_date >= today && p.qpr_expiry_date <= in90Days).length
+  const { certified: certifiedCount, expiringSoon: expiringSoonCount } = qprFigures((await loadCertSummary(supabase)).qprByHolder, certPool.map(p => p.id))
   const qprPct = certPool.length > 0 ? Math.round((certifiedCount / certPool.length) * 100) : 0
 
   const upcomingEvents = eventList.filter(e => new Date(e.starts_at) > now) // eventList already sorted ascending
