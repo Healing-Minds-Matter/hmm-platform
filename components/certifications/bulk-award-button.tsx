@@ -6,6 +6,7 @@
 
 import { useActionState, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { ModalOverlay } from '@/components/modal-overlay'
 import { FormCard, CANCEL_BTN, HINT, INPUT, LABEL, OPTION, PRIMARY_BTN } from '@/components/certifications/cert-ui'
 import { formatCertDate } from '@/lib/certification-types'
@@ -55,6 +56,7 @@ function BulkAwardForm({ people, types, clubs, today, onClose }: {
     if (result?.done?.some(d => d.ok)) router.refresh()
     return result
   }, null)
+  const onSubmit = useSubmitWithoutReset(formAction)
   const [typeId, setTypeId] = useState('')
   const [date, setDate] = useState('')
   const [format, setFormat] = useState<CertificateFormat>('physical')
@@ -92,7 +94,7 @@ function BulkAwardForm({ people, types, clubs, today, onClose }: {
 
   return (
     <FormCard title="Add certification to several Gatekeepers" subtitle="For a training session: one type and date for everyone who attended." onClose={onClose}>
-      <form action={formAction} className="flex min-h-0 flex-col">
+      <form onSubmit={onSubmit} className="flex min-h-0 flex-col">
         <div className="flex flex-col gap-4 overflow-y-auto px-6 pb-6">
           {state?.error && <div role="alert" className="rounded-lg bg-[#FEF2F2] px-4 py-2.5 text-[13px] font-medium text-[#DC2626]">{state.error}</div>}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

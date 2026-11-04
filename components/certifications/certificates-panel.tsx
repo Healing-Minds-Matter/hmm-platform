@@ -6,6 +6,7 @@
 
 import { useActionState, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { ModalOverlay } from '@/components/modal-overlay'
 import { downloadBlob, fetchPdf, printBlob } from '@/components/certifications/pdf-actions'
 import { Badge, Code, FormCard, CANCEL_BTN, DANGER_BTN, HINT, INPUT, LABEL, OPTION, PRIMARY_BTN } from '@/components/certifications/cert-ui'
@@ -304,7 +305,9 @@ function useClosingAction(action: (s: CertActionState, f: FormData) => Promise<C
   useEffect(() => {
     if (state?.success) { onDone(state.message); router.refresh() }
   }, [state, onDone, router])
-  return { state, formAction, pending }
+  // Submitted without React's automatic reset, so a refused save keeps what was chosen (radios, ticks, files).
+  const onSubmit = useSubmitWithoutReset(formAction)
+  return { state, onSubmit, pending }
 }
 
 function ErrorBanner({ error }: { error?: string }) {
@@ -411,7 +414,7 @@ function AwardForm({ holderId, holderName, certs, types, designVersions, today, 
   onClose: () => void
   onDone: (m?: string) => void
 }) {
-  const { state, formAction, pending } = useClosingAction(addCertificateAction, onDone)
+  const { state, onSubmit, pending } = useClosingAction(addCertificateAction, onDone)
   const offered = types.filter(t => t.status !== 'retired')
   const [typeId, setTypeId] = useState(renew?.type_id ?? '')
   const [date, setDate] = useState('')
@@ -428,7 +431,7 @@ function AwardForm({ holderId, holderName, certs, types, designVersions, today, 
       subtitle={`For ${holderName}. The expiry is worked out from the type’s validity.`}
       onClose={onClose}
     >
-      <form action={formAction} className="flex min-h-0 flex-col">
+      <form onSubmit={onSubmit} className="flex min-h-0 flex-col">
         <div className="flex flex-col gap-4 overflow-y-auto px-6 pb-6">
           <ErrorBanner error={state?.error} />
           <input type="hidden" name="holder_id" value={holderId} />
@@ -481,7 +484,7 @@ function EditForm({ cert, type, designVersion, today, onClose, onDone }: {
   onClose: () => void
   onDone: (m?: string) => void
 }) {
-  const { state, formAction, pending } = useClosingAction(editCertificateAction, onDone)
+  const { state, onSubmit, pending } = useClosingAction(editCertificateAction, onDone)
   const [date, setDate] = useState(cert.achieved_on)
   const [format, setFormat] = useState<CertificateFormat>(cert.format)
   // Controlled, so a refused save doesn't clear what was typed.
@@ -493,7 +496,7 @@ function EditForm({ cert, type, designVersion, today, onClose, onDone }: {
 
   return (
     <FormCard title={`Edit ${type?.name ?? 'certificate'}`} subtitle="The type can’t be changed. The person will be told what changed and why." onClose={onClose}>
-      <form action={formAction} className="flex min-h-0 flex-col">
+      <form onSubmit={onSubmit} className="flex min-h-0 flex-col">
         <div className="flex flex-col gap-4 overflow-y-auto px-6 pb-6">
           <ErrorBanner error={state?.error} />
           <input type="hidden" name="certificate_id" value={cert.id} />
@@ -546,7 +549,7 @@ function RemoveForm({ cert, certs, type, holderName, onClose, onDone }: {
   onClose: () => void
   onDone: (m?: string) => void
 }) {
-  const { state, formAction, pending } = useClosingAction(removeCertificateAction, onDone)
+  const { state, onSubmit, pending } = useClosingAction(removeCertificateAction, onDone)
   const [category, setCategory] = useState('')
   const [reason, setReason] = useState('')
   // The certificate that becomes current, if this one is the current one.
@@ -557,7 +560,7 @@ function RemoveForm({ cert, certs, type, holderName, onClose, onDone }: {
 
   return (
     <FormCard title={`Remove ${type?.name ?? 'certificate'}`} subtitle={`From ${holderName}’s profile. It’s kept in the journey and audit history.`} onClose={onClose}>
-      <form action={formAction} className="flex min-h-0 flex-col">
+      <form onSubmit={onSubmit} className="flex min-h-0 flex-col">
         <div className="flex flex-col gap-4 overflow-y-auto px-6 pb-6">
           <ErrorBanner error={state?.error} />
           <input type="hidden" name="certificate_id" value={cert.id} />
@@ -595,10 +598,10 @@ function RestoreForm({ cert, type, onClose, onDone }: {
   onClose: () => void
   onDone: (m?: string) => void
 }) {
-  const { state, formAction, pending } = useClosingAction(restoreCertificateAction, onDone)
+  const { state, onSubmit, pending } = useClosingAction(restoreCertificateAction, onDone)
   return (
     <FormCard title={`Undo removal of ${type?.name ?? 'certificate'}`} subtitle="The certificate counts again from now. The holder and their Champion are told." onClose={onClose}>
-      <form action={formAction} className="flex min-h-0 flex-col">
+      <form onSubmit={onSubmit} className="flex min-h-0 flex-col">
         <div className="flex flex-col gap-4 px-6 pb-6">
           <ErrorBanner error={state?.error} />
           <input type="hidden" name="certificate_id" value={cert.id} />

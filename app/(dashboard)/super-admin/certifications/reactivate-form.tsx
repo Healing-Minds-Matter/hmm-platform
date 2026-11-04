@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { reactivateTypeAction } from '@/actions/certification-types'
 import { formatCertDate, type CertificationTypeRow } from '@/lib/certification-types'
 import { CANCEL_BTN, FormCard, HINT, INPUT, LABEL, PRIMARY_BTN } from '@/components/certifications/cert-ui'
@@ -16,6 +17,8 @@ export function ReactivateForm({ type, stopped, today, inModal = false }: {
   const router = useRouter()
   const close = inModal ? () => router.back() : (() => router.push(`/super-admin/certifications/${type.id}`))
   const [state, formAction, isPending] = useActionState(reactivateTypeAction, null)
+  // Submitted without React's automatic reset, so a refused save keeps every choice (radios included).
+  const onSubmit = useSubmitWithoutReset(formAction)
   const v = state?.values
 
   useEffect(() => {
@@ -29,7 +32,7 @@ export function ReactivateForm({ type, stopped, today, inModal = false }: {
       subtitle={`Retired on ${formatCertDate(type.offered_until)}. Reactivating lets it be awarded again and its certificate design be edited.`}
       onClose={close}
     >
-      <form action={formAction} className="flex flex-1 flex-col overflow-hidden">
+      <form onSubmit={onSubmit} className="flex flex-1 flex-col overflow-hidden">
         <input type="hidden" name="type_id" value={type.id} />
         <div className="flex flex-col gap-4 overflow-y-auto bg-[#F8FAFC] p-6">
           {state?.error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">{state.error}</div>}

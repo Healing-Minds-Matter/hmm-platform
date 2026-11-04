@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { createTypeAction, updateTypeAction } from '@/actions/certification-types'
 import { formatCertDate, type CertificationTypeRow } from '@/lib/certification-types'
 import { CANCEL_BTN, FormCard, HINT, INPUT, LABEL, OPTION, PRIMARY_BTN, SECTION, SECTION_TITLE } from '@/components/certifications/cert-ui'
@@ -17,6 +18,8 @@ export function TypeForm({ type, codeLocked = false, today, inModal = false }: {
   const editing = !!type
   const close = inModal ? () => router.back() : (() => router.push(editing ? `/super-admin/certifications/${type.id}` : '/super-admin/certifications'))
   const [state, formAction, isPending] = useActionState(editing ? updateTypeAction : createTypeAction, null)
+  // Submitted without React's automatic reset, so a refused save keeps every choice (radios included).
+  const onSubmit = useSubmitWithoutReset(formAction)
   const v = state?.values
   const retired = type?.status === 'retired'
 
@@ -38,7 +41,7 @@ export function TypeForm({ type, codeLocked = false, today, inModal = false }: {
       subtitle={editing ? 'Changes to validity apply to new certificates only; existing ones keep the expiry they were given.' : 'Define a certification HMM recognises. Its digital certificate design can be added afterwards.'}
       onClose={close}
     >
-      <form action={formAction} className="flex flex-1 flex-col overflow-hidden">
+      <form onSubmit={onSubmit} className="flex flex-1 flex-col overflow-hidden">
         {editing && <input type="hidden" name="id" value={type.id} />}
         <div className="flex flex-col gap-4 overflow-y-auto bg-[#F8FAFC] p-6">
           {state?.error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">{state.error}</div>}

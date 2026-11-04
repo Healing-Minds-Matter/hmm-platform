@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { retireTypeAction } from '@/actions/certification-types'
 import { formatCertDate, type CertificationTypeRow, type RetirementOption } from '@/lib/certification-types'
 import { CANCEL_BTN, DANGER_BTN, FormCard, HINT, INPUT, LABEL, OPTION, PRIMARY_BTN } from '@/components/certifications/cert-ui'
@@ -16,6 +17,8 @@ export function RetireForm({ type, impact, today, inModal = false }: {
   const router = useRouter()
   const close = inModal ? () => router.back() : (() => router.push(`/super-admin/certifications/${type.id}`))
   const [state, formAction, isPending] = useActionState(retireTypeAction, null)
+  // Submitted without React's automatic reset, so a refused save keeps every choice (radios included).
+  const onSubmit = useSubmitWithoutReset(formAction)
   const inEffect = type.status === 'retired'
   const existing = !!type.open_retirement_id
   const [option, setOption] = useState<RetirementOption>((state?.values?.option as RetirementOption | undefined) ?? type.retirement_option ?? 'keep')
@@ -37,7 +40,7 @@ export function RetireForm({ type, impact, today, inModal = false }: {
         : 'No one can receive this type after the retirement date. Nothing is deleted. This date is also the type’s Offered until date.'}
       onClose={close}
     >
-      <form action={formAction} className="flex flex-1 flex-col overflow-hidden">
+      <form onSubmit={onSubmit} className="flex flex-1 flex-col overflow-hidden">
         <input type="hidden" name="type_id" value={type.id} />
         <div className="flex flex-col gap-4 overflow-y-auto bg-[#F8FAFC] p-6">
           {state?.error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">{state.error}</div>}

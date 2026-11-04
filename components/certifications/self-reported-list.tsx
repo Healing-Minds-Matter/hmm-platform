@@ -7,6 +7,7 @@
 import { useActionState, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { ModalOverlay } from '@/components/modal-overlay'
 import { Badge, FormCard, CANCEL_BTN, DANGER_BTN, HINT, INPUT, LABEL, PRIMARY_BTN } from '@/components/certifications/cert-ui'
 import { formatCertDate } from '@/lib/certification-types'
@@ -158,7 +159,9 @@ function useClosing(action: (s: CertActionState, f: FormData) => Promise<CertAct
   useEffect(() => {
     if (state?.success) { onDone(state.message); router.refresh() }
   }, [state, onDone, router])
-  return { state, formAction, pending }
+  // Submitted without React's automatic reset, so a refused save keeps what was chosen (radios, ticks, files).
+  const onSubmit = useSubmitWithoutReset(formAction)
+  return { state, onSubmit, pending }
 }
 
 function ErrorBanner({ error }: { error?: string }) {
@@ -176,7 +179,7 @@ function Footer({ onClose, pending, label, danger = false }: { onClose: () => vo
 
 // Add or change a certification I hold. Controlled fields, so a refused save keeps what was typed.
 function SelfForm({ row, today, onClose, onDone }: { row?: SelfReportedRow; today: string; onClose: () => void; onDone: (m?: string) => void }) {
-  const { state, formAction, pending } = useClosing(row ? editSelfReportedAction : addSelfReportedAction, onDone)
+  const { state, onSubmit, pending } = useClosing(row ? editSelfReportedAction : addSelfReportedAction, onDone)
   const [name, setName] = useState(row?.name ?? '')
   const [org, setOrg] = useState(row?.organisation ?? '')
   const [achieved, setAchieved] = useState(row?.achieved_on ?? '')
@@ -188,7 +191,7 @@ function SelfForm({ row, today, onClose, onDone }: { row?: SelfReportedRow; toda
       subtitle="From another organisation. It shows as self-reported until a reviewer checks it, and never counts as an official certificate."
       onClose={onClose}
     >
-      <form action={formAction} className="flex min-h-0 flex-col">
+      <form onSubmit={onSubmit} className="flex min-h-0 flex-col">
         <div className="flex flex-col gap-4 overflow-y-auto px-6 pb-6">
           <ErrorBanner error={state?.error} />
           {row && <input type="hidden" name="self_id" value={row.id} />}
@@ -233,10 +236,10 @@ function ConfirmForm({ row, action, title, text, label, onClose, onDone }: {
   title: string; text: string; label: string
   onClose: () => void; onDone: (m?: string) => void
 }) {
-  const { state, formAction, pending } = useClosing(action, onDone)
+  const { state, onSubmit, pending } = useClosing(action, onDone)
   return (
     <FormCard title={title} subtitle={`${row.organisation} · achieved ${formatCertDate(row.achieved_on)}`} onClose={onClose}>
-      <form action={formAction} className="flex min-h-0 flex-col">
+      <form onSubmit={onSubmit} className="flex min-h-0 flex-col">
         <div className="flex flex-col gap-4 px-6 pb-6">
           <ErrorBanner error={state?.error} />
           <input type="hidden" name="self_id" value={row.id} />
@@ -249,12 +252,12 @@ function ConfirmForm({ row, action, title, text, label, onClose, onDone }: {
 }
 
 function RemoveForm({ row, holderName, onClose, onDone }: { row: SelfReportedRow; holderName?: string; onClose: () => void; onDone: (m?: string) => void }) {
-  const { state, formAction, pending } = useClosing(removeSelfReportedAction, onDone)
+  const { state, onSubmit, pending } = useClosing(removeSelfReportedAction, onDone)
   const [category, setCategory] = useState('')
   const [reason, setReason] = useState('')
   return (
     <FormCard title={`Remove ${row.name}`} subtitle={`${row.organisation} · achieved ${formatCertDate(row.achieved_on)}`} onClose={onClose}>
-      <form action={formAction} className="flex min-h-0 flex-col">
+      <form onSubmit={onSubmit} className="flex min-h-0 flex-col">
         <div className="flex flex-col gap-4 overflow-y-auto px-6 pb-6">
           <ErrorBanner error={state?.error} />
           <input type="hidden" name="self_id" value={row.id} />
