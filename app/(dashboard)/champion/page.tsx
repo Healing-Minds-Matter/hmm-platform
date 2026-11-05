@@ -184,7 +184,7 @@ export default async function ChampionDashboard() {
         <KpiTile
           label="QPR Certified"
           value={`${qprPct}%`}
-          caption={`${data.qpr.certified} of ${data.qpr.total} certified`}
+          caption={`${data.qpr.certified} of ${data.qpr.total} Gatekeepers & Champions`}
           iconSrc="/icons/kpi-qpr.svg"
         />
       </div>

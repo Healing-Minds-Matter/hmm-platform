@@ -2,7 +2,7 @@
 // how many are valid, expiring in 90 days and expired, and how many hold it;
 // plus how many people have no certifications. Super Admins see active
 // Champions and Gatekeepers in active clubs (the same people as the QPR
-// widget); a Champion sees their club's active Gatekeepers.
+// widget); a Champion sees their club's active Gatekeepers and Champions.
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { loadCertSummary } from '@/lib/cert-summary.server'
@@ -12,7 +12,7 @@ export async function CertificationFiguresCard({ scope }: { scope: { kind: 'all'
   const supabase = await createClient()
   let people: string[]
   if (scope.kind === 'club') {
-    const { data } = await supabase.from('profiles').select('id').eq('role', 'gatekeeper').eq('club_id', scope.clubId).eq('is_active', true)
+    const { data } = await supabase.from('profiles').select('id').in('role', ['champion', 'gatekeeper']).eq('club_id', scope.clubId).eq('is_active', true)
     people = (data ?? []).map(p => p.id)
   } else {
     const { data: clubs } = await supabase.from('clubs').select('id').eq('is_active', true)
@@ -43,7 +43,7 @@ export async function CertificationFiguresCard({ scope }: { scope: { kind: 'all'
         <div>
           <h2 className="font-[family-name:var(--font-jakarta)] text-base font-bold text-[#0F172A]">Certifications</h2>
           <p className="mt-1 text-[11px] text-[#64748B]">
-            {scope.kind === 'club' ? 'Your club’s active Gatekeepers, by certification' : 'Active Champions and Gatekeepers in active clubs, by certification'}
+            {scope.kind === 'club' ? 'Your club’s active Gatekeepers and Champions, by certification' : 'Active Champions and Gatekeepers in active clubs, by certification'}
           </p>
         </div>
         <p className="text-[13px] text-[#475569]">

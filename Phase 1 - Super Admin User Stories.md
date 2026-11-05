@@ -1541,7 +1541,7 @@ THEN it shall list their current certificates with status, dates achieved and ex
 **Scenario 03: Dashboard Figures**  
 GIVEN the dashboard is opened  
 WHEN certification figures are shown  
-THEN they shall be per certification type (valid, expiring in 90 days, expired, holders), plus the number of people with no certifications; a Champion's dashboard covers their club's Gatekeepers only
+THEN they shall be per certification type (valid, expiring in 90 days, expired, holders), plus the number of people with no certifications; a Champion's dashboard covers their club's active Gatekeepers and Champions (Champions are certified the same way as Gatekeepers)
 
 **Scenario 04: Existing QPR Displays**  
 GIVEN the existing screens that show one QPR status per person (Super Admin dashboard QPR Certified widget, Champion dashboard, QPR badges in lists, mobile Home QPR card)  

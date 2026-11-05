@@ -96,8 +96,9 @@ export async function getChampionDashboardData(): Promise<ChampionDashboardData>
       .eq('club_id', club.id).eq('role', 'gatekeeper').eq('is_active', false),
     supabase.from('profiles').select('id', { count: 'exact', head: true })
       .eq('club_id', club.id).eq('role', 'gatekeeper').gte('created_at', monthStart),
+    // Champions are certified people too, so they count alongside Gatekeepers.
     supabase.from('profiles').select('id')
-      .eq('club_id', club.id).in('role', ['gatekeeper', 'champion']),
+      .eq('club_id', club.id).in('role', ['gatekeeper', 'champion']).eq('is_active', true),
     supabase.from('profiles').select('created_at')
       .eq('club_id', club.id).eq('role', 'gatekeeper').gte('created_at', sixMonthsAgo),
     supabase.from('profiles').select('id, full_name, email, created_at')
