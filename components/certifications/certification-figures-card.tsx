@@ -63,7 +63,7 @@ export async function CertificationFiguresCard({ scope }: { scope: { kind: 'all'
               <tr className="border-b border-[#E2E8F0] text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">
                 <th className="py-2 pr-4">Certification</th>
                 <th className="py-2 pr-4 text-right">Valid</th>
-                <th className="py-2 pr-4 text-right">Expiring in 90 days</th>
+                <th className="py-2 pr-4 text-right">Expiring soon</th>
                 <th className="py-2 pr-4 text-right">Expired</th>
                 <th className="py-2 text-right">Holders</th>
               </tr>

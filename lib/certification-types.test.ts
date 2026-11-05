@@ -113,4 +113,11 @@ describe('describeAudit', () => {
     expect(describeAudit('certification.certificate_removed', { type: 'QPR', reason: 'Duplicate record: entered twice' })).toBe('QPR. Reason: Duplicate record: entered twice')
     expect(describeAudit('certification.migrated', { certificates: 74 })).toBe('74 certificates created from the existing QPR certification dates')
   })
+  it('words validity and same-day reactivation like the type pages', () => {
+    expect(describeAudit('certification.type_created', { code: 'S', validity: '1 months', offered_from: '2024-01-01' })).toBe('Code S, 1 month, offered from 1 Jan 2024')
+    expect(describeAudit('certification.type_created', { code: 'L', validity: 'lifetime' })).toBe('Code L, Lifetime (no expiry)')
+    expect(describeAudit('certification.type_reactivated', { offered_again_from: '2026-11-04', retired_on: '2026-11-04' }))
+      .toBe('Retired and reactivated on the same day (4 Nov 2026), so the retirement was cancelled and no certificates stayed stopped')
+    expect(describeAudit('certification.type_reactivated', { offered_again_from: '2026-12-01', retired_on: '2026-11-04' })).toBe('Offered again from 1 Dec 2026 (retired 4 Nov 2026)')
+  })
 })

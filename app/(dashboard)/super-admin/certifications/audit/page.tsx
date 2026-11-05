@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { waitingReviewCount } from '@/lib/certifications.server'
 import { AUDIT_ACTION_LABEL, auditTone, describeAudit } from '@/lib/certification-types'
-import { formatOrgDate } from '@/lib/org-date'
+import { formatOrgDate, formatOrgTime } from '@/lib/org-date'
 import { Badge, CertTabs, PageHeader } from '@/components/certifications/cert-ui'
 
 export const metadata = { title: 'Certifications audit history — HMM Super Admin' }
@@ -67,7 +67,7 @@ export default async function CertificationAuditPage({ searchParams }: { searchP
             <tbody>
               {rows.map(r => (
                 <tr key={r.id} className="border-t border-[rgba(226,232,240,0.5)] align-top hover:bg-gray-50">
-                  <td className="whitespace-nowrap px-[16px] py-3 text-[13px] text-[#475569]">{formatOrgDate(r.when, { day: 'numeric', month: 'short', year: 'numeric' })}</td>
+                  <td className="whitespace-nowrap px-[16px] py-3 text-[13px] text-[#475569]">{formatOrgDate(r.when, { day: 'numeric', month: 'short', year: 'numeric' })}<span className="block text-[12px] text-[#94A3B8]">{formatOrgTime(r.when, { hour: 'numeric', minute: '2-digit' })}</span></td>
                   <td className="px-[16px] py-3"><Badge tone={auditTone(r.action)}>{AUDIT_ACTION_LABEL[r.action] ?? r.action}</Badge></td>
                   <td className="px-[16px] py-3 text-[13px] font-semibold text-[#0F172A]">{r.subject}</td>
                   <td className="px-[16px] py-3 text-[13px] text-[#0F172A]">{r.text}</td>

@@ -81,9 +81,9 @@ export default async function SuperAdminDashboard() {
       {/* ── Row 1: QPR Certified (5) · Total Champions (3) · Upcoming Events (4) ── */}
       <div className="grid grid-cols-12 gap-5">
 
-        {/* QPR Certified Gatekeepers */}
+        {/* QPR Certified Gatekeepers & Champions */}
         <div className="col-span-5 flex flex-col rounded-2xl bg-white p-5">
-          <h2 className="font-[family-name:var(--font-jakarta)] text-base font-bold text-[#0F172A]">QPR Certified Gatekeepers</h2>
+          <h2 className="font-[family-name:var(--font-jakarta)] text-base font-bold text-[#0F172A]">QPR Certified Gatekeepers &amp; Champions</h2>
           <div className="mt-3 flex items-center gap-4 rounded-xl bg-[#F9F9F9] p-4">
             <QprRing pct={qprPct} />
             <div className="min-w-0">
@@ -94,14 +94,14 @@ export default async function SuperAdminDashboard() {
                 <span className="text-[15px] text-[#64748B]">/ {data.qprData.total.toLocaleString()}</span>
               </p>
               <p className="mt-1 text-xs leading-snug text-[#475569]">
-                Active certified gatekeepers across all participating clubs.
+                Active Gatekeepers and Champions with a current QPR certificate, across all active clubs.
               </p>
             </div>
           </div>
           <div className="mt-3 flex gap-2 border-t border-[#E2E8F0] pt-3">
-            <StatChip value={fullyCertified} label="Fully Certified" tone="certified" />
-            <StatChip value={data.qprData.expiringSoon} label="Expiring Soon" tone="expiring" />
-            <StatChip value={notYetCertified} label="Not Yet Certified" tone="neutral" />
+            <StatChip value={fullyCertified} label="Valid" tone="certified" />
+            <StatChip value={data.qprData.expiringSoon} label="Expiring soon" tone="expiring" />
+            <StatChip value={notYetCertified} label="Not currently certified" tone="neutral" />
           </div>
         </div>
 

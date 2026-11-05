@@ -214,6 +214,13 @@ export function auditTone(action: string): 'info' | 'ok' | 'warn' | 'bad' | 'gre
 
 const optionWord = (o: unknown) => (o === 'stop' ? 'existing certificates stop' : 'existing certificates stay valid')
 const d = (v: unknown) => (typeof v === 'string' ? formatCertDate(v) : '')
+// The database records validity as "3 years", "1 months" or "lifetime"; shown
+// with the same words as the type pages (validityLabel).
+function validityText(v: unknown): string {
+  if (v === 'lifetime') return validityLabel({ validity_value: null, validity_unit: null })
+  const m = typeof v === 'string' ? v.match(/^(\d+) (months|years)$/) : null
+  return m ? validityLabel({ validity_value: Number(m[1]), validity_unit: m[2] as ValidityUnit }) : typeof v === 'string' ? v : ''
+}
 
 export function describeAudit(action: string, details: Record<string, unknown> | null): string {
   const x = details ?? {}
@@ -222,7 +229,7 @@ export function describeAudit(action: string, details: Record<string, unknown> |
       return `${x.certificates ?? 0} certificates created from the existing QPR certification dates`
     case 'certification.type_created':
     case 'certification.type_edited':
-      return [`Code ${x.code}`, x.validity === 'lifetime' ? 'lifetime' : x.validity, x.offered_from ? `offered from ${d(x.offered_from)}` : ''].filter(Boolean).join(', ')
+      return [`Code ${x.code}`, validityText(x.validity), x.offered_from ? `offered from ${d(x.offered_from)}` : ''].filter(Boolean).join(', ')
     case 'certification.type_retired':
       return `Retires ${d(x.retire_on)}; ${optionWord(x.option)}`
     case 'certification.retirement_changed':
@@ -230,7 +237,10 @@ export function describeAudit(action: string, details: Record<string, unknown> |
     case 'certification.retirement_cancelled':
       return `The retirement planned for ${d(x.retired_on)} was cancelled`
     case 'certification.type_reactivated':
-      return `Offered again from ${d(x.offered_again_from)} (retired ${d(x.retired_on)})`
+      // Same wording as the type's Retirement history.
+      return x.offered_again_from && x.offered_again_from === x.retired_on
+        ? `Retired and reactivated on the same day (${d(x.retired_on)}), so the retirement was cancelled and no certificates stayed stopped`
+        : `Offered again from ${d(x.offered_again_from)} (retired ${d(x.retired_on)})`
     case 'certification.design_saved':
       return `Version ${x.version}`
     case 'certification.certificate_added':

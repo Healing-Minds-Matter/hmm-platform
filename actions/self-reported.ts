@@ -11,7 +11,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { todayDateString } from '@/lib/org-date'
-import { checkAttachment, describeCertError } from '@/lib/certificates'
+import { ATTACHMENT_CONTENT_TYPES, attachmentContentError, checkAttachment, describeCertError } from '@/lib/certificates'
 import { validateSelfRemoval, validateSelfReported } from '@/lib/self-reported'
 import type { CertActionState } from '@/actions/certificates'
 
@@ -45,8 +45,11 @@ async function uploadOwn(supabase: ServerClient, userId: string, formData: FormD
   const checked = checkAttachment(file && typeof file === 'object' ? file : null)
   if (!checked) return { path: null }
   if ('error' in checked) return checked
+  const bytes = Buffer.from(await file!.arrayBuffer())
+  const badContent = attachmentContentError(bytes, checked.ext)
+  if (badContent) return { error: badContent }
   const path = `self/${userId}/${crypto.randomUUID()}.${checked.ext}`
-  const { error } = await supabase.storage.from(BUCKET).upload(path, Buffer.from(await file!.arrayBuffer()), { contentType: file!.type || undefined })
+  const { error } = await supabase.storage.from(BUCKET).upload(path, bytes, { contentType: ATTACHMENT_CONTENT_TYPES[checked.ext] })
   if (error) {
     return { error: (error.message ?? '').includes('row-level security') ? 'You don’t have permission to add certifications.' : 'The attachment couldn’t be uploaded. Please try again.' }
   }

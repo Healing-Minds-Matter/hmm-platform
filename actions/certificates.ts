@@ -13,7 +13,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { todayDateString } from '@/lib/org-date'
 import { TYPE_COLUMNS, formatCertDate, type CertificationTypeRow } from '@/lib/certification-types'
 import { currentDesignVersions, issueCertificatePdf } from '@/lib/certificate-issue.server'
-import { checkAttachment, describeCertError, validateAward, validateRemoval, type CertificateFormat } from '@/lib/certificates'
+import { ATTACHMENT_CONTENT_TYPES, attachmentContentError, checkAttachment, describeCertError, validateAward, validateRemoval, type CertificateFormat } from '@/lib/certificates'
 
 type ServerClient = Awaited<ReturnType<typeof createClient>>
 
@@ -57,11 +57,14 @@ async function uploadAttachment(formData: FormData, holderId: string): Promise<{
   const checked = checkAttachment(file && typeof file === 'object' ? file : null)
   if (!checked) return { path: null }
   if ('error' in checked) return checked
+  // A server action's File has to become a Buffer for storage uploads (see actions/resources.ts).
+  const bytes = Buffer.from(await file!.arrayBuffer())
+  const badContent = attachmentContentError(bytes, checked.ext)
+  if (badContent) return { error: badContent }
   const path = `certificates/${holderId}/${crypto.randomUUID()}.${checked.ext}`
   const admin = createAdminClient()
-  // A server action's File has to become a Buffer for storage uploads (see actions/resources.ts).
-  const { error } = await admin.storage.from(BUCKET).upload(path, Buffer.from(await file!.arrayBuffer()), {
-    contentType: file!.type || undefined,
+  const { error } = await admin.storage.from(BUCKET).upload(path, bytes, {
+    contentType: ATTACHMENT_CONTENT_TYPES[checked.ext],
   })
   if (error) return { error: 'The attachment couldn’t be uploaded. Please try again.' }
   return { path }

@@ -82,6 +82,22 @@ export function checkAttachment(file: { name: string; size: number; type: string
   return { ext }
 }
 
+// The file's first bytes, so a file only renamed to .pdf/.jpg/.png is refused.
+const ATTACHMENT_SIGNATURES: Record<string, number[]> = {
+  pdf: [0x25, 0x50, 0x44, 0x46, 0x2d], // %PDF-
+  jpg: [0xff, 0xd8, 0xff],
+  png: [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a],
+}
+export const ATTACHMENT_CONTENT_TYPES: Record<string, string> = { pdf: 'application/pdf', jpg: 'image/jpeg', png: 'image/png' }
+
+export function attachmentContentError(bytes: Uint8Array, ext: string): string | null {
+  const sig = ATTACHMENT_SIGNATURES[ext]
+  if (!sig || bytes.length < sig.length || sig.some((b, i) => bytes[i] !== b)) {
+    return 'The attachment isn’t a real PDF, JPG or PNG file. Please choose the original file.'
+  }
+  return null
+}
+
 export function expiryFor(achievedOn: string, value: number | null, unit: 'months' | 'years' | null): string | null {
   if (value == null || !unit || !isRealDate(achievedOn)) return null
   const [y, m, d] = achievedOn.split('-').map(Number)

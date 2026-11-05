@@ -13,10 +13,10 @@ export function qprStatus(isActive: boolean, qprExpiryDate: string | null, today
 }
 
 export const QPR_STATUS_LABEL: Record<QprStatus, string> = {
-  active: 'Active',
-  expiring_soon: 'Expiring Soon',
+  active: 'Valid',
+  expiring_soon: 'Expiring soon',
   expired: 'Expired',
-  not_certified: 'Not Certified',
+  not_certified: 'Not certified',
   inactive: 'Inactive',
 }
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useEffect } from 'react'
+import { useActionState, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { reactivateTypeAction } from '@/actions/certification-types'
@@ -20,6 +20,11 @@ export function ReactivateForm({ type, stopped, today, inModal = false }: {
   // Submitted without React's automatic reset, so a refused save keeps every choice (radios included).
   const onSubmit = useSubmitWithoutReset(formAction)
   const v = state?.values
+  const [from, setFrom] = useState(v?.from ?? today)
+  // Reactivating on (or before) the retirement date cancels the retirement, so
+  // nothing stays stopped; a later date keeps stopped certificates stopped.
+  const cancels = !!type.offered_until && !!from && from <= type.offered_until
+  const certs = `${stopped} ${stopped === 1 ? 'certificate' : 'certificates'}`
 
   useEffect(() => {
     if (state?.success) close()
@@ -40,7 +45,7 @@ export function ReactivateForm({ type, stopped, today, inModal = false }: {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label htmlFor="from" className={LABEL}>Offered again from <span className="text-[#DC2626]">*</span></label>
-                <input id="from" name="from" type="date" min={today} required defaultValue={v?.from ?? today} className={INPUT} autoFocus />
+                <input id="from" name="from" type="date" min={today} required value={from} onChange={e => setFrom(e.target.value)} className={INPUT} autoFocus />
               </div>
               <div>
                 <label htmlFor="until" className={LABEL}>Offered until</label>
@@ -51,9 +56,11 @@ export function ReactivateForm({ type, stopped, today, inModal = false }: {
             <div className="rounded-xl border border-[#DBEAFE] bg-[#EFF6FF] p-3.5 text-[13px]">
               <b className="block text-[#0F172A]">Existing certificates</b>
               <span className="text-[#475569]">
-                {type.retirement_option === 'stop'
-                  ? `${stopped} ${stopped === 1 ? 'certificate' : 'certificates'} stopped when the type retired. They stay stopped; holders can be renewed to become valid again.`
-                  : 'Certificates were kept valid at retirement, so nothing changes for them.'}
+                {type.retirement_option !== 'stop'
+                  ? 'Certificates were kept valid at retirement, so nothing changes for them.'
+                  : cancels
+                  ? `Reactivating from the retirement date (${formatCertDate(type.offered_until)}) cancels the retirement, so the ${certs} that stopped ${stopped === 1 ? 'becomes' : 'become'} valid again.`
+                  : `${certs} stopped when the type retired. They stay stopped; holders can be renewed to become valid again.`}
               </span>
             </div>
           </div>

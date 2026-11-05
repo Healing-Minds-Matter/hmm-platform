@@ -71,7 +71,7 @@ function qprLine(qpr: CurrentCert | undefined) {
     return { text: `QPR Certification ${qpr.status === 'stopped' ? 'Stopped' : 'Expired'}${expiryLabel ? ` (${expiryLabel})` : ''}`, className: 'text-[#94A3B8]' }
   }
   if (qpr.status === 'expiring_soon') {
-    return { text: `QPR Certified — Expiring Soon (Expires ${expiryLabel})`, className: 'text-[#D97706]' }
+    return { text: `QPR Certified — Expiring soon (Expires ${expiryLabel})`, className: 'text-[#D97706]' }
   }
   return { text: expiryLabel ? `QPR Certified (Expires ${expiryLabel})` : 'QPR Certified (Lifetime)', className: 'text-[#16A34A]' }
 }
@@ -428,7 +428,7 @@ export default async function ChampionDetailPage({
                           ) : expiringSoon ? (
                             <span className="inline-flex items-center gap-1.5 rounded-full bg-[#D97706]/10 px-2.5 py-0.5 text-xs font-semibold text-[#D97706]">
                               <span className="h-1.5 w-1.5 rounded-full bg-[#D97706]" />
-                              Expiring Soon
+                              Expiring soon
                             </span>
                           ) : (
                             <span className="inline-flex items-center gap-1.5 rounded-full bg-[#E6FFE7] px-2.5 py-0.5 text-xs font-semibold text-[#0D8275]">

@@ -129,7 +129,7 @@ export default async function CertificationTypePage({ params, searchParams }: {
                 {r.reactivated_on! < r.retire_on
                   ? <>Retirement planned for {formatCertDate(r.retire_on)} was cancelled{r.reactivated_by_name ? ` by ${r.reactivated_by_name}` : ''}.</>
                   : r.reactivated_on === r.retire_on
-                  ? <>Retired and reactivated on {formatCertDate(r.retire_on)}, so no certificates were affected{r.reactivated_by_name ? ` (${r.reactivated_by_name})` : ''}.</>
+                  ? <>Retired and reactivated on the same day ({formatCertDate(r.retire_on)}), so the retirement was cancelled and no certificates stayed stopped{r.reactivated_by_name ? ` (${r.reactivated_by_name})` : ''}.</>
                   : <>Retired {formatCertDate(r.retire_on)} ({r.option === 'stop' ? 'certificates stopped' : 'certificates kept valid'}); offered again from {formatCertDate(r.reactivated_on)}{r.reactivated_by_name ? `, by ${r.reactivated_by_name}` : ''}.</>}
               </li>
             ))}

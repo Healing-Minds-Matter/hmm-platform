@@ -68,10 +68,10 @@ export function GatekeeperFilters({
           className="rounded-lg border border-transparent bg-[#F9F9F9] py-2 pl-4 pr-8 text-[13px] text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#F4AC1E]/40"
         >
           <option value="">All Statuses</option>
-          <option value="active">Active</option>
-          <option value="expiring_soon">Expiring Soon</option>
+          <option value="active">Valid</option>
+          <option value="expiring_soon">Expiring soon</option>
           <option value="expired">Expired</option>
-          <option value="not_certified">Not Certified</option>
+          <option value="not_certified">Not certified</option>
           <option value="inactive">Inactive</option>
         </select>
         <select

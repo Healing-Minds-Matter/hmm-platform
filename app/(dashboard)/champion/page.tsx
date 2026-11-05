@@ -108,17 +108,17 @@ function QprCertificationBar({ certified, expiringSoon, total }: { certified: nu
       <div className="flex flex-wrap gap-x-6 gap-y-2">
         <div className="flex items-center gap-1.5">
           <span className="h-3 w-3 rounded-full bg-[#4DB5A9]" />
-          <span className="text-[13px] font-semibold text-[#0F172A]">Certified</span>
+          <span className="text-[13px] font-semibold text-[#0F172A]">Valid</span>
           <span className="text-[12px] text-[#64748B]">{fullyCertified}</span>
         </div>
         <div className="flex items-center gap-1.5">
           <span className="h-3 w-3 rounded-full bg-[#F4AC1E]" />
-          <span className="text-[13px] font-semibold text-[#0F172A]">Expiring Soon</span>
+          <span className="text-[13px] font-semibold text-[#0F172A]">Expiring soon</span>
           <span className="text-[12px] text-[#64748B]">{expiringSoon}</span>
         </div>
         <div className="flex items-center gap-1.5">
           <span className="h-3 w-3 rounded-full bg-[#022C51]" />
-          <span className="text-[13px] font-semibold text-[#0F172A]">Not Certified</span>
+          <span className="text-[13px] font-semibold text-[#0F172A]">Not currently certified</span>
           <span className="text-[12px] text-[#64748B]">{notCertified}</span>
         </div>
       </div>

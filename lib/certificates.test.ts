@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  attachmentContentError,
   buildJourney,
   canRenew,
   checkAttachment,
@@ -62,6 +63,15 @@ describe('validateRemoval and attachments', () => {
     expect(checkAttachment({ name: 'big.pdf', size: 11 * 1024 * 1024, type: 'application/pdf' })).toEqual({ error: 'The attachment must be 10 MB or less.' })
     expect(checkAttachment({ name: '', size: 0, type: '' })).toBeNull()
     expect(checkAttachment(null)).toBeNull()
+  })
+  it('refuses a file whose contents are not really a PDF, JPG or PNG', () => {
+    const bytes = (s: string) => new Uint8Array(Buffer.from(s, 'latin1'))
+    expect(attachmentContentError(bytes('%PDF-1.7\n...'), 'pdf')).toBeNull()
+    expect(attachmentContentError(new Uint8Array([0xff, 0xd8, 0xff, 0xe0]), 'jpg')).toBeNull()
+    expect(attachmentContentError(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0]), 'png')).toBeNull()
+    expect(attachmentContentError(bytes('this is not really a pdf'), 'pdf')).toMatch(/isn’t a real PDF/)
+    expect(attachmentContentError(bytes('%PDF-1.7'), 'png')).toMatch(/isn’t a real PDF/)
+    expect(attachmentContentError(new Uint8Array([]), 'jpg')).toMatch(/isn’t a real PDF/)
   })
 })
 
