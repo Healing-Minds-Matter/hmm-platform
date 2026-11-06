@@ -2,7 +2,8 @@
 
 // A type's design versions (Story 10.4): date saved, who saved it and how many
 // certificates were issued with each, with View (a pop-up that can switch
-// between versions, download and print) and Edit / Edit a copy.
+// between versions, download and print) and Edit a copy. Every version is
+// edited as a copy: saving creates the next version, so none is overwritten.
 
 import { useState } from 'react'
 import Link from 'next/link'
@@ -10,7 +11,7 @@ import { ModalOverlay } from '@/components/modal-overlay'
 import { CertificatePreview } from '@/components/certifications/certificate-preview'
 import { downloadBlob, fetchPdf, printBlob } from '@/components/certifications/pdf-actions'
 import { Badge, FormCard, INPUT, PRIMARY_BTN } from '@/components/certifications/cert-ui'
-import { designLabel, type Design, type PlaceholderValues } from '@/lib/certificate-design'
+import { EDIT_COPY_HINT, EDIT_COPY_LABEL, designLabel, type Design, type PlaceholderValues } from '@/lib/certificate-design'
 import { formatCertDate } from '@/lib/certification-types'
 import { isoToOrgDateTime } from '@/lib/org-date'
 
@@ -33,7 +34,7 @@ export function DesignVersions({ typeId, versions, assets, sample, placeholders,
   return (
     <section className="rounded-2xl bg-white p-6">
       <h2 className="text-[16px] font-bold text-[#0F172A]">{title}</h2>
-      <p className="mt-0.5 text-xs text-[#64748B]">Saving never overwrites an earlier version. Each issued certificate stays linked to the version it was made with, so reprints look the same.</p>
+      <p id="edit-copy-hint" className="mt-0.5 text-xs text-[#475569]">{EDIT_COPY_LABEL}: {EDIT_COPY_HINT.charAt(0).toLowerCase() + EDIT_COPY_HINT.slice(1)} The version marked Current is used for new certificates.</p>
       {versions.length === 0 ? (
         <p className="mt-4 text-sm text-[#64748B]">No versions yet. Save to create version 1.</p>
       ) : (
@@ -51,7 +52,7 @@ export function DesignVersions({ typeId, versions, assets, sample, placeholders,
                     <div className="flex flex-wrap items-center gap-2">
                       <b>v{v.version}</b>
                       {v.version === current && <Badge tone="ok">Current</Badge>}
-                      {editingFrom === v.version && v.version !== current && <Badge tone="info">Editing a copy</Badge>}
+                      {editingFrom === v.version && <Badge tone="info">Editing a copy</Badge>}
                     </div>
                     <div className="text-xs text-[#64748B]">{designLabel(v.design)}</div>
                   </td>
@@ -61,8 +62,9 @@ export function DesignVersions({ typeId, versions, assets, sample, placeholders,
                     <div className="flex justify-end gap-1.5">
                       <button type="button" className={SMALL_BTN} onClick={() => setViewing(v.version)}>View</button>
                       {canEdit && (
-                        <Link href={v.version === current ? `/super-admin/certifications/${typeId}/design` : `/super-admin/certifications/${typeId}/design?from=${v.version}`} className={SMALL_BTN}>
-                          {v.version === current ? 'Edit' : 'Edit a copy'}
+                        <Link href={v.version === current ? `/super-admin/certifications/${typeId}/design` : `/super-admin/certifications/${typeId}/design?from=${v.version}`} className={SMALL_BTN}
+                          title={EDIT_COPY_HINT} aria-label={`${EDIT_COPY_LABEL} of version ${v.version}`} aria-describedby="edit-copy-hint">
+                          {EDIT_COPY_LABEL}
                         </Link>
                       )}
                     </div>
@@ -118,12 +120,14 @@ function VersionViewer({ typeId, versions, start, assets, sample, placeholders, 
               <button type="button" className={SMALL_BTN} disabled={busy} onClick={() => pdf('download')}>Download PDF</button>
               <button type="button" className={SMALL_BTN} disabled={busy} onClick={() => pdf('print')}>Print</button>
               {canEdit && (
-                <Link href={v.version === current ? `/super-admin/certifications/${typeId}/design` : `/super-admin/certifications/${typeId}/design?from=${v.version}`} className={PRIMARY_BTN}>
-                  {v.version === current ? 'Edit' : 'Edit a copy'}
+                <Link href={v.version === current ? `/super-admin/certifications/${typeId}/design` : `/super-admin/certifications/${typeId}/design?from=${v.version}`} className={PRIMARY_BTN}
+                  title={EDIT_COPY_HINT} aria-label={`${EDIT_COPY_LABEL} of version ${v.version}`} aria-describedby="viewer-copy-hint">
+                  {EDIT_COPY_LABEL}
                 </Link>
               )}
             </div>
           </div>
+          {canEdit && <p id="viewer-copy-hint" className="-mt-1 text-right text-xs text-[#475569]">{EDIT_COPY_HINT}</p>}
           <div className="grid place-items-center rounded-2xl bg-[#E2E8F0]/60 p-4">
             <CertificatePreview design={v.design} values={asPlaceholders ? placeholders : sample} assets={assets} maxWidth={720} />
           </div>

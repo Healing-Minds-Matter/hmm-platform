@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { cleanDesign, defaultDesign, designAssets, fillPlaceholders, sampleValues, splitRuns, unsafeSvg } from '@/lib/certificate-design'
+import { EDIT_COPY_HINT, EDIT_COPY_LABEL, cleanDesign, defaultDesign, designAssets, editStartLabel, fillPlaceholders, sampleValues, splitRuns, unsafeSvg } from '@/lib/certificate-design'
+import { readFileSync } from 'node:fs'
 
 const TYPE = '11111111-2222-3333-4444-555555555555'
 const asset = (f: string) => `designs/${TYPE}/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.${f}`
@@ -66,5 +67,23 @@ describe('unsafeSvg', () => {
     expect(unsafeSvg('<svg><script>alert(1)</script></svg>')).toBe(true)
     expect(unsafeSvg('<svg onload="x()"></svg>')).toBe(true)
     expect(unsafeSvg('<svg viewBox="0 0 10 10"><circle r="5"/></svg>')).toBe(false)
+  })
+})
+
+describe('designer buttons', () => {
+  it('every version is edited as a copy, with the same label and helper text', () => {
+    expect(EDIT_COPY_LABEL).toBe('Edit a copy')
+    expect(EDIT_COPY_HINT).toBe('Creates a new version based on this one. Certificates already issued keep their design.')
+  })
+  it('the versions list no longer has a separate "Edit" label for the current version', () => {
+    const src = readFileSync('components/certifications/design-versions.tsx', 'utf8')
+    expect(src).not.toMatch(/\?\s*'Edit'\s*:/)
+    expect(src.match(/^\s*\{EDIT_COPY_LABEL\}\s*$/gm)?.length).toBe(2)   // button text: table row and version pop-up
+    expect(src).toContain('<Badge tone="ok">Current</Badge>')
+  })
+  it('the designer says it is editing a copy, and which version saving creates', () => {
+    expect(editStartLabel(null, null)).toBe('New design.')
+    expect(editStartLabel(3, 3)).toBe('Editing a copy of version 3 (current). Saving creates version 4.')
+    expect(editStartLabel(3, 1)).toBe('Editing a copy of version 1. Saving creates version 4.')
   })
 })

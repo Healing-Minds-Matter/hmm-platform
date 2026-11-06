@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { certCan, loadType } from '@/lib/certifications.server'
-import { defaultDesign, placeholderValues, sampleValues } from '@/lib/certificate-design'
+import { defaultDesign, editStartLabel, placeholderValues, sampleValues } from '@/lib/certificate-design'
 import { loadDesignVersions, signedAssetUrls } from '@/lib/designs.server'
 import { CertificateDesigner } from '@/components/certifications/certificate-designer'
 import { DesignVersions } from '@/components/certifications/design-versions'
@@ -44,7 +44,7 @@ export default async function CertificateDesignPage({ params, searchParams }: {
   const fromVersion = from ? versions.find(v => v.version === Number(from)) ?? null : null
   const startFrom = fromVersion ?? current
   const start = startFrom?.design ?? { ...defaultDesign(), items: defaultDesign().items }
-  const startLabel = !current ? 'New design.' : startFrom && startFrom.version !== current.version ? `Editing a copy of version ${startFrom.version}.` : `Editing version ${current.version}.`
+  const startLabel = editStartLabel(current?.version ?? null, startFrom?.version ?? null)
   const assets = await signedAssetUrls(versions.map(v => v.design))
   const sample = sampleValues(type)
 

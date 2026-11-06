@@ -266,3 +266,12 @@ export function designAssets(d: Design): string[] {
 export function unsafeSvg(svg: string): boolean {
   return /<script|on[a-z]+\s*=|javascript:|<foreignObject/i.test(svg)
 }
+
+// Design versions are never overwritten: editing any version (the current one or an
+// older one) opens the designer on a copy, and saving creates the next version.
+export const EDIT_COPY_LABEL = 'Edit a copy'
+export const EDIT_COPY_HINT = 'Creates a new version based on this one. Certificates already issued keep their design.'
+export function editStartLabel(currentVersion: number | null, startVersion: number | null): string {
+  if (currentVersion == null || startVersion == null) return 'New design.'
+  return `Editing a copy of version ${startVersion}${startVersion === currentVersion ? ' (current)' : ''}. Saving creates version ${currentVersion + 1}.`
+}
