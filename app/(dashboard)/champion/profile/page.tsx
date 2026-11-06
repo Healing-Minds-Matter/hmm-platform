@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { loginPath } from '@/lib/login-redirect.server'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { CertificatesSection } from '@/components/certifications/certificates-section'
@@ -24,7 +25,7 @@ function daysSince(iso: string): number {
 export default async function ChampionProfilePage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect(await loginPath())
 
   const [{ data: profile }, { data: pwHistory }] = await Promise.all([
     supabase
@@ -35,7 +36,7 @@ export default async function ChampionProfilePage() {
     supabase.from('password_history').select('created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1),
   ])
 
-  if (!profile) redirect('/login')
+  if (!profile) redirect(await loginPath())
   const myCerts = (await loadCertSummary(supabase)).byHolder.get(user.id) ?? []
   const myCertStatus = personCertStatus(true, myCerts)
   if (profile.role !== 'champion') redirect('/super-admin')

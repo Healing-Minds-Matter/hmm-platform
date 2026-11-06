@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { loginPath } from '@/lib/login-redirect.server'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -35,7 +36,7 @@ export async function createChampionAction(
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect(await loginPath())
 
   // Check for duplicate email in profiles
   const { data: existing } = await supabase
@@ -113,7 +114,7 @@ export async function updateChampionAction(
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect(await loginPath())
 
   // OCC: fetch current profile to check version and detect changes
   const { data: current } = await supabase
@@ -179,7 +180,7 @@ export async function deactivateChampionAction(
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect(await loginPath())
 
   // Fetch champion's club to check sole-champion scenario
   const { data: champion } = await supabase
@@ -233,7 +234,7 @@ export async function reactivateChampionAction(
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect(await loginPath())
 
   // Verify the target club is active
   const { data: club } = await supabase

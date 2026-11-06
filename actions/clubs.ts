@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { loginPath } from '@/lib/login-redirect.server'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { writeAuditLog } from '@/lib/audit'
@@ -66,7 +67,7 @@ export async function createClubAction(
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect(await loginPath())
 
   const conflict = findClubConflict(fields, await listExistingClubs(supabase))
   if (conflict) return fail(conflict)
@@ -124,7 +125,7 @@ export async function createClubsBulkAction(
 ): Promise<BulkUploadState> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect(await loginPath())
 
   const { data: caller } = await supabase.from('profiles').select('role').eq('id', user.id).single()
   if (caller?.role !== 'super_admin') return { error: 'Only Super Admins can add clubs.' }
@@ -160,7 +161,7 @@ export async function updateClubAction(
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect(await loginPath())
 
   const { error } = await supabase
     .from('clubs')
@@ -190,7 +191,7 @@ export async function deactivateClubAction(formData: FormData) {
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect(await loginPath())
 
   // Collect active members for audit log before deactivating
   const { data: affected } = await supabase
@@ -239,7 +240,7 @@ export async function reactivateClubAction(formData: FormData) {
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect(await loginPath())
 
   await supabase
     .from('clubs')

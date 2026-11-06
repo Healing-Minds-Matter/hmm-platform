@@ -9,6 +9,7 @@
 // limits new awards. Retiring is a separate action (Retire type / Change retirement).
 
 import { revalidatePath } from 'next/cache'
+import { loginPath } from '@/lib/login-redirect.server'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { todayDateString } from '@/lib/org-date'
@@ -47,7 +48,7 @@ function readTypeForm(formData: FormData): TypeFormInput {
 
 async function requireSuperAdmin(supabase: ServerClient): Promise<string | null> {
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect(await loginPath())
   const { data: me } = await supabase.from('profiles').select('role').eq('id', user.id).single()
   return me?.role === 'super_admin' ? null : 'Only Super Admins can change certification types.'
 }

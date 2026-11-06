@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { loginPath } from '@/lib/login-redirect.server'
 import { createClient } from '@/lib/supabase/server'
 import { ChangePasswordForm } from '@/app/(dashboard)/super-admin/profile/change-password-form'
 
@@ -7,7 +8,7 @@ export const metadata = { title: 'Set Your Password — HMM Platform' }
 export default async function SetPasswordPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect(await loginPath())
 
   const { data: profile } = await supabase
     .from('profiles')
