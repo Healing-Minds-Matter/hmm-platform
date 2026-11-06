@@ -4,6 +4,9 @@ import { useActionState, useEffect } from 'react'
 import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { useRouter } from 'next/navigation'
 import { reactivateChampionAction } from '@/actions/champions'
+import { FormErrorsProvider, useFormErrors } from '@/hooks/use-form-errors'
+import { FieldError } from '@/components/field-error'
+import { formLevelError } from '@/lib/form-errors'
 
 interface Champion { id: string; full_name: string; email: string; club_id: string | null }
 interface Club { id: string; name: string; is_active?: boolean }
@@ -22,6 +25,8 @@ export function ReactivateChampionForm({
   const router = useRouter()
   const close = onClose ?? (() => router.push(`/super-admin/champions/${champion.id}`))
   const [state, formAction, isPending] = useActionState(reactivateChampionAction, null)
+  const fe = useFormErrors(state)
+  const { formRef } = fe
   const submit = useSubmitWithoutReset(formAction)
   const clubIsInactive = currentClub && !currentClub.is_active
 
@@ -48,7 +53,8 @@ export function ReactivateChampionForm({
         </button>
       </div>
 
-      <form onSubmit={submit}>
+      <form ref={formRef} noValidate onSubmit={fe.onSubmit(submit)}>
+      <FormErrorsProvider value={fe}>
         <input type="hidden" name="champion_id" value={champion.id} />
         <div className="flex flex-col gap-4 bg-[#F8FAFC] p-6">
           {clubIsInactive && (
@@ -56,9 +62,9 @@ export function ReactivateChampionForm({
               <strong>{currentClub.name}</strong> is currently inactive. Assign an active club below before reactivating.
             </div>
           )}
-          {state?.error && (
+          {formLevelError(state) && (
             <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">
-              {state.error}
+              {formLevelError(state)}
             </div>
           )}
 
@@ -78,6 +84,7 @@ export function ReactivateChampionForm({
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
+            <FieldError name="club_id" />
             <p className="mt-1.5 text-[11px] text-[#94A3B8]">
               Confirm or change the club before restoring access.
             </p>
@@ -100,6 +107,7 @@ export function ReactivateChampionForm({
             {isPending ? 'Reactivating…' : 'Reactivate Champion'}
           </button>
         </div>
+      </FormErrorsProvider>
       </form>
     </div>
   )

@@ -4,6 +4,9 @@ import { useActionState, useEffect } from 'react'
 import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { useRouter } from 'next/navigation'
 import { updateChampionAction } from '@/actions/champions'
+import { FormErrorsProvider, useFormErrors } from '@/hooks/use-form-errors'
+import { FieldError } from '@/components/field-error'
+import { formLevelError } from '@/lib/form-errors'
 
 interface Champion {
   id: string
@@ -28,6 +31,8 @@ export function ChampionEditForm({
   const router = useRouter()
   const close = onClose ?? (() => router.push(`/super-admin/champions/${champion.id}`))
   const [state, formAction, isPending] = useActionState(updateChampionAction, null)
+  const fe = useFormErrors(state)
+  const { formRef } = fe
   const submit = useSubmitWithoutReset(formAction)
 
   useEffect(() => {
@@ -55,7 +60,8 @@ export function ChampionEditForm({
         </button>
       </div>
 
-      <form onSubmit={submit} className="flex flex-1 flex-col overflow-hidden">
+      <form ref={formRef} noValidate onSubmit={fe.onSubmit(submit)} className="flex flex-1 flex-col overflow-hidden">
+      <FormErrorsProvider value={fe}>
         <input type="hidden" name="champion_id" value={champion.id} />
         <input type="hidden" name="version" value={champion.version} />
 
@@ -69,9 +75,9 @@ export function ChampionEditForm({
               and reapply your changes.
             </div>
           )}
-          {state?.error && (
+          {formLevelError(state) && (
             <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">
-              {state.error}
+              {formLevelError(state)}
             </div>
           )}
 
@@ -94,6 +100,7 @@ export function ChampionEditForm({
                 placeholder="e.g. Dr. Marcus Reed, MSW"
                 className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
               />
+              <FieldError name="full_name" />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -118,6 +125,7 @@ export function ChampionEditForm({
                     className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] pl-9 pr-3.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                   />
                 </div>
+                <FieldError name="email" />
               </div>
               <div>
                 <label htmlFor="phone" className="mb-1.5 block text-[13px] font-medium text-[#0F172A]">
@@ -140,6 +148,7 @@ export function ChampionEditForm({
                     className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] pl-9 pr-3.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                   />
                 </div>
+                <FieldError name="phone" />
               </div>
             </div>
 
@@ -169,6 +178,7 @@ export function ChampionEditForm({
                     className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2"
                   />
                 </div>
+                <FieldError name="club_id" />
                 <p className="mt-1.5 text-[11px] text-[#94A3B8]">
                   Changing the club immediately updates this champion&apos;s access and data visibility.
                 </p>
@@ -185,6 +195,7 @@ export function ChampionEditForm({
                   placeholder="e.g. Clinical Coordinator"
                   className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                 />
+                <FieldError name="title" />
               </div>
             </div>
           </div>
@@ -208,6 +219,7 @@ export function ChampionEditForm({
             {isPending ? 'Saving…' : 'Save Changes'}
           </button>
         </div>
+      </FormErrorsProvider>
       </form>
     </div>
   )

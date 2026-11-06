@@ -1,0 +1,85 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+// Sheet row 32: Champion form errors come back tied to the field they are
+// about, so the form can show each one next to its input. Accounts are never
+// really created here — every case stops before createInvitedUser().
+const db = vi.hoisted(() => ({
+  takenEmails: new Set<string>(),
+  clubs: new Map<string, { name: string; is_active: boolean }>(),
+}))
+
+vi.mock('@/lib/supabase/server', () => ({
+  createClient: async () => ({
+    auth: { getUser: async () => ({ data: { user: { id: 'user-1' } } }) },
+    from: (table: string) => ({
+      select: () => ({
+        eq: (_column: string, value: string) => ({
+          maybeSingle: async () => ({ data: db.takenEmails.has(value) ? { id: 'existing' } : null }),
+          single: async () => ({ data: table === 'clubs' ? db.clubs.get(value) ?? null : null }),
+        }),
+      }),
+    }),
+  }),
+}))
+vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: () => ({}) }))
+vi.mock('@/lib/audit', () => ({ writeAuditLog: vi.fn() }))
+vi.mock('@/lib/create-invited-user', () => ({ createInvitedUser: vi.fn() }))
+vi.mock('@/actions/permissions', () => ({ endDelegationsForDeactivatedUser: vi.fn() }))
+vi.mock('@/lib/phone-uniqueness.server', () => ({
+  checkPhoneAvailable: vi.fn(async (phone: string) =>
+    phone === '+94771234567' ? 'This phone number is already registered to another user. Each user needs their own phone number.' : null),
+  describePhoneDbError: vi.fn(() => null),
+  phoneChanged: vi.fn(() => true),
+}))
+vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
+vi.mock('next/navigation', () => ({ redirect: vi.fn(() => { throw new Error('redirect') }) }))
+
+import { createChampionAction, reactivateChampionAction } from '@/actions/champions'
+import { createInvitedUser } from '@/lib/create-invited-user'
+
+function form(fields: Record<string, string>) {
+  const f = new FormData()
+  for (const [k, v] of Object.entries(fields)) f.set(k, v)
+  return f
+}
+
+const valid = { full_name: 'Maya Lin', email: 'maya@example.com', phone: '', club_id: 'club-1' }
+
+beforeEach(() => {
+  db.takenEmails = new Set(['asha@example.com'])
+  db.clubs = new Map([
+    ['club-1', { name: 'Rotaract Club of Colombo', is_active: true }],
+    ['club-off', { name: 'Rotaract Club of Kandy', is_active: false }],
+  ])
+  vi.mocked(createInvitedUser).mockClear()
+})
+
+describe('createChampionAction: field-level errors', () => {
+  it('ties required-field errors to their field', async () => {
+    expect((await createChampionAction(null, form({ ...valid, full_name: ' ' })))?.fieldErrors)
+      .toEqual({ full_name: 'Full name is required.' })
+    expect((await createChampionAction(null, form({ ...valid, email: '' })))?.fieldErrors)
+      .toEqual({ email: 'Email is required.' })
+    expect((await createChampionAction(null, form({ ...valid, club_id: '' })))?.fieldErrors)
+      .toEqual({ club_id: 'Club assignment is required.' })
+  })
+
+  it('ties format and uniqueness errors to their field', async () => {
+    const badPhone = await createChampionAction(null, form({ ...valid, phone: '12' }))
+    expect(Object.keys(badPhone?.fieldErrors ?? {})).toEqual(['phone'])
+    expect((await createChampionAction(null, form({ ...valid, email: 'Asha@example.com' })))?.fieldErrors)
+      .toEqual({ email: 'An account with this email already exists.' })
+    expect((await createChampionAction(null, form({ ...valid, phone: '077 123 4567' })))?.fieldErrors)
+      .toEqual({ phone: 'This phone number is already registered to another user. Each user needs their own phone number.' })
+    expect(createInvitedUser).not.toHaveBeenCalled()
+  })
+})
+
+describe('reactivateChampionAction: field-level errors', () => {
+  it('ties club errors to the club picker', async () => {
+    expect((await reactivateChampionAction(null, form({ champion_id: 'c1', club_id: '' })))?.fieldErrors)
+      .toEqual({ club_id: 'Club assignment is required.' })
+    expect((await reactivateChampionAction(null, form({ champion_id: 'c1', club_id: 'club-off' })))?.fieldErrors)
+      .toEqual({ club_id: 'Club "Rotaract Club of Kandy" is currently inactive. Reactivate the club first or assign an active club.' })
+  })
+})
