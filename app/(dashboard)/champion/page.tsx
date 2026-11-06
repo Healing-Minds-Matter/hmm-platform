@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { loginPath } from '@/lib/login-redirect.server'
 import { createClient } from '@/lib/supabase/server'
 import { getChampionDashboardData } from '@/actions/champion-dashboard'
 import { CertificationFiguresCard } from '@/components/certifications/certification-figures-card'
@@ -90,7 +91,7 @@ function ActiveInactiveDonut({ active, inactive }: { active: number; inactive: n
 export default async function ChampionDashboard() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect(await loginPath())
 
   const { data: profile } = await supabase
     .from('profiles')
