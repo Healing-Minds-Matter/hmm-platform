@@ -1,7 +1,8 @@
 import Link from 'next/link'
 import { formatOrgDate, formatOrgTime } from '@/lib/org-date'
+import { CERTIFICATION_PROGRAMME_EVENT } from './event-type'
 
-interface QprEvent {
+interface ProgrammeEvent {
   id: string
   title: string
   starts_at: string
@@ -21,7 +22,8 @@ function formatWhen(startsAt: string, endsAt: string | null) {
   return `${dateLabel}, ${startTime} – ${endTime}`
 }
 
-// Visual match for Figma's "Upcoming QPR Certifications" card (node 32:2690)
+// The next certification programmes (events of the certification programme type).
+// Visual match for Figma's upcoming-certifications card (node 32:2690)
 // — layout/spacing/colors/typography only. The seat-capacity bars,
 // "Manage Cohort Capacities" action, and accreditation badge are
 // deliberately NOT reproduced: there's no registration/RSVP tracking
@@ -32,7 +34,7 @@ function formatWhen(startsAt: string, endsAt: string | null) {
 // has no business asserting regardless of schema. The circular badge that
 // showed a fabricated "Q4"/"Q5" cohort index in Figma is kept as a visual
 // element but with a real certification icon instead of an invented label.
-export function UpcomingQprSection({ events, total }: { events: QprEvent[]; total: number }) {
+export function UpcomingProgrammesSection({ events, total }: { events: ProgrammeEvent[]; total: number }) {
   if (events.length === 0) return null
 
   return (
@@ -42,16 +44,16 @@ export function UpcomingQprSection({ events, total }: { events: QprEvent[]; tota
           <div className="flex items-center gap-2.5">
             <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[#EFF4FF]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/icons/qpr-cert-icon.svg" alt="" className="h-[17px] w-[17px]" />
+              <img src="/icons/certification-programme.svg" alt="" className="h-[17px] w-[17px]" />
             </span>
             <div>
-              <h2 className="text-[18px] font-bold leading-6 text-[#0F172A] font-[family-name:var(--font-jakarta)]">Upcoming QPR Certifications</h2>
-              <p className="text-[12px] leading-4 text-[#64748B]">High priority gatekeeper accreditation cohorts</p>
+              <h2 className="text-[18px] font-bold leading-6 text-[#0F172A] font-[family-name:var(--font-jakarta)]">Upcoming Certification Programmes</h2>
+              <p className="text-[12px] leading-4 text-[#64748B]">The next certification programme sessions</p>
             </div>
           </div>
           {total > events.length && (
             <Link
-              href="/super-admin/events?view=agenda&type=qpr_session"
+              href={`/super-admin/events?view=agenda&type=${CERTIFICATION_PROGRAMME_EVENT}`}
               className="flex flex-shrink-0 items-center gap-1 text-[11px] font-semibold tracking-[0.44px] text-[#003495] hover:underline"
             >
               View All {total}
@@ -67,7 +69,7 @@ export function UpcomingQprSection({ events, total }: { events: QprEvent[]; tota
               <div className="flex items-start gap-3 min-w-0">
                 <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[rgba(0,52,149,0.1)]">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="/icons/qpr-cert-icon.svg" alt="" className="h-[18px] w-[18px]" />
+                  <img src="/icons/certification-programme.svg" alt="" className="h-[18px] w-[18px]" />
                 </span>
                 <div className="min-w-0">
                   <p className="truncate text-[12px] font-bold tracking-[0.24px] leading-4 text-[#0F172A]">{ev.title}</p>
@@ -76,7 +78,7 @@ export function UpcomingQprSection({ events, total }: { events: QprEvent[]; tota
                   </p>
                   <p className="mt-1 flex items-center gap-2 text-[11px] font-semibold tracking-[0.44px] text-[#475569]">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src="/icons/qpr-clock-icon.svg" alt="" className="h-[13.333px] w-[13.333px]" />
+                    <img src="/icons/event-clock.svg" alt="" className="h-[13.333px] w-[13.333px]" />
                     {formatWhen(ev.starts_at, ev.ends_at)}
                   </p>
                 </div>

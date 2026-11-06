@@ -1,32 +1,37 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { awardableTypes } from '@/lib/certifications.server'
+import { todayDateString } from '@/lib/org-date'
+import { BulkAwardButton } from '@/components/certifications/bulk-award-button'
 import { ChampionGatekeeperFilters } from './champion-gatekeeper-filters'
-import { qprStatus, QPR_STATUS_LABEL, QPR_STATUS_BADGE, QPR_STATUS_DOT, todayBounds } from '@/app/(dashboard)/super-admin/gatekeepers/gatekeeper-status'
+import { CertChips } from '@/components/certifications/cert-chips'
+import { CertListFilters } from '@/components/certifications/cert-list-filters'
+import { loadCertSummary } from '@/lib/cert-summary.server'
+import { matchesCertFilter, personCertStatus } from '@/lib/cert-summary'
+import { certCan } from '@/lib/certifications.server'
 
 export const metadata = { title: 'Gatekeepers — HMM Champion' }
 
 const PAGE_SIZE = 10
 
-function buildHref(params: { q?: string; status?: string; page?: number }) {
+function buildHref(params: { q?: string; status?: string; cert?: string; cstatus?: string; page?: number }) {
   const usp = new URLSearchParams()
   if (params.q) usp.set('q', params.q)
   if (params.status) usp.set('status', params.status)
+  if (params.cert) usp.set('cert', params.cert)
+  if (params.cstatus) usp.set('cstatus', params.cstatus)
   if (params.page && params.page > 1) usp.set('page', String(params.page))
   const qs = usp.toString()
   return qs ? `/champion/gatekeepers?${qs}` : '/champion/gatekeepers'
 }
 
-function formatDate(value: string) {
-  return new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
-
 export default async function ChampionGatekeepersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string; page?: string }>
+  searchParams: Promise<{ q?: string; status?: string; cert?: string; cstatus?: string; page?: string }>
 }) {
-  const { q, status, page: pageParam } = await searchParams
+  const { q, status, cert, cstatus, page: pageParam } = await searchParams
   const requestedPage = Math.max(1, parseInt(pageParam ?? '1', 10) || 1)
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -35,26 +40,40 @@ export default async function ChampionGatekeepersPage({
   const { data: profile } = await supabase.from('profiles').select('club_id').eq('id', user.id).single()
   if (!profile?.club_id) redirect('/champion')
 
-  const { today, in90Days } = todayBounds()
+  const todayStr = todayDateString()
 
   let query = supabase
     .from('profiles')
-    .select('id, full_name, email, phone, gatekeeper_code, is_active, qpr_certification_date, qpr_expiry_date')
-    .eq('role', 'gatekeeper')
+    .select('id, full_name, email, phone, gatekeeper_code, is_active')
     .eq('club_id', profile.club_id)
+    // The Champion is certified like a Gatekeeper, so their own row is listed
+    // too; the dashboard's certification figures count them.
+    .or(`role.eq.gatekeeper,id.eq.${user.id}`)
     .order('full_name')
 
   if (q) query = query.or(`full_name.ilike.%${q}%,email.ilike.%${q}%,phone.ilike.%${q}%,gatekeeper_code.ilike.%${q}%`)
 
-  const { data: gatekeepers } = await query
+  const [{ data: gatekeepers }, certTypes, summary, mayRenew] = await Promise.all([query, awardableTypes(supabase), loadCertSummary(supabase), certCan(supabase, 'certifications.award')])
+  const typeMap = new Map(summary.types.map(t => [t.id, t]))
   const allMatching = gatekeepers ?? []
+  // The club's active Gatekeepers, for adding a certification to several at once (Story 10.5 Sc07).
+  const { data: activeGatekeepers } = certTypes?.length
+    ? await supabase.from('profiles').select('id, full_name, gatekeeper_code').eq('role', 'gatekeeper').eq('club_id', profile.club_id).eq('is_active', true).order('full_name')
+    : { data: [] }
 
-  const withStatus = allMatching.map(g => ({
-    ...g,
-    status: qprStatus(g.is_active, g.qpr_expiry_date, today, in90Days),
-  }))
+  const withStatus = allMatching
+    .map(g => ({
+      ...g,
+      isSelf: g.id === user.id,
+      // One certification status across all of the person's current certificates.
+      status: personCertStatus(g.is_active, summary.byHolder.get(g.id)),
+    }))
+    // The Champion's own row first.
+    .sort((a, b) => Number(b.isSelf) - Number(a.isSelf))
 
-  const filtered = status ? withStatus.filter(g => g.status === status) : withStatus
+  const filtered = withStatus
+    .filter(g => !status || g.status === status)
+    .filter(g => matchesCertFilter(summary.byHolder.get(g.id) ?? [], cert, cstatus))
 
   const total = filtered.length
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
@@ -71,9 +90,17 @@ export default async function ChampionGatekeepersPage({
         <div>
           <h1 className="text-[24px] font-bold tracking-[-0.7px] text-[#0F172A]">Gatekeeper Management</h1>
           <p className="mt-1 text-sm text-[#475569]">
-            Add, edit, and track QPR-certified Gatekeepers in your club.
+            Add, edit, and track your club&apos;s Gatekeepers and their certifications.
           </p>
         </div>
+        <div className="flex flex-shrink-0 items-center gap-2">
+        {certTypes && certTypes.length > 0 && (
+          <BulkAwardButton
+            types={certTypes}
+            today={todayDateString()}
+            people={(activeGatekeepers ?? []).map(g => ({ id: g.id, name: g.full_name, code: g.gatekeeper_code, clubId: profile.club_id, clubName: null }))}
+          />
+        )}
         <Link
           href="/champion/gatekeepers/new"
           className="flex flex-shrink-0 items-center gap-2 rounded-lg bg-[#F4AC1E] px-4 py-2 text-[12px] font-semibold tracking-[0.24px] text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F]"
@@ -82,9 +109,11 @@ export default async function ChampionGatekeepersPage({
           <img src="/icons/plus-small.svg" alt="" width={10.5} height={10.5} />
           Add Gatekeeper
         </Link>
+        </div>
       </div>
 
       <ChampionGatekeeperFilters q={q} status={status} />
+      <CertListFilters types={summary.types} />
 
       <div className="overflow-hidden rounded-[12px] border border-[#E2E8F0] bg-white">
         {pageRows.length === 0 ? (
@@ -99,8 +128,8 @@ export default async function ChampionGatekeepersPage({
                   <th className="min-w-[240px] px-[16px] text-left text-[11px] font-semibold uppercase tracking-[0.55px] text-[#475569]">
                     Gatekeeper &amp; Contact
                   </th>
-                  <th className="min-w-[180px] px-[16px] text-left text-[11px] font-semibold uppercase tracking-[0.55px] text-[#475569]">
-                    QPR Certification &amp; Expiry
+                  <th className="min-w-[200px] px-[16px] text-left text-[11px] font-semibold uppercase tracking-[0.55px] text-[#475569]">
+                    Certifications
                   </th>
                   <th className="w-[100px] px-[16px]" />
                 </tr>
@@ -109,22 +138,32 @@ export default async function ChampionGatekeepersPage({
                 {pageRows.map(g => (
                   <tr key={g.id} className="h-[65px] border-t border-[rgba(226,232,240,0.5)] hover:bg-gray-50 transition-colors">
                     <td className="px-[16px] py-3">
-                      <div className="text-[13px] font-semibold text-[#0F172A]">{g.full_name}</div>
+                      <div className="flex items-center gap-2 text-[13px] font-semibold text-[#0F172A]">
+                        {g.full_name}
+                        {g.isSelf && <span className="rounded-full bg-[#FEF3C7] px-2 py-0.5 text-[10px] font-semibold text-[#92400E]">You · Champion</span>}
+                      </div>
                       <div className="text-[13px] text-[#64748B]">{g.email}{g.phone ? ` • ${g.phone}` : ''}</div>
                       {g.gatekeeper_code && (
                         <div className="font-mono text-[11px] font-bold text-[#003495]">{g.gatekeeper_code}</div>
                       )}
                     </td>
                     <td className="px-[16px] py-3 text-[13px]">
-                      <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${QPR_STATUS_BADGE[g.status]}`}>
-                        <span className={`h-1.5 w-1.5 rounded-full ${QPR_STATUS_DOT[g.status]}`} />
-                        {QPR_STATUS_LABEL[g.status]}
-                      </span>
-                      <div className="mt-1 text-[11px] text-[#64748B]">
-                        {g.qpr_expiry_date ? `Valid until ${formatDate(g.qpr_expiry_date)}` : 'No certification on file'}
-                      </div>
+                      {!g.is_active && <span className="mb-1 inline-flex rounded-full bg-[#F1F5F9] px-2 py-0.5 text-[11px] font-semibold text-[#64748B]">Inactive</span>}
+                      <CertChips certs={summary.byHolder.get(g.id) ?? []} types={typeMap} today={todayStr} renewBase={mayRenew && !g.isSelf ? `/champion/gatekeepers/${g.id}` : null} />
                     </td>
                     <td className="px-[16px] py-3">
+                      {g.isSelf ? (
+                      <div className="flex items-center justify-end gap-1">
+                        <Link
+                          href="/champion/profile"
+                          aria-label="View my profile"
+                          className="flex items-center justify-center rounded-[8px] p-2 hover:bg-gray-100 transition-colors"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src="/icons/eye.svg" alt="" width={16.5} height={11.25} />
+                        </Link>
+                      </div>
+                      ) : (
                       <div className="flex items-center justify-end gap-1">
                         <Link
                           href={`/champion/gatekeepers/${g.id}`}
@@ -154,6 +193,7 @@ export default async function ChampionGatekeepersPage({
                           </Link>
                         )}
                       </div>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -163,7 +203,7 @@ export default async function ChampionGatekeepersPage({
             <div className="flex items-center justify-between border-t border-[rgba(226,232,240,0.8)] bg-white py-[16px] pl-[25px] pr-[16px]">
               <p className="text-[10px] text-[#8492A6]">
                 Showing <span className="font-bold text-[#5D626E]">{showingFrom} to {showingTo}</span> of{' '}
-                <span className="font-bold text-[#5D626E]">{total}</span> Gatekeepers
+                <span className="font-bold text-[#5D626E]">{total}</span> {filtered.some(g => g.isSelf) ? 'people' : 'Gatekeepers'}
               </p>
               <div className="flex items-center gap-[6px]">
                 {page <= 1 ? (
@@ -172,7 +212,7 @@ export default async function ChampionGatekeepersPage({
                   </span>
                 ) : (
                   <Link
-                    href={buildHref({ q, status, page: page - 1 })}
+                    href={buildHref({ q, status, cert, cstatus, page: page - 1 })}
                     className="flex h-[22px] items-center justify-center rounded-[4px] bg-[#F1F5F9] px-[12px] py-[6px] text-[10px] font-semibold tracking-[0.24px] text-[#475569] hover:bg-slate-200 transition-colors"
                   >
                     Previous
@@ -184,7 +224,7 @@ export default async function ChampionGatekeepersPage({
                       {n}
                     </span>
                   ) : (
-                    <Link key={n} href={buildHref({ q, status, page: n })} className="flex h-[26px] w-[26px] items-center justify-center rounded-[8px] text-[10px] font-semibold tracking-[0.24px] text-[#475569] hover:bg-gray-100 transition-colors">
+                    <Link key={n} href={buildHref({ q, status, cert, cstatus, page: n })} className="flex h-[26px] w-[26px] items-center justify-center rounded-[8px] text-[10px] font-semibold tracking-[0.24px] text-[#475569] hover:bg-gray-100 transition-colors">
                       {n}
                     </Link>
                   )
@@ -195,7 +235,7 @@ export default async function ChampionGatekeepersPage({
                   </span>
                 ) : (
                   <Link
-                    href={buildHref({ q, status, page: page + 1 })}
+                    href={buildHref({ q, status, cert, cstatus, page: page + 1 })}
                     className="flex h-[22px] items-center justify-center rounded-[4px] bg-[#F1F5F9] px-[12px] py-[6px] text-[10px] font-semibold tracking-[0.24px] text-[#475569] hover:bg-slate-200 transition-colors"
                   >
                     Next

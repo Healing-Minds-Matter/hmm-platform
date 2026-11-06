@@ -30,7 +30,6 @@ export type ChampionDashboardData = {
   activeGatekeepers: number
   inactiveGatekeepers: number
   newGatekeepersThisMonth: number
-  qpr: { certified: number; total: number; expiringSoon: number }
   monthlyTrend: MonthlyCount[]
   notYetLoggedIn: NotLoggedInGatekeeper[]
   upcomingEvents: EventSummary[]
@@ -43,16 +42,11 @@ const EMPTY: ChampionDashboardData = {
   activeGatekeepers: 0,
   inactiveGatekeepers: 0,
   newGatekeepersThisMonth: 0,
-  qpr: { certified: 0, total: 0, expiringSoon: 0 },
   monthlyTrend: [],
   notYetLoggedIn: [],
   upcomingEvents: [],
   recentlyCompleted: [],
 }
-
-// Matches the >90-day "expiring soon" convention already established
-// elsewhere in the app (Club/Champion detail, Super Admin QPR widget).
-const EXPIRING_SOON_DAYS = 90
 
 export async function getChampionDashboardData(): Promise<ChampionDashboardData> {
   const supabase = await createClient()
@@ -77,7 +71,6 @@ export async function getChampionDashboardData(): Promise<ChampionDashboardData>
 
   const now = new Date()
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-  const soonCutoff = new Date(now.getTime() + EXPIRING_SOON_DAYS * 24 * 60 * 60 * 1000).toISOString()
   const twoWeeksOut = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString()
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()
   const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1).toISOString()
@@ -86,7 +79,6 @@ export async function getChampionDashboardData(): Promise<ChampionDashboardData>
     { count: activeGatekeepers },
     { count: inactiveGatekeepers },
     { count: newThisMonth },
-    { data: qprProfiles },
     { data: trendRows },
     { data: gatekeeperRows },
     { data: upcomingRows },
@@ -98,8 +90,6 @@ export async function getChampionDashboardData(): Promise<ChampionDashboardData>
       .eq('club_id', club.id).eq('role', 'gatekeeper').eq('is_active', false),
     supabase.from('profiles').select('id', { count: 'exact', head: true })
       .eq('club_id', club.id).eq('role', 'gatekeeper').gte('created_at', monthStart),
-    supabase.from('profiles').select('qpr_certification_date, qpr_expiry_date')
-      .eq('club_id', club.id).in('role', ['gatekeeper', 'champion']),
     supabase.from('profiles').select('created_at')
       .eq('club_id', club.id).eq('role', 'gatekeeper').gte('created_at', sixMonthsAgo),
     supabase.from('profiles').select('id, full_name, email, created_at')
@@ -118,12 +108,6 @@ export async function getChampionDashboardData(): Promise<ChampionDashboardData>
   // This club's events plus events open to all clubs, without the clubs list.
   const forClub = (rows: (EventSummary & WithEventClubs)[] | null): EventSummary[] =>
     (rows ?? []).filter(e => isEventForClub(e, club.id)).map(({ event_clubs: _clubs, is_all_clubs: _all, ...e }) => e)
-
-  const total = qprProfiles?.length ?? 0
-  const certified = (qprProfiles ?? []).filter(p => p.qpr_expiry_date && p.qpr_expiry_date > now.toISOString()).length
-  const expiringSoon = (qprProfiles ?? []).filter(
-    p => p.qpr_expiry_date && p.qpr_expiry_date > now.toISOString() && p.qpr_expiry_date <= soonCutoff
-  ).length
 
   const monthBuckets: MonthlyCount[] = []
   for (let i = 5; i >= 0; i--) {
@@ -158,7 +142,6 @@ export async function getChampionDashboardData(): Promise<ChampionDashboardData>
     activeGatekeepers: activeGatekeepers ?? 0,
     inactiveGatekeepers: inactiveGatekeepers ?? 0,
     newGatekeepersThisMonth: newThisMonth ?? 0,
-    qpr: { certified, total, expiringSoon },
     monthlyTrend: monthBuckets,
     notYetLoggedIn,
     upcomingEvents: forClub(upcomingRows),

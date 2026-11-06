@@ -10,7 +10,7 @@
 // needs the existing resources' `category` values updated to match, or
 // they'll show up as an older category (see isAllowedCategory below).
 export const RESOURCE_CATEGORIES = [
-  'QPR Training',
+  'Certification Training',
   'Warning Signs & Risk Awareness',
   'Crisis Support & Referral',
   'Guides & Protocols',

@@ -74,7 +74,7 @@ export function NewExceptionForm({ users, onClose }: { users: UserOption[]; onCl
               name="permission"
               type="text"
               required
-              placeholder="e.g. schedule_qpr_sessions"
+              placeholder="e.g. download_facilitator_kits"
               className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-white px-3.5 font-mono text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
             />
           </div>

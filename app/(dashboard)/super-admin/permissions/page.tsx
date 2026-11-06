@@ -1,11 +1,13 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import { ModuleCard, type ModuleItem } from './module-card'
+import { EVENTS_CATEGORY, ModuleCard, type ModuleItem } from './module-card'
 import { UserLookupWidget } from './user-lookup-widget'
 
+// The stored category text (permission_catalog.category). Titles shown on screen
+// come from CATEGORY_META in module-card.tsx.
 const SHOWN_CATEGORIES = [
   'Community & Gatekeeper Management',
-  'Events & QPR Training Sessions',
+  EVENTS_CATEGORY,
   'Club Communications & Broadcasts',
   'Learning Resources & Library',
 ]

@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getChampionDashboardData } from '@/actions/champion-dashboard'
+import { CertificationFiguresCard } from '@/components/certifications/certification-figures-card'
 import { MonthlyTrendWidget } from '@/components/champion-dashboard/monthly-trend-widget'
 import { OnboardingStatusWidget } from '@/components/champion-dashboard/onboarding-status-widget'
 import { ClubEventsSummary } from '@/components/champion-dashboard/club-events-summary'
@@ -84,47 +85,6 @@ function ActiveInactiveDonut({ active, inactive }: { active: number; inactive: n
   )
 }
 
-// ── QPR certification bar ────────────────────────────────────────────────────
-
-function QprCertificationBar({ certified, expiringSoon, total }: { certified: number; expiringSoon: number; total: number }) {
-  const fullyCertified = Math.max(certified - expiringSoon, 0)
-  const notCertified = Math.max(total - certified, 0)
-  const pct = (n: number) => (total > 0 ? (n / total) * 100 : 0)
-
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="flex h-[52px] w-full overflow-hidden rounded-lg">
-        <div className="flex items-center justify-center bg-[#4DB5A9]" style={{ width: `${pct(fullyCertified)}%` }}>
-          {fullyCertified > 0 && <span className="text-[13px] font-semibold text-white">{fullyCertified}</span>}
-        </div>
-        <div className="flex items-center justify-center bg-[#F4AC1E]" style={{ width: `${pct(expiringSoon)}%` }}>
-          {expiringSoon > 0 && <span className="text-[13px] font-semibold text-[#022C51]">{expiringSoon}</span>}
-        </div>
-        <div className="flex items-center justify-center bg-[#022C51]" style={{ width: `${pct(notCertified)}%` }}>
-          {notCertified > 0 && <span className="text-[13px] font-semibold text-white">{notCertified}</span>}
-        </div>
-      </div>
-      <div className="flex flex-wrap gap-x-6 gap-y-2">
-        <div className="flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded-full bg-[#4DB5A9]" />
-          <span className="text-[13px] font-semibold text-[#0F172A]">Certified</span>
-          <span className="text-[12px] text-[#64748B]">{fullyCertified}</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded-full bg-[#F4AC1E]" />
-          <span className="text-[13px] font-semibold text-[#0F172A]">Expiring Soon</span>
-          <span className="text-[12px] text-[#64748B]">{expiringSoon}</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded-full bg-[#022C51]" />
-          <span className="text-[13px] font-semibold text-[#0F172A]">Not Certified</span>
-          <span className="text-[12px] text-[#64748B]">{notCertified}</span>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default async function ChampionDashboard() {
@@ -141,7 +101,6 @@ export default async function ChampionDashboard() {
   if (profile?.role !== 'champion') redirect('/super-admin')
 
   const data = await getChampionDashboardData()
-  const qprPct = data.qpr.total > 0 ? Math.round((data.qpr.certified / data.qpr.total) * 100) : 0
 
   return (
     <div className="flex flex-col gap-5 p-6">
@@ -156,11 +115,11 @@ export default async function ChampionDashboard() {
           Welcome, {profile.full_name}
         </h1>
         <p className="mt-2 font-[family-name:var(--font-inter)] text-[13px] text-[#475569]">
-          A center-level view of your club&apos;s Gatekeeper roster, QPR certification progress, and upcoming events.
+          A center-level view of your club&apos;s Gatekeeper roster, certifications, and upcoming events.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <KpiTile
           label="Active Gatekeepers"
           value={String(data.activeGatekeepers)}
@@ -180,12 +139,6 @@ export default async function ChampionDashboard() {
           captionTone="positive"
           iconSrc="/icons/kpi-events.svg"
         />
-        <KpiTile
-          label="QPR Certified"
-          value={`${qprPct}%`}
-          caption={`${data.qpr.certified} of ${data.qpr.total} certified`}
-          iconSrc="/icons/kpi-qpr.svg"
-        />
       </div>
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
@@ -197,19 +150,13 @@ export default async function ChampionDashboard() {
           </div>
         </div>
 
-        <div className="rounded-2xl bg-white p-6">
-          <h2 className="font-[family-name:var(--font-jakarta)] text-base font-bold text-[#0F172A]">QPR Certification Status</h2>
-          <p className="mt-1 text-[11px] text-[#64748B]">Certification progress across your club</p>
-          <div className="mt-5">
-            <QprCertificationBar certified={data.qpr.certified} expiringSoon={data.qpr.expiringSoon} total={data.qpr.total} />
-          </div>
-        </div>
+        <MonthlyTrendWidget data={data.monthlyTrend} />
       </div>
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <MonthlyTrendWidget data={data.monthlyTrend} />
-        <OnboardingStatusWidget data={data.notYetLoggedIn} />
-      </div>
+      {/* Certification figures per type (Story 10.12 Sc03); no type is shown separately. */}
+      {data.clubId && <CertificationFiguresCard scope={{ kind: 'club', clubId: data.clubId }} />}
+
+      <OnboardingStatusWidget data={data.notYetLoggedIn} />
 
       <ClubEventsSummary upcoming={data.upcomingEvents} completed={data.recentlyCompleted} />
     </div>

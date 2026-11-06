@@ -29,6 +29,11 @@ function delegationStatus(startsAt: string, endsAt: string, endedEarlyAt: string
   return 'active'
 }
 
+// Whole days since a timestamp (computed per request, outside render logic).
+function daysSince(iso: string): number {
+  return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / (1000 * 60 * 60 * 24)))
+}
+
 export default async function ProfilePage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -60,9 +65,7 @@ export default async function ProfilePage() {
   const clubCount = (activeClubs ?? []).length
 
   const lastPasswordChange = pwHistory?.[0]?.created_at ?? null
-  const daysSincePasswordChange = lastPasswordChange
-    ? Math.max(0, Math.floor((Date.now() - new Date(lastPasswordChange).getTime()) / (1000 * 60 * 60 * 24)))
-    : null
+  const daysSincePasswordChange = lastPasswordChange ? daysSince(lastPasswordChange) : null
 
   const memberSince = new Date(profile.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
 

@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { DashboardClientLayout } from '@/components/dashboard-client-layout'
+import { loadBell } from '@/lib/notifications.server'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -22,8 +23,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
     redirect(`/login?error=${reason}`)
   }
 
+  const bell = await loadBell(supabase, { id: user.id, role: profile.role })
+
   return (
-    <DashboardClientLayout profile={profile}>
+    <DashboardClientLayout profile={profile} bell={bell}>
       {children}
     </DashboardClientLayout>
   )

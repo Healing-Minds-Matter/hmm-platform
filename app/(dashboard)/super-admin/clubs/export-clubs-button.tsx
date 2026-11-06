@@ -7,11 +7,11 @@ export type ExportRow = {
   is_active: boolean
   gatekeepers: number
   champions: string
-  qpr_pct: number | null
+  certified_pct: number | null
 }
 
 function toCsv(rows: ExportRow[]): string {
-  const header = ['Club Name', 'Club Code', 'Location', 'Status', 'Gatekeepers', 'Assigned Champions', 'QPR Readiness (%)']
+  const header = ['Club Name', 'Club Code', 'Location', 'Status', 'Gatekeepers', 'Assigned Champions', 'Certification Readiness (%)']
   const escape = (v: string) => `"${v.replace(/"/g, '""')}"`
   const lines = [header.map(escape).join(',')]
   for (const r of rows) {
@@ -22,7 +22,7 @@ function toCsv(rows: ExportRow[]): string {
       r.is_active ? 'Active' : 'Inactive',
       String(r.gatekeepers),
       r.champions,
-      r.qpr_pct === null ? '' : String(r.qpr_pct),
+      r.certified_pct === null ? '' : String(r.certified_pct),
     ].map(escape).join(','))
   }
   return lines.join('\n')

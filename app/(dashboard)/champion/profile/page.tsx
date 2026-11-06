@@ -1,6 +1,10 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { CertificatesSection } from '@/components/certifications/certificates-section'
+import { loadCertSummary } from '@/lib/cert-summary.server'
+import { personCertStatus } from '@/lib/cert-summary'
+import { PERSON_CERT_STATUS_LABEL } from '@/app/(dashboard)/super-admin/gatekeepers/gatekeeper-status'
 import { ProfileForm } from '@/app/(dashboard)/super-admin/profile/profile-form'
 
 export const metadata = { title: 'My Profile — HMM Champion' }
@@ -12,6 +16,11 @@ function getInitials(name: string): string {
   return name.trim().split(/\s+/).map(n => n[0]).join('').slice(0, 2).toUpperCase()
 }
 
+// Whole days since a timestamp (computed per request, outside render logic).
+function daysSince(iso: string): number {
+  return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / (1000 * 60 * 60 * 24)))
+}
+
 export default async function ChampionProfilePage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -20,13 +29,15 @@ export default async function ChampionProfilePage() {
   const [{ data: profile }, { data: pwHistory }] = await Promise.all([
     supabase
       .from('profiles')
-      .select('id, full_name, email, phone, role, title, preferred_language, office_location, club_id, qpr_certification_date, qpr_expiry_date, created_at, clubs!profiles_club_id_fkey(name)')
+      .select('id, full_name, email, phone, role, title, preferred_language, office_location, club_id, created_at, clubs!profiles_club_id_fkey(name)')
       .eq('id', user.id)
       .single(),
     supabase.from('password_history').select('created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1),
   ])
 
   if (!profile) redirect('/login')
+  const myCerts = (await loadCertSummary(supabase)).byHolder.get(user.id) ?? []
+  const myCertStatus = personCertStatus(true, myCerts)
   if (profile.role !== 'champion') redirect('/super-admin')
 
   // Real, not fabricated: pulls each currently-enabled permission for this
@@ -46,9 +57,7 @@ export default async function ChampionProfilePage() {
   const club = profile.clubs as any
 
   const lastPasswordChange = pwHistory?.[0]?.created_at ?? null
-  const daysSincePasswordChange = lastPasswordChange
-    ? Math.max(0, Math.floor((Date.now() - new Date(lastPasswordChange).getTime()) / (1000 * 60 * 60 * 24)))
-    : null
+  const daysSincePasswordChange = lastPasswordChange ? daysSince(lastPasswordChange) : null
 
   const memberSince = new Date(profile.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
   const initials = getInitials(profile.full_name)
@@ -113,9 +122,9 @@ export default async function ChampionProfilePage() {
                 {club ? club.name : 'No club assigned'}
               </span>
               <span className="text-[12px] text-[#64748B]">
-                {profile.qpr_expiry_date
-                  ? `QPR valid until ${new Date(profile.qpr_expiry_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
-                  : 'QPR certification not on file'}
+                {myCertStatus === 'none'
+                  ? 'No certifications on file'
+                  : `${PERSON_CERT_STATUS_LABEL[myCertStatus]} · ${myCerts.length} certification${myCerts.length === 1 ? '' : 's'}`}
               </span>
             </div>
           </div>
@@ -221,6 +230,10 @@ export default async function ChampionProfilePage() {
             )}
           </div>
         </div>
+      </div>
+
+      <div className="mt-6">
+        <CertificatesSection holderId={user.id} holderName={profile.full_name} />
       </div>
     </div>
   )

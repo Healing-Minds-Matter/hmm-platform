@@ -1,9 +1,12 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { CertificatesSection } from '@/components/certifications/certificates-section'
 import { GatekeeperStatusControls } from './gatekeeper-status-controls'
 import { ResendInviteButton } from './resend-invite-button'
-import { qprStatus, QPR_STATUS_LABEL, QPR_STATUS_BADGE, QPR_STATUS_DOT, todayBounds } from '../gatekeeper-status'
+import { PERSON_CERT_STATUS_LABEL, PERSON_CERT_STATUS_BADGE, PERSON_CERT_STATUS_DOT } from '../gatekeeper-status'
+import { loadCertSummary } from '@/lib/cert-summary.server'
+import { personCertStatus } from '@/lib/cert-summary'
 
 export const metadata = { title: 'Gatekeeper Details — HMM Super Admin' }
 
@@ -11,18 +14,14 @@ function getInitials(name: string): string {
   return name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
 }
 
-function formatDate(value: string) {
-  return new Date(value).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
-}
-
-export default async function GatekeeperDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function GatekeeperDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ renew?: string }> }) {
   const { id } = await params
+  const { renew } = await searchParams
   const supabase = await createClient()
-  const { today, in90Days } = todayBounds()
 
   const { data: gatekeeper } = await supabase
     .from('profiles')
-    .select('id, full_name, email, phone, gatekeeper_code, is_active, deactivation_reason, club_id, preferred_language, qpr_certification_date, qpr_expiry_date, created_at, clubs!profiles_club_id_fkey(id, name, club_code, is_active)')
+    .select('id, full_name, email, phone, gatekeeper_code, is_active, deactivation_reason, club_id, preferred_language, created_at, clubs!profiles_club_id_fkey(id, name, club_code, is_active)')
     .eq('id', id)
     .eq('role', 'gatekeeper')
     .single()
@@ -36,7 +35,7 @@ export default async function GatekeeperDetailPage({ params }: { params: Promise
     ? await supabase.from('profiles').select('id, full_name, email').eq('club_id', club.id).eq('role', 'champion').eq('is_active', true).maybeSingle()
     : { data: null }
 
-  const status = qprStatus(gatekeeper.is_active, gatekeeper.qpr_expiry_date, today, in90Days)
+  const status = personCertStatus(gatekeeper.is_active, (await loadCertSummary(supabase)).byHolder.get(gatekeeper.id))
 
   return (
     <div className="flex flex-col gap-6 p-6 font-[family-name:var(--font-inter)]">
@@ -55,9 +54,9 @@ export default async function GatekeeperDetailPage({ params }: { params: Promise
           <div className="flex min-w-0 flex-col gap-1">
             <div className="flex flex-wrap items-center gap-2.5">
               <h1 className="text-[22px] font-bold tracking-[-0.22px] text-[#0F172A]">{gatekeeper.full_name}</h1>
-              <span className={`flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${QPR_STATUS_BADGE[status]}`}>
-                <span className={`h-1.5 w-1.5 rounded-full ${QPR_STATUS_DOT[status]}`} />
-                {QPR_STATUS_LABEL[status]}
+              <span className={`flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${PERSON_CERT_STATUS_BADGE[status]}`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${PERSON_CERT_STATUS_DOT[status]}`} />
+                {PERSON_CERT_STATUS_LABEL[status]}
               </span>
               {gatekeeper.gatekeeper_code && (
                 <span className="font-mono text-xs font-bold text-[#003495]">{gatekeeper.gatekeeper_code}</span>
@@ -107,15 +106,7 @@ export default async function GatekeeperDetailPage({ params }: { params: Promise
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 rounded-2xl bg-white p-6 sm:grid-cols-3">
-        <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">Certification Date</p>
-          <p className="mt-1 text-sm text-[#0F172A]">{gatekeeper.qpr_certification_date ? formatDate(gatekeeper.qpr_certification_date) : 'Not on file'}</p>
-        </div>
-        <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">Expiry Date</p>
-          <p className="mt-1 text-sm text-[#0F172A]">{gatekeeper.qpr_expiry_date ? formatDate(gatekeeper.qpr_expiry_date) : 'Not on file'}</p>
-        </div>
+      <div className="rounded-2xl bg-white p-6">
         <div>
           <p className="text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">Preferred Language</p>
           <p className="mt-1 text-sm text-[#0F172A]">
@@ -123,6 +114,8 @@ export default async function GatekeeperDetailPage({ params }: { params: Promise
           </p>
         </div>
       </div>
+
+      <CertificatesSection holderId={id} holderName={gatekeeper.full_name} openRenew={renew} />
     </div>
   )
 }

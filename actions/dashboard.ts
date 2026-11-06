@@ -7,7 +7,6 @@ export type BarItem = { club_id: string; club_name: string; count: number; club_
 export type StackedItem = { club_id: string; club_name: string; active: number; inactive: number }
 export type UpcomingEvent = { id: string; title: string; club_name: string; starts_at: string; type: string }
 export type EventsData = { total: number; events: UpcomingEvent[] }
-export type QPRData = { certified: number; total: number; expiringSoon: number }
 export type OnboardingFilter = 'this_month' | 'last_month' | 'this_quarter'
 export type EventsFilter = 'next_7_days' | 'next_30_days' | 'all_upcoming'
 
@@ -18,7 +17,6 @@ export type DashboardData = {
   onboardingMomChangePct: number | null
   gatekeeperStatusPerClub: StackedItem[]
   upcomingEvents: EventsData
-  qprData: QPRData
 }
 
 const EMPTY: DashboardData = {
@@ -28,7 +26,6 @@ const EMPTY: DashboardData = {
   onboardingMomChangePct: null,
   gatekeeperStatusPerClub: [],
   upcomingEvents: { total: 0, events: [] },
-  qprData: { certified: 0, total: 0, expiringSoon: 0 },
 }
 
 // Period boundaries for an onboarding filter, plus the immediately-preceding
@@ -82,8 +79,6 @@ export async function getDashboardData(): Promise<DashboardData> {
   const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
   const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString()
   const in30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
-  const today = now.toISOString().split('T')[0]
-  const in90Days = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
   const [
     { data: allGk },
@@ -91,14 +86,12 @@ export async function getDashboardData(): Promise<DashboardData> {
     { data: newGk },
     { count: lastMonthGkCount },
     { data: events },
-    { data: certUsers },
   ] = await Promise.all([
     supabase.from('profiles').select('club_id, is_active').eq('role', 'gatekeeper').in('club_id', clubIds),
     supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'champion').eq('is_active', true).in('club_id', clubIds),
     supabase.from('profiles').select('club_id').eq('role', 'gatekeeper').in('club_id', clubIds).gte('created_at', thisMonthStart),
     supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'gatekeeper').in('club_id', clubIds).gte('created_at', lastMonthStart).lt('created_at', thisMonthStart),
     supabase.from('events').select(`id, title, starts_at, type, ${EVENT_CLUBS_EMBED}`).gt('starts_at', now.toISOString()).eq('is_cancelled', false).order('starts_at', { ascending: true }).lte('starts_at', in30Days),
-    supabase.from('profiles').select('qpr_expiry_date').in('role', ['champion', 'gatekeeper']).eq('is_active', true).in('club_id', clubIds),
   ])
 
   const activeGkByClub: Record<string, number> = {}
@@ -114,7 +107,6 @@ export async function getDashboardData(): Promise<DashboardData> {
     if (gk.club_id) newGkByClub[gk.club_id] = (newGkByClub[gk.club_id] ?? 0) + 1
   }
 
-  const allCertUsers = certUsers ?? []
   // Events for an active club, or open to all clubs.
   const eventList = (events ?? []).filter(e => isEventForClub(e, clubIds))
 
@@ -149,12 +141,6 @@ export async function getDashboardData(): Promise<DashboardData> {
         starts_at: e.starts_at,
         type: e.type,
       })),
-    },
-
-    qprData: {
-      certified: allCertUsers.filter(u => u.qpr_expiry_date && u.qpr_expiry_date >= today).length,
-      total: allCertUsers.length,
-      expiringSoon: allCertUsers.filter(u => u.qpr_expiry_date && u.qpr_expiry_date >= today && u.qpr_expiry_date <= in90Days).length,
     },
   }
 }

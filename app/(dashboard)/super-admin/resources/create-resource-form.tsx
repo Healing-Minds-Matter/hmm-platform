@@ -157,7 +157,7 @@ export function CreateResourceForm({ onClose }: { onClose?: () => void }) {
                 type="text"
                 required
                 autoComplete="off"
-                placeholder="e.g. QPR Gatekeeper Core Intervention Protocol"
+                placeholder="e.g. Gatekeeper Core Intervention Protocol"
                 className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
               />
             </div>

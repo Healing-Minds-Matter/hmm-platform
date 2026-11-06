@@ -11,9 +11,19 @@ const nextConfig: NextConfig = {
   // for every route under the resources admin pages (create/edit, both
   // the standalone and intercepted-modal variants all live under this
   // path), where actions/resources.ts's uploadResourceFile() actually runs.
-  serverExternalPackages: ["mediainfo.js"],
+  //
+  // pdfkit (certificate PDFs, lib/certificate-pdf.server.ts) reads its own font
+  // data files from disk, so it stays external too. The certificate fonts are
+  // read from public/fonts/cert with fs, which the file tracer can't see on its
+  // own (same problem as the .wasm above), so they're included for every route
+  // that can make a certificate PDF.
+  serverExternalPackages: ["mediainfo.js", "pdfkit", "svg-to-pdfkit"],
   outputFileTracingIncludes: {
     "/super-admin/resources/**": ["./node_modules/mediainfo.js/dist/**/*.wasm"],
+    "/super-admin/certifications/**": ["./public/fonts/cert/*.ttf"],
+    "/super-admin/gatekeepers/**": ["./public/fonts/cert/*.ttf"],
+    "/super-admin/champions/**": ["./public/fonts/cert/*.ttf"],
+    "/champion/gatekeepers/**": ["./public/fonts/cert/*.ttf"],
   },
   experimental: {
     serverActions: {

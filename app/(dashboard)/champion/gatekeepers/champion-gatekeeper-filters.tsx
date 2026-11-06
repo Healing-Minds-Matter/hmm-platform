@@ -2,6 +2,7 @@
 
 import { useRouter, usePathname } from 'next/navigation'
 import { useCallback } from 'react'
+import { PERSON_CERT_STATUS_LABEL, type PersonCertStatus } from '@/app/(dashboard)/super-admin/gatekeepers/gatekeeper-status'
 
 export function ChampionGatekeeperFilters({
   q,
@@ -14,7 +15,8 @@ export function ChampionGatekeeperFilters({
   const pathname = usePathname()
 
   const update = useCallback((key: string, value: string) => {
-    const params = new URLSearchParams()
+    const params = new URLSearchParams(window.location.search)
+    for (const k of ['q', 'status', 'page']) params.delete(k)
     if (key !== 'q' && q) params.set('q', q)
     if (key !== 'status' && status) params.set('status', status)
     if (value) params.set(key, value)
@@ -45,11 +47,7 @@ export function ChampionGatekeeperFilters({
         className="flex-shrink-0 rounded-lg border border-transparent bg-[#F9F9F9] py-2 pl-4 pr-8 text-[13px] text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#F4AC1E]/40"
       >
         <option value="">All Statuses</option>
-        <option value="active">Active</option>
-        <option value="expiring_soon">Expiring Soon</option>
-        <option value="expired">Expired</option>
-        <option value="not_certified">Not Certified</option>
-        <option value="inactive">Inactive</option>
+        {(Object.keys(PERSON_CERT_STATUS_LABEL) as PersonCertStatus[]).map(s => <option key={s} value={s}>{PERSON_CERT_STATUS_LABEL[s]}</option>)}
       </select>
     </div>
   )

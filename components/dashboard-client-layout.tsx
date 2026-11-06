@@ -6,6 +6,7 @@ import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { useSessionTimeout } from '@/hooks/use-session-timeout'
 import { SessionTimeoutModal } from '@/components/session-timeout-modal'
+import { NotificationBell, type BellNotification } from '@/components/notification-bell'
 import { logoutAction, sessionTimeoutLogoutAction } from '@/actions/auth'
 
 const TIMEOUT_MS = 20 * 60 * 1000
@@ -51,6 +52,16 @@ function IconGatekeepers({ active }: { active: boolean }) {
   return (
     <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
       <path d="M6.66699 9.16667C7.55105 9.16667 8.39889 8.81548 9.02401 8.19036C9.64914 7.56523 10.0003 6.71739 10.0003 5.83333C10.0003 4.94928 9.64914 4.10143 9.02401 3.47631C8.39889 2.85119 7.55105 2.5 6.66699 2.5C5.78294 2.5 4.93509 2.85119 4.30997 3.47631C3.68485 4.10143 3.33366 4.94928 3.33366 5.83333C3.33366 6.71739 3.68485 7.56523 4.30997 8.19036C4.93509 8.81548 5.78294 9.16667 6.66699 9.16667ZM14.167 9.16667C14.83 9.16667 15.4659 8.90327 15.9348 8.43443C16.4036 7.96559 16.667 7.32971 16.667 6.66667C16.667 6.00363 16.4036 5.36774 15.9348 4.8989C15.4659 4.43006 14.83 4.16667 14.167 4.16667C13.504 4.16667 12.8681 4.43006 12.3992 4.8989C11.9304 5.36774 11.667 6.00363 11.667 6.66667C11.667 7.32971 11.9304 7.96559 12.3992 8.43443C12.8681 8.90327 13.504 9.16667 14.167 9.16667ZM3.54199 10.8333C3.04471 10.8333 2.5678 11.0309 2.21617 11.3825C1.86454 11.7341 1.66699 12.2111 1.66699 12.7083V12.9167C1.66699 12.9167 1.66699 16.6667 6.66699 16.6667C7.82533 16.6667 8.71533 16.4658 9.39866 16.1558C9.24453 15.6459 9.16647 15.116 9.16699 14.5833C9.16699 13.2025 9.68366 11.9425 10.5337 10.9858C10.2997 10.8839 10.0471 10.832 9.79199 10.8333H3.54199ZM19.167 14.5833C19.167 15.7989 18.6841 16.9647 17.8246 17.8242C16.965 18.6838 15.7992 19.1667 14.5837 19.1667C13.3681 19.1667 12.2023 18.6838 11.3428 17.8242C10.4832 16.9647 10.0003 15.7989 10.0003 14.5833C10.0003 13.3678 10.4832 12.202 11.3428 11.3424C12.2023 10.4829 13.3681 10 14.5837 10C15.7992 10 16.965 10.4829 17.8246 11.3424C18.6841 12.202 19.167 13.3678 19.167 14.5833ZM15.0462 12.0167C15.0176 11.9161 14.9569 11.8275 14.8735 11.7645C14.79 11.7014 14.6883 11.6673 14.5837 11.6673C14.4791 11.6673 14.3773 11.7014 14.2939 11.7645C14.2104 11.8275 14.1498 11.9161 14.1212 12.0167L13.657 13.5067H12.1545C11.6828 13.5067 11.4878 14.135 11.8687 14.4233L13.0837 15.3442L12.6195 16.8333C12.4737 17.3008 12.987 17.69 13.3687 17.4008L14.5837 16.4808L15.7987 17.4008C16.1803 17.69 16.6937 17.3008 16.5478 16.8342L16.0837 15.3442L17.2987 14.4242C17.6803 14.135 17.4845 13.5067 17.0128 13.5067H15.5103L15.0462 12.0167Z" fill={c}/>
+    </svg>
+  )
+}
+
+function IconCertifications({ active }: { active: boolean }) {
+  const c = active ? '#022C51' : '#64748B'
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <circle cx="10" cy="7.5" r="5" stroke={c} strokeWidth="1.8" />
+      <path d="M7.2 11.6 6.2 18l3.8-1.9 3.8 1.9-1-6.4" stroke={c} strokeWidth="1.8" strokeLinejoin="round" />
     </svg>
   )
 }
@@ -115,6 +126,7 @@ const SUPER_ADMIN_NAV: NavCfg[] = [
   { href: '/super-admin/clubs',         label: 'Clubs',         Icon: IconClubs },
   { href: '/super-admin/champions',     label: 'Champions',     Icon: IconChampions },
   { href: '/super-admin/gatekeepers',   label: 'Gatekeepers',   Icon: IconGatekeepers },
+  { href: '/super-admin/certifications', label: 'Certifications', Icon: IconCertifications },
   { href: '/super-admin/resources',     label: 'Resources',     Icon: IconResources },
   { href: '/super-admin/announcements', label: 'Announcements', Icon: IconAnnouncements },
   { href: '/super-admin/events',        label: 'Events',        Icon: IconEvents },
@@ -124,6 +136,7 @@ const SUPER_ADMIN_NAV: NavCfg[] = [
 const CHAMPION_NAV: NavCfg[] = [
   { href: '/champion', label: 'Dashboard', Icon: IconDashboard, exact: true },
   { href: '/champion/gatekeepers', label: 'Gatekeepers', Icon: IconGatekeepers },
+  { href: '/champion/certifications', label: 'Certifications', Icon: IconCertifications },
   { href: '/champion/events', label: 'Events', Icon: IconEvents },
   { href: '/champion/announcements', label: 'Announcements', Icon: IconAnnouncements },
   { href: '/champion/resources', label: 'Resources', Icon: IconResources },
@@ -231,9 +244,11 @@ function ProfileMenu({ fullName, roleLabel, initials, profileHref }: { fullName:
 export function DashboardClientLayout({
   children,
   profile,
+  bell,
 }: {
   children: React.ReactNode
   profile: Profile
+  bell: { notifications: BellNotification[]; unread: number }
 }) {
   const [showWarning, setShowWarning] = useState(false)
   const [, startTransition]  = useTransition()
@@ -330,7 +345,8 @@ export function DashboardClientLayout({
             </svg>
             <input
               type="text"
-              placeholder="Search Champions, QPR records, clubs…"
+              placeholder="Search Champions, Gatekeepers, clubs…"
+              aria-label="Search"
               className="w-full min-w-0 bg-transparent text-[13px] text-[#0F172A] placeholder:text-[#64748B] focus:outline-none"
             />
           </div>
@@ -342,11 +358,7 @@ export function DashboardClientLayout({
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src="/icons/help-circle.svg" alt="" width={15} height={15} />
               </button>
-              <button type="button" aria-label="Notifications" className="relative flex h-8 w-8 items-center justify-center rounded-lg hover:bg-gray-50 transition-colors">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/icons/notification-bell.svg" alt="" width={11} height={15} />
-                <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[#DC2626] shadow-[0_0_0_2px_white]" />
-              </button>
+              <NotificationBell notifications={bell.notifications} unread={bell.unread} />
             </div>
             <div className="h-6 w-px bg-[#E2E8F0]" />
             <ProfileMenu

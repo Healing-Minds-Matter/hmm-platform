@@ -11,7 +11,6 @@ interface Gatekeeper {
   phone: string | null
   preferred_language: string
   club_id: string | null
-  qpr_certification_date: string | null
   version: number
 }
 interface Club { id: string; name: string; club_code: string | null }

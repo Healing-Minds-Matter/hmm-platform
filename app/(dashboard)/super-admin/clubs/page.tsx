@@ -1,5 +1,7 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { loadCertSummary } from '@/lib/cert-summary.server'
+import { certifiedFigures } from '@/lib/cert-summary'
 import { reactivateClubAction } from '@/actions/clubs'
 import { ClubFilters } from './club-filters'
 import { ExportClubsButton, type ExportRow } from './export-clubs-button'
@@ -96,7 +98,7 @@ export default async function ClubsPage({
   const clubList = clubs ?? []
   const clubIds = clubList.map(c => c.id)
 
-  const [{ data: champRows }, { data: gkRows }, { data: qprRows }] = clubIds.length
+  const [{ data: champRows }, { data: gkRows }, { data: peopleRows }] = clubIds.length
     ? await Promise.all([
         supabase
           .from('profiles')
@@ -113,7 +115,7 @@ export default async function ClubsPage({
           .in('club_id', clubIds),
         supabase
           .from('profiles')
-          .select('club_id, qpr_expiry_date')
+          .select('id, club_id')
           .in('role', ['champion', 'gatekeeper'])
           .eq('is_active', true)
           .in('club_id', clubIds),
@@ -133,14 +135,16 @@ export default async function ClubsPage({
     if (row.club_id) gatekeeperCountByClub[row.club_id] = (gatekeeperCountByClub[row.club_id] ?? 0) + 1
   }
 
-  const today = new Date().toISOString().split('T')[0]
-  const qprByClub: Record<string, { certified: number; total: number }> = {}
-  for (const row of qprRows ?? []) {
-    if (!row.club_id) continue
-    qprByClub[row.club_id] ??= { certified: 0, total: 0 }
-    qprByClub[row.club_id].total += 1
-    if (row.qpr_expiry_date && row.qpr_expiry_date >= today) qprByClub[row.club_id].certified += 1
+  // Certification readiness: of each club's active Champions and Gatekeepers, how many hold
+  // at least one current certificate, of any type, that is valid or expiring soon.
+  const { byHolder } = await loadCertSummary(supabase)
+  const peopleByClub: Record<string, string[]> = {}
+  for (const row of peopleRows ?? []) {
+    if (row.club_id) (peopleByClub[row.club_id] ??= []).push(row.id)
   }
+  const readinessByClub: Record<string, { certified: number; total: number }> = Object.fromEntries(
+    Object.entries(peopleByClub).map(([clubId, people]) => [clubId, certifiedFigures(byHolder, people)]),
+  )
 
   const showingFrom = totalClubs === 0 ? 0 : from + 1
   const showingTo = Math.min(from + clubList.length, totalClubs)
@@ -148,7 +152,7 @@ export default async function ClubsPage({
   // Windowed page numbers (max 5) — never render fake pages beyond totalPages.
   const windowSize = 5
   let startPage = Math.max(1, page - Math.floor(windowSize / 2))
-  let endPage = Math.min(totalPages, startPage + windowSize - 1)
+  const endPage = Math.min(totalPages, startPage + windowSize - 1)
   startPage = Math.max(1, endPage - windowSize + 1)
   const pageNumbers = Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i)
 
@@ -156,8 +160,8 @@ export default async function ClubsPage({
   // no extra query) — same computed values the table itself renders.
   const exportRows: ExportRow[] = clubList.map(club => {
     const champions = championsByClub[club.id] ?? []
-    const qpr = qprByClub[club.id]
-    const pct = qpr && qpr.total > 0 ? Math.round((qpr.certified / qpr.total) * 100) : null
+    const readiness = readinessByClub[club.id]
+    const pct = readiness && readiness.total > 0 ? Math.round((readiness.certified / readiness.total) * 100) : null
     return {
       name: club.name,
       club_code: club.club_code,
@@ -165,7 +169,7 @@ export default async function ClubsPage({
       is_active: club.is_active,
       gatekeepers: gatekeeperCountByClub[club.id] ?? 0,
       champions: champions.map(c => c.full_name).join('; '),
-      qpr_pct: pct,
+      certified_pct: pct,
     }
   })
 
@@ -224,7 +228,7 @@ export default async function ClubsPage({
                     Gatekeepers
                   </th>
                   <th className="w-[19.1%] px-[16px] text-left text-[11px] font-semibold uppercase tracking-[0.55px] text-[#475569]">
-                    QPR Readiness
+                    Certification Readiness
                   </th>
                   <th className="w-[12.1%] px-[16px] text-center text-[11px] font-semibold uppercase tracking-[0.55px] text-[#475569]">
                     Status
@@ -236,9 +240,9 @@ export default async function ClubsPage({
                 {clubList.map(club => {
                   const champions = championsByClub[club.id] ?? []
                   const gkCount = gatekeeperCountByClub[club.id] ?? 0
-                  const qpr = qprByClub[club.id]
-                  const pct = qpr && qpr.total > 0 ? Math.round((qpr.certified / qpr.total) * 100) : null
-                  const qprColor = pct !== null && pct >= 80 ? '#16A34A' : '#D97706'
+                  const readiness = readinessByClub[club.id]
+                  const pct = readiness && readiness.total > 0 ? Math.round((readiness.certified / readiness.total) * 100) : null
+                  const readinessColor = pct !== null && pct >= 80 ? '#15803D' : '#B45309'
 
                   return (
                     <tr
@@ -288,7 +292,7 @@ export default async function ClubsPage({
                         {gkCount}
                       </td>
 
-                      {/* QPR Readiness */}
+                      {/* Certification Readiness */}
                       <td className="px-[16px] py-3">
                         {!club.is_active ? (
                           <span className="text-[12px] text-[#64748B]">Paused</span>
@@ -297,15 +301,15 @@ export default async function ClubsPage({
                         ) : (
                           <div className="flex max-w-[160px] flex-col gap-1">
                             <div className="flex items-center justify-between">
-                              <span className="text-[12px] font-semibold" style={{ color: qprColor }}>{pct}%</span>
+                              <span className="text-[12px] font-semibold" style={{ color: readinessColor }}>{pct}%</span>
                               <span className="text-[12px] text-[#64748B]">
-                                {qpr!.certified}/{qpr!.total} certified
+                                {readiness!.certified}/{readiness!.total} certified
                               </span>
                             </div>
                             <div className="h-[6px] w-full overflow-hidden rounded-full bg-[#F1F5F9]">
                               <div
                                 className="h-full rounded-full"
-                                style={{ width: `${pct}%`, backgroundColor: qprColor }}
+                                style={{ width: `${pct}%`, backgroundColor: readinessColor }}
                               />
                             </div>
                           </div>
