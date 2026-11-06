@@ -8,6 +8,7 @@ export type EventSummary = {
   id: string
   title: string
   type: string
+  type_description?: string | null
   starts_at: string
   ends_at: string | null
   venue: string
@@ -95,11 +96,11 @@ export async function getChampionDashboardData(): Promise<ChampionDashboardData>
     supabase.from('profiles').select('id, full_name, email, created_at')
       .eq('club_id', club.id).eq('role', 'gatekeeper').eq('is_active', true)
       .order('created_at', { ascending: false }),
-    supabase.from('events').select(`id, title, type, starts_at, ends_at, venue, description, max_participants, ${EVENT_CLUBS_EMBED}`)
+    supabase.from('events').select(`id, title, type, type_description, starts_at, ends_at, venue, description, max_participants, ${EVENT_CLUBS_EMBED}`)
       .eq('is_cancelled', false)
       .gte('starts_at', now.toISOString()).lte('starts_at', twoWeeksOut)
       .order('starts_at', { ascending: true }),
-    supabase.from('events').select(`id, title, type, starts_at, ends_at, venue, description, max_participants, ${EVENT_CLUBS_EMBED}`)
+    supabase.from('events').select(`id, title, type, type_description, starts_at, ends_at, venue, description, max_participants, ${EVENT_CLUBS_EMBED}`)
       .eq('is_cancelled', false)
       .lt('starts_at', now.toISOString()).gte('starts_at', thirtyDaysAgo)
       .order('starts_at', { ascending: false }),

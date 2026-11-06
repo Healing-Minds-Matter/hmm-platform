@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { getUpcomingEvents } from '@/actions/dashboard'
 import type { EventsData, EventsFilter } from '@/actions/dashboard'
-import { CERTIFICATION_PROGRAMME_EVENT, EVENT_TYPE_STYLES } from '@/app/(dashboard)/super-admin/events/event-type'
+import { CERTIFICATION_PROGRAMME_EVENT, EVENT_TYPE_STYLES, eventTypeLabel } from '@/app/(dashboard)/super-admin/events/event-type'
 
 // Short badge text per event type, for this compact widget.
 const SHORT_LABEL: Record<string, string> = {
@@ -50,7 +50,7 @@ function EventRow({ ev }: { ev: EventsData['events'][number] }) {
         </div>
       </div>
       <span className={`ml-2 flex-shrink-0 rounded px-2 py-0.5 text-[10px] font-bold text-white ${solid.badge}`}>
-        {SHORT_LABEL[ev.type] ?? style.label}
+        {ev.type === 'other' ? eventTypeLabel(ev.type, ev.type_description) : SHORT_LABEL[ev.type] ?? style.label}
       </span>
     </div>
   )

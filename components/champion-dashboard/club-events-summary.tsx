@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import type { EventSummary } from '@/actions/champion-dashboard'
-import { eventTypeStyle } from '@/app/(dashboard)/super-admin/events/event-type'
+import { eventTypeLabel, eventTypeStyle } from '@/app/(dashboard)/super-admin/events/event-type'
 import { formatOrgDate, formatOrgTime, toOrgWallClock } from '@/lib/org-date'
 
 function formatDateTime(iso: string) {
@@ -34,7 +34,7 @@ function EventCard({ event }: { event: EventSummary }) {
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <span className={`rounded px-2 py-0.5 text-[11px] font-semibold ${style.badge}`}>{style.label}</span>
+          <span className={`rounded px-2 py-0.5 text-[11px] font-semibold ${style.badge}`}>{eventTypeLabel(event.type, event.type_description)}</span>
           <span className="text-[12px] text-[#64748B]">{time} · {event.venue}</span>
         </div>
         <p className="mt-1 truncate text-[14px] font-bold text-[#0F172A]">{event.title}</p>

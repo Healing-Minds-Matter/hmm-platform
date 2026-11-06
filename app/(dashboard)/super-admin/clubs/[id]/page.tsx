@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { loadCertSummary } from '@/lib/cert-summary.server'
 import { certifiedFigures } from '@/lib/cert-summary'
 import { ClubStatusToggle } from './club-status-toggle'
-import { eventTypeStyle, EVENT_TYPE_OPTIONS } from '@/app/(dashboard)/super-admin/events/event-type'
+import { eventTypeLabel, eventTypeStyle, EVENT_TYPE_OPTIONS } from '@/app/(dashboard)/super-admin/events/event-type'
 // Event dates/times are shown in Sri Lanka time (see lib/org-date.ts).
 import { ORG_TIME_ZONE } from '@/lib/org-date'
 import { EVENT_CLUBS_EMBED, isEventForClub } from '@/lib/event-clubs'
@@ -99,7 +99,7 @@ export default async function ClubDetailPage({
       .order('full_name'),
     supabase
       .from('events')
-      .select(`id, title, type, starts_at, ends_at, venue, max_participants, is_cancelled, ${EVENT_CLUBS_EMBED}`)
+      .select(`id, title, type, type_description, starts_at, ends_at, venue, max_participants, is_cancelled, ${EVENT_CLUBS_EMBED}`)
       .eq('is_cancelled', false)
       .order('starts_at', { ascending: true }),
   ])
@@ -438,7 +438,7 @@ export default async function ClubDetailPage({
                         <td className="px-6 py-4">
                           <p className="text-sm font-semibold text-[#0F172A]">{e.title}</p>
                           <span className={`mt-1.5 inline-flex flex-shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${style.badge}`}>
-                            {style.label}
+                            {eventTypeLabel(e.type, e.type_description)}
                           </span>
                         </td>
                         <td className="px-6 py-4">

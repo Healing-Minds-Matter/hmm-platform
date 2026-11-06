@@ -5,7 +5,7 @@ import { EVENT_CLUBS_EMBED, eventClubsLabel, isEventForClub } from '@/lib/event-
 
 export type BarItem = { club_id: string; club_name: string; count: number; club_location?: string | null }
 export type StackedItem = { club_id: string; club_name: string; active: number; inactive: number }
-export type UpcomingEvent = { id: string; title: string; club_name: string; starts_at: string; type: string }
+export type UpcomingEvent = { id: string; title: string; club_name: string; starts_at: string; type: string; type_description?: string | null }
 export type EventsData = { total: number; events: UpcomingEvent[] }
 export type OnboardingFilter = 'this_month' | 'last_month' | 'this_quarter'
 export type EventsFilter = 'next_7_days' | 'next_30_days' | 'all_upcoming'
@@ -91,7 +91,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'champion').eq('is_active', true).in('club_id', clubIds),
     supabase.from('profiles').select('club_id').eq('role', 'gatekeeper').in('club_id', clubIds).gte('created_at', thisMonthStart),
     supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'gatekeeper').in('club_id', clubIds).gte('created_at', lastMonthStart).lt('created_at', thisMonthStart),
-    supabase.from('events').select(`id, title, starts_at, type, ${EVENT_CLUBS_EMBED}`).gt('starts_at', now.toISOString()).eq('is_cancelled', false).order('starts_at', { ascending: true }).lte('starts_at', in30Days),
+    supabase.from('events').select(`id, title, starts_at, type, type_description, ${EVENT_CLUBS_EMBED}`).gt('starts_at', now.toISOString()).eq('is_cancelled', false).order('starts_at', { ascending: true }).lte('starts_at', in30Days),
   ])
 
   const activeGkByClub: Record<string, number> = {}
@@ -140,6 +140,7 @@ export async function getDashboardData(): Promise<DashboardData> {
         club_name: eventClubsLabel(e, nameById),
         starts_at: e.starts_at,
         type: e.type,
+        type_description: e.type_description,
       })),
     },
   }
@@ -201,7 +202,7 @@ export async function getUpcomingEvents(filter: EventsFilter): Promise<EventsDat
 
   let query = supabase
     .from('events')
-    .select(`id, title, starts_at, type, ${EVENT_CLUBS_EMBED}`)
+    .select(`id, title, starts_at, type, type_description, ${EVENT_CLUBS_EMBED}`)
     .gt('starts_at', now.toISOString())
     .eq('is_cancelled', false)
     .order('starts_at', { ascending: true })
@@ -226,6 +227,7 @@ export async function getUpcomingEvents(filter: EventsFilter): Promise<EventsDat
       club_name: eventClubsLabel(e, nameById),
       starts_at: e.starts_at,
       type: e.type,
+      type_description: e.type_description,
     })),
   }
 }

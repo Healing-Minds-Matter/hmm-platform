@@ -8,7 +8,7 @@ import { CertChips } from '@/components/certifications/cert-chips'
 import { todayDateString } from '@/lib/org-date'
 import { PERSON_CERT_STATUS_LABEL, PERSON_CERT_STATUS_BADGE, PERSON_CERT_STATUS_DOT } from '@/app/(dashboard)/super-admin/gatekeepers/gatekeeper-status'
 import { ChampionStatusControls } from './champion-status-controls'
-import { eventTypeStyle, EVENT_TYPE_OPTIONS } from '@/app/(dashboard)/super-admin/events/event-type'
+import { eventTypeLabel, eventTypeStyle, EVENT_TYPE_OPTIONS } from '@/app/(dashboard)/super-admin/events/event-type'
 // Event dates/times are shown in Sri Lanka time (see lib/org-date.ts).
 import { ORG_TIME_ZONE } from '@/lib/org-date'
 import { EVENT_CLUBS_EMBED, isEventForClub } from '@/lib/event-clubs'
@@ -118,10 +118,10 @@ export default async function ChampionDetailPage({
     clubId
       ? supabase
           .from('events')
-          .select(`id, title, type, starts_at, ends_at, venue, max_participants, is_cancelled, ${EVENT_CLUBS_EMBED}`)
+          .select(`id, title, type, type_description, starts_at, ends_at, venue, max_participants, is_cancelled, ${EVENT_CLUBS_EMBED}`)
           .eq('is_cancelled', false)
           .order('starts_at', { ascending: true })
-      : Promise.resolve({ data: [] as { id: string; title: string; type: string; starts_at: string; ends_at: string | null; venue: string; max_participants: number | null; is_cancelled: boolean; is_all_clubs?: boolean; event_clubs?: { club_id: string }[] }[] }),
+      : Promise.resolve({ data: [] as { id: string; title: string; type: string; type_description: string | null; starts_at: string; ends_at: string | null; venue: string; max_participants: number | null; is_cancelled: boolean; is_all_clubs?: boolean; event_clubs?: { club_id: string }[] }[] }),
     loadCertSummary(supabase),
   ])
   const certsOf = (personId: string) => summary.byHolder.get(personId)
@@ -445,7 +445,7 @@ export default async function ChampionDetailPage({
                         <td className="px-6 py-4">
                           <p className="text-sm font-semibold text-[#0F172A]">{e.title}</p>
                           <span className={`mt-1.5 inline-flex flex-shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${style.badge}`}>
-                            {style.label}
+                            {eventTypeLabel(e.type, e.type_description)}
                           </span>
                         </td>
                         <td className="px-6 py-4">

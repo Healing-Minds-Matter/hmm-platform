@@ -100,7 +100,7 @@ describe('Super Admin', () => {
   })
 
   it('must choose "All clubs" or at least one club', async () => {
-    expect(await createEventAction(null, eventForm('selected', []))).toEqual({ error: 'Please choose at least one club.' })
+    expect(await createEventAction(null, eventForm('selected', []))).toMatchObject({ error: 'Please choose at least one club.' })
     expect(saved()).toHaveLength(0)
   })
 
@@ -135,9 +135,9 @@ describe('Champion', () => {
 
   it('is refused another club, several clubs or all clubs', async () => {
     const refused = { error: 'You can only schedule events for your own club.' }
-    expect(await createEventAction(null, eventForm('selected', ['club-a']))).toEqual(refused)
-    expect(await createEventAction(null, eventForm('selected', ['own-club', 'club-a']))).toEqual(refused)
-    expect(await createEventAction(null, eventForm('all', []))).toEqual(refused)
+    expect(await createEventAction(null, eventForm('selected', ['club-a']))).toMatchObject(refused)
+    expect(await createEventAction(null, eventForm('selected', ['own-club', 'club-a']))).toMatchObject(refused)
+    expect(await createEventAction(null, eventForm('all', []))).toMatchObject(refused)
     expect(saved()).toHaveLength(0)
   })
 
@@ -147,8 +147,8 @@ describe('Champion', () => {
   })
 
   it('can\'t change the clubs of their own event', async () => {
-    expect(await updateEventAction(null, editForm('champ-own', 'all', []))).toEqual({ error: 'You can only schedule events for your own club.' })
-    expect(await updateEventAction(null, editForm('champ-own', 'selected', ['own-club', 'club-a']))).toEqual({ error: 'You can only schedule events for your own club.' })
+    expect(await updateEventAction(null, editForm('champ-own', 'all', []))).toMatchObject({ error: 'You can only schedule events for your own club.' })
+    expect(await updateEventAction(null, editForm('champ-own', 'selected', ['own-club', 'club-a']))).toMatchObject({ error: 'You can only schedule events for your own club.' })
   })
 
   it('can\'t edit or cancel multi-club, all-club, other-club or another Champion\'s events', async () => {
@@ -164,8 +164,8 @@ describe('Champion', () => {
 
 describe('both roles', () => {
   it('keep the other required fields required', async () => {
-    expect(await createEventAction(null, eventForm('all', [], { venue: '' }))).toEqual({ error: 'Venue / location is required.' })
-    expect(await createEventAction(null, eventForm('all', [], { end_time: '09:00' }))).toEqual({ error: 'End time must be after the start time.' })
+    expect(await createEventAction(null, eventForm('all', [], { venue: '' }))).toMatchObject({ error: 'Venue / location is required.' })
+    expect(await createEventAction(null, eventForm('all', [], { end_time: '09:00' }))).toMatchObject({ error: 'End time must be after the start time.' })
   })
 
   it('turn a database refusal into plain words', async () => {
@@ -178,4 +178,29 @@ describe('both roles', () => {
   it('refuse an event that doesn\'t exist or can\'t be seen', async () => {
     expect(await updateEventAction(null, editForm('missing', 'all', []))).toEqual({ error: 'Event not found.' })
   })
+})
+
+// Sheet row 43: "Other" needs a description of the type, checked on the server.
+describe('event type "Other"', () => {
+  it('requires a description, shown next to that field', async () => {
+    asSuperAdmin()
+    expect(await createEventAction(null, eventForm('all', [], { type: 'other' }))).toEqual({
+      error: 'Describe the event type.', fieldErrors: { type_description: 'Describe the event type.' },
+    })
+    expect(saved()).toHaveLength(0)
+  })
+  it('saves the description for "Other" only', async () => {
+    asSuperAdmin()
+    expect(await createEventAction(null, eventForm('all', [], { type: 'other', type_description: '  Parent  evening ' }))).toEqual({ success: true })
+    expect(db.rpcCalls.at(-1)?.args).toMatchObject({ p_type: 'other', p_type_description: 'Parent evening' })
+    expect(await createEventAction(null, eventForm('all', [], { type: 'workshop', type_description: 'ignored' }))).toEqual({ success: true })
+    expect(db.rpcCalls.at(-1)?.args).toMatchObject({ p_type: 'workshop', p_type_description: null })
+  })
+})
+
+// Sheet row 32: server errors map back to their field.
+it('ties required-field errors to their field', async () => {
+  asSuperAdmin()
+  expect((await createEventAction(null, eventForm('all', [], { venue: '' })))?.fieldErrors).toEqual({ venue: 'Venue / location is required.' })
+  expect((await createEventAction(null, eventForm('selected', [])))?.fieldErrors).toEqual({ club_ids: 'Please choose at least one club.' })
 })
