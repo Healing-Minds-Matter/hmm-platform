@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { loginPath } from '@/lib/login-redirect.server'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { AnnouncementCard, type AnnouncementCardData } from '@/app/(dashboard)/super-admin/announcements/announcement-card'
@@ -10,7 +11,7 @@ export const metadata = { title: 'Announcements — HMM Champion' }
 export default async function ChampionAnnouncementsPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect(await loginPath())
 
   // No extra .eq() filters needed — RLS ("announcements: champion read")
   // already scopes this to published, active announcements meant for them

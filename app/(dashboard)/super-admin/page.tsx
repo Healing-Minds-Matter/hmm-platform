@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { loginPath } from '@/lib/login-redirect.server'
 import { createClient } from '@/lib/supabase/server'
 import { getDashboardData } from '@/actions/dashboard'
 import { BarChartWidget } from '@/components/dashboard/bar-chart-widget'
@@ -15,7 +16,7 @@ export const metadata = { title: 'Dashboard — HMM Super Admin' }
 export default async function SuperAdminDashboard() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect(await loginPath())
 
   const { data: profile } = await supabase
     .from('profiles')

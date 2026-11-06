@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { loginPath } from '@/lib/login-redirect.server'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -226,7 +227,7 @@ async function resolveScopedClubId(
   requestedClubId: string | null
 ): Promise<{ clubId: string } | CheckError> {
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect(await loginPath())
 
   const { data: caller } = await supabase
     .from('profiles')
@@ -293,7 +294,7 @@ export async function createGatekeeperAction(
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect(await loginPath())
 
   const scoped = await resolveScopedClubId(supabase, requestedClubId)
   if ('error' in scoped) return checkFailed(scoped)
@@ -355,7 +356,7 @@ export async function createGatekeepersBulkAction(
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect(await loginPath())
 
   const { data: caller } = await supabase
     .from('profiles')
@@ -470,7 +471,7 @@ export async function updateGatekeeperAction(
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect(await loginPath())
 
   const { data: current } = await supabase
     .from('profiles')
@@ -536,7 +537,7 @@ export async function deactivateGatekeeperAction(
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect(await loginPath())
 
   await supabase
     .from('profiles')
@@ -567,7 +568,7 @@ export async function reactivateGatekeeperAction(
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect(await loginPath())
 
   const { data: club } = await supabase
     .from('clubs')
@@ -618,7 +619,7 @@ export async function resendGatekeeperInviteAction(
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect(await loginPath())
 
   const { data: caller } = await supabase.from('profiles').select('role, club_id, full_name').eq('id', user.id).single()
   if (caller?.role !== 'champion' && caller?.role !== 'super_admin') {
