@@ -5,6 +5,9 @@ import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createChampionAction } from '@/actions/champions'
+import { FormErrorsProvider, useFormErrors } from '@/hooks/use-form-errors'
+import { FieldError } from '@/components/field-error'
+import { formLevelError } from '@/lib/form-errors'
 
 interface Club { id: string; name: string }
 
@@ -12,6 +15,8 @@ export function CreateChampionForm({ clubs, onClose }: { clubs: Club[]; onClose?
   const router = useRouter()
   const close = onClose ?? (() => router.push('/super-admin/champions'))
   const [state, formAction, isPending] = useActionState(createChampionAction, null)
+  const fe = useFormErrors(state)
+  const { bindForm, onSubmit: checkThen } = fe
   const submit = useSubmitWithoutReset(formAction)
 
   useEffect(() => {
@@ -39,11 +44,12 @@ export function CreateChampionForm({ clubs, onClose }: { clubs: Club[]; onClose?
         </button>
       </div>
 
-      <form onSubmit={submit} className="flex flex-1 flex-col overflow-hidden">
+      <form ref={bindForm} noValidate onSubmit={checkThen(submit)} className="flex flex-1 flex-col overflow-hidden">
+      <FormErrorsProvider value={fe}>
         <div className="flex flex-1 flex-col gap-4 overflow-y-auto bg-[#F8FAFC] p-6">
-          {state?.error && (
+          {formLevelError(state) && (
             <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">
-              {state.error}
+              {formLevelError(state)}
             </div>
           )}
 
@@ -66,6 +72,7 @@ export function CreateChampionForm({ clubs, onClose }: { clubs: Club[]; onClose?
                 placeholder="e.g. Dr. Marcus Reed, MSW"
                 className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
               />
+              <FieldError name="full_name" />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -91,6 +98,7 @@ export function CreateChampionForm({ clubs, onClose }: { clubs: Club[]; onClose?
                     className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] pl-9 pr-3.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                   />
                 </div>
+                <FieldError name="email" />
               </div>
               <div>
                 <label htmlFor="phone" className="mb-1.5 block text-[13px] font-medium text-[#0F172A]">
@@ -112,6 +120,7 @@ export function CreateChampionForm({ clubs, onClose }: { clubs: Club[]; onClose?
                     className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] pl-9 pr-3.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                   />
                 </div>
+                <FieldError name="phone" />
               </div>
             </div>
 
@@ -150,6 +159,7 @@ export function CreateChampionForm({ clubs, onClose }: { clubs: Club[]; onClose?
                     />
                   </div>
                 )}
+                <FieldError name="club_id" />
               </div>
               <div>
                 <label htmlFor="title" className="mb-1.5 block text-[13px] font-medium text-[#0F172A]">
@@ -162,6 +172,7 @@ export function CreateChampionForm({ clubs, onClose }: { clubs: Club[]; onClose?
                   placeholder="e.g. Clinical Coordinator"
                   className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                 />
+                <FieldError name="title" />
               </div>
             </div>
           </div>
@@ -194,6 +205,7 @@ export function CreateChampionForm({ clubs, onClose }: { clubs: Club[]; onClose?
             {isPending ? 'Sending Invite…' : 'Create & Send Invite'}
           </button>
         </div>
+      </FormErrorsProvider>
       </form>
     </div>
   )

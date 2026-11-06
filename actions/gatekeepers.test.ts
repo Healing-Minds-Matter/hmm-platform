@@ -51,7 +51,7 @@ vi.mock('@/lib/phone-uniqueness.server', () => ({
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 vi.mock('next/navigation', () => ({ redirect: vi.fn(() => { throw new Error('redirect') }) }))
 
-import { createGatekeepersBulkAction } from '@/actions/gatekeepers'
+import { createGatekeeperAction, createGatekeepersBulkAction, reactivateGatekeeperAction, updateGatekeeperAction } from '@/actions/gatekeepers'
 import { createGatekeeperWithTempPassword } from '@/lib/invite-gatekeeper'
 import { loadPhoneOwners } from '@/lib/phone-uniqueness.server'
 import { RETIRED_CERTIFICATION_DATE_MESSAGE } from '@/lib/gatekeeper-csv'
@@ -221,4 +221,50 @@ Dilani Raj,dilani@example.com,0771234565,club-1`
     expect(createGatekeeperWithTempPassword).not.toHaveBeenCalled()
   })
 })
+})
+
+// Sheet row 32: the single Add / Edit / Reactivate forms get each error back
+// tied to the field it is about, so it can be shown next to that input.
+describe('single-Gatekeeper actions: field-level errors', () => {
+  function form(fields: Record<string, string>) {
+    const f = new FormData()
+    for (const [k, v] of Object.entries(fields)) f.set(k, v)
+    return f
+  }
+  const valid = { full_name: 'Maya Lin', email: 'maya@example.com', phone: '0771234561', club_id: 'club-1' }
+
+  it('createGatekeeperAction ties required-field errors to their field', async () => {
+    expect((await createGatekeeperAction(null, form({ ...valid, full_name: '' })))?.fieldErrors)
+      .toEqual({ full_name: 'Full name is required.' })
+    expect((await createGatekeeperAction(null, form({ ...valid, phone: '' })))?.fieldErrors)
+      .toEqual({ phone: 'Phone number is required.' })
+    expect((await createGatekeeperAction(null, form({ ...valid, club_id: '' })))?.fieldErrors)
+      .toEqual({ club_id: 'Assigned club is required.' })
+  })
+
+  it('createGatekeeperAction ties uniqueness and club errors to their field', async () => {
+    expect((await createGatekeeperAction(null, form({ ...valid, email: 'asha@example.com' })))?.fieldErrors)
+      .toEqual({ email: 'An account with this email already exists.' })
+    db.takenPhones = [{ phone: '+94771234561' }]
+    expect((await createGatekeeperAction(null, form(valid)))?.fieldErrors)
+      .toEqual({ phone: 'This phone number is already registered to another user. Each user needs their own phone number.' })
+    db.takenPhones = []
+    expect((await createGatekeeperAction(null, form({ ...valid, club_id: 'club-off' })))?.fieldErrors)
+      .toEqual({ club_id: 'Club "Rotaract Club of Kandy" is currently inactive. Reactivate it first or choose a different club.' })
+    expect(createGatekeeperWithTempPassword).not.toHaveBeenCalled()
+  })
+
+  it('a Champion’s missing club stays a form-level error (they have no club picker)', async () => {
+    db.caller = { role: 'champion', club_id: null }
+    expect(await createGatekeeperAction(null, form(valid))).toEqual({ error: 'Your account has no assigned club.' })
+  })
+
+  it('updateGatekeeperAction and reactivateGatekeeperAction tie errors to their field', async () => {
+    expect((await updateGatekeeperAction(null, form({ ...valid, gatekeeper_id: 'g1', version: '1', email: '' })))?.fieldErrors)
+      .toEqual({ email: 'Email is required.' })
+    const badPhone = await updateGatekeeperAction(null, form({ ...valid, gatekeeper_id: 'g1', version: '1', phone: '12' }))
+    expect(Object.keys(badPhone?.fieldErrors ?? {})).toEqual(['phone'])
+    expect((await reactivateGatekeeperAction(null, form({ gatekeeper_id: 'g1', club_id: '' })))?.fieldErrors)
+      .toEqual({ club_id: 'Club assignment is required.' })
+  })
 })

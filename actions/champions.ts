@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { writeAuditLog } from '@/lib/audit'
+import { invalid, type FieldErrors } from '@/lib/form-errors'
 import { endDelegationsForDeactivatedUser } from '@/actions/permissions'
 import { createInvitedUser } from '@/lib/create-invited-user'
 import { parsePhone } from '@/lib/phone'
@@ -12,10 +13,14 @@ import { checkPhoneAvailable, describePhoneDbError, phoneChanged } from '@/lib/p
 
 export type ChampionActionState = {
   error?: string
+  /** Errors tied to a form field, shown next to it (sheet row 32). */
+  fieldErrors?: FieldErrors
   conflict?: boolean
   success?: boolean
   soleChampion?: boolean
 } | null
+
+const EMAIL_TAKEN = 'An account with this email already exists.'
 
 export async function createChampionAction(
   _prev: ChampionActionState,
@@ -27,11 +32,11 @@ export async function createChampionAction(
   const title    = (formData.get('title')     as string | null)?.trim() || null
   const clubId   = formData.get('club_id')    as string | null
 
-  if (!fullName) return { error: 'Full name is required.' }
-  if (!email)    return { error: 'Email is required.' }
-  if (!parsedPhone.ok) return { error: parsedPhone.error }
+  if (!fullName) return invalid('full_name', 'Full name is required.')
+  if (!email)    return invalid('email', 'Email is required.')
+  if (!parsedPhone.ok) return invalid('phone', parsedPhone.error)
   const phone = parsedPhone.value // optional for Champions
-  if (!clubId)   return { error: 'Club assignment is required.' }
+  if (!clubId)   return invalid('club_id', 'Club assignment is required.')
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -44,13 +49,13 @@ export async function createChampionAction(
     .eq('email', email)
     .maybeSingle()
 
-  if (existing) return { error: 'An account with this email already exists.' }
+  if (existing) return invalid('email', EMAIL_TAKEN)
 
   // Every user needs their own number — checked before createInvitedUser()
   // below sends a real account email.
   if (phone) {
     const phoneError = await checkPhoneAvailable(phone)
-    if (phoneError) return { error: phoneError }
+    if (phoneError) return invalid('phone', phoneError)
   }
 
   const admin = createAdminClient()
@@ -59,7 +64,9 @@ export async function createChampionAction(
   // emails it directly (Supabase's own invite email can't embed a
   // password) — see lib/create-invited-user.ts.
   const invited = await createInvitedUser({ email, fullName, roleLabel: 'Champion' })
-  if ('error' in invited) return { error: invited.error }
+  if ('error' in invited) {
+    return invited.error === EMAIL_TAKEN ? invalid('email', invited.error) : { error: invited.error }
+  }
 
   const newUserId = invited.userId
 
@@ -78,7 +85,8 @@ export async function createChampionAction(
   if (profileError) {
     // Roll back auth user if profile insert fails
     await admin.auth.admin.deleteUser(newUserId)
-    return { error: describePhoneDbError(profileError) ?? profileError.message }
+    const phoneDbError = describePhoneDbError(profileError)
+    return phoneDbError ? invalid('phone', phoneDbError) : { error: profileError.message }
   }
 
   await writeAuditLog({
@@ -105,11 +113,11 @@ export async function updateChampionAction(
   const title        = (formData.get('title')      as string | null)?.trim() || null
   const clubId       = formData.get('club_id')     as string | null
 
-  if (!fullName) return { error: 'Full name is required.' }
-  if (!email)    return { error: 'Email is required.' }
-  if (!parsedPhone.ok) return { error: parsedPhone.error }
+  if (!fullName) return invalid('full_name', 'Full name is required.')
+  if (!email)    return invalid('email', 'Email is required.')
+  if (!parsedPhone.ok) return invalid('phone', parsedPhone.error)
   const phone = parsedPhone.value
-  if (!clubId)   return { error: 'Club assignment is required.' }
+  if (!clubId)   return invalid('club_id', 'Club assignment is required.')
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -127,7 +135,7 @@ export async function updateChampionAction(
 
   if (phone && phoneChanged(current.phone, phone)) {
     const phoneError = await checkPhoneAvailable(phone, { excludeUserId: championId })
-    if (phoneError) return { error: phoneError }
+    if (phoneError) return invalid('phone', phoneError)
   }
 
   const { data: updated, error: updateError } = await supabase
@@ -140,8 +148,8 @@ export async function updateChampionAction(
   if (updateError) {
     // Phone first — a phone clash is also a 23505, and isn't an email problem.
     const phoneDbError = describePhoneDbError(updateError)
-    if (phoneDbError) return { error: phoneDbError }
-    if (updateError.code === '23505') return { error: 'That email is already used by another account.' }
+    if (phoneDbError) return invalid('phone', phoneDbError)
+    if (updateError.code === '23505') return invalid('email', 'That email is already used by another account.')
     return { error: updateError.message }
   }
   if (!updated || updated.length === 0) return { conflict: true }
@@ -229,7 +237,7 @@ export async function reactivateChampionAction(
   const championId     = formData.get('champion_id') as string
   const confirmedClubId = formData.get('club_id')    as string | null
 
-  if (!confirmedClubId) return { error: 'Club assignment is required.' }
+  if (!confirmedClubId) return invalid('club_id', 'Club assignment is required.')
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -242,9 +250,9 @@ export async function reactivateChampionAction(
     .eq('id', confirmedClubId)
     .single()
 
-  if (!club) return { error: 'Club not found.' }
+  if (!club) return invalid('club_id', 'Club not found.')
   if (!club.is_active) {
-    return { error: `Club "${club.name}" is currently inactive. Reactivate the club first or assign an active club.` }
+    return invalid('club_id', `Club "${club.name}" is currently inactive. Reactivate the club first or assign an active club.`)
   }
 
   await supabase

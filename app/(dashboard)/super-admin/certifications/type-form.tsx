@@ -6,6 +6,9 @@ import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { createTypeAction, updateTypeAction } from '@/actions/certification-types'
 import { TYPE_TEXT, formatCertDate, issuedBanner, type CertificationTypeRow, type IssuedFacts } from '@/lib/certification-types'
 import { CANCEL_BTN, FormCard, HINT, INPUT, LABEL, OPTION, PRIMARY_BTN, SECTION, SECTION_TITLE } from '@/components/certifications/cert-ui'
+import { FormErrorsProvider, useFormErrors } from '@/hooks/use-form-errors'
+import { FieldError } from '@/components/field-error'
+import { formLevelError } from '@/lib/form-errors'
 
 const LOCKED_INPUT = `${INPUT} cursor-not-allowed bg-[#F1F5F9] pr-9 text-[#475569]`
 
@@ -30,6 +33,8 @@ export function TypeForm({ type, issued, today, inModal = false }: {
   const editing = !!type
   const close = inModal ? () => router.back() : (() => router.push(editing ? `/super-admin/certifications/${type.id}` : '/super-admin/certifications'))
   const [state, formAction, isPending] = useActionState(editing ? updateTypeAction : createTypeAction, null)
+  const fe = useFormErrors(state)
+  const { bindForm, onSubmit: checkThen } = fe
   // Submitted without React's automatic reset, so a refused save keeps every choice (radios included).
   const onSubmit = useSubmitWithoutReset(formAction)
   const v = state?.values
@@ -58,7 +63,8 @@ export function TypeForm({ type, issued, today, inModal = false }: {
       subtitle={editing ? 'Changes apply to certificates issued from now on.' : 'Define a certification HMM recognises. Its digital certificate design can be added afterwards.'}
       onClose={close}
     >
-      <form onSubmit={onSubmit} className="flex flex-1 flex-col overflow-hidden">
+      <form ref={bindForm} noValidate onSubmit={checkThen(onSubmit)} className="flex flex-1 flex-col overflow-hidden">
+      <FormErrorsProvider value={fe}>
         {editing && <input type="hidden" name="id" value={type.id} />}
         <div className="flex flex-col gap-4 overflow-y-auto bg-[#F8FAFC] p-6">
           {locked && (
@@ -67,7 +73,7 @@ export function TypeForm({ type, issued, today, inModal = false }: {
               <p>{issuedBanner(issued?.people ?? 0)}</p>
             </div>
           )}
-          {state?.error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">{state.error}</div>}
+          {formLevelError(state) && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">{formLevelError(state)}</div>}
 
           <div className={SECTION}>
             <h2 className={SECTION_TITLE}>Certification</h2>
@@ -75,6 +81,7 @@ export function TypeForm({ type, issued, today, inModal = false }: {
               <div>
                 <label htmlFor="name" className={LABEL}>Name <span className="text-[#DC2626]">*</span></label>
                 <input id="name" name="name" required maxLength={120} defaultValue={v?.name ?? type?.name} placeholder="e.g. Psychological First Aid" className={INPUT} autoFocus />
+                <FieldError name="name" />
               </div>
               <div>
                 <label htmlFor="code" className={LABEL}>Code <span className="text-[#DC2626]">*</span></label>
@@ -83,6 +90,7 @@ export function TypeForm({ type, issued, today, inModal = false }: {
                     placeholder="e.g. PFA" aria-describedby="code-hint" className={`${locked ? LOCKED_INPUT : INPUT} font-mono uppercase`} />
                   {locked && <LockIcon />}
                 </div>
+                <FieldError name="code" />
                 <p id="code-hint" className={HINT}>{locked ? `${TYPE_TEXT.lockedHint} The code is part of every certificate number.` : 'Letters, numbers and hyphens. Used in certificate numbers (HMM-CODE-YEAR-number). Fixed once certificates are issued.'}</p>
               </div>
             </div>
@@ -110,11 +118,13 @@ export function TypeForm({ type, issued, today, inModal = false }: {
                 <span>Fixed length<span className="block text-[12px] font-normal text-[#475569]">Expiry is counted from the date achieved.</span></span>
               </label>
             </div>
+            <FieldError name="validity_kind" />
             {kind === 'fixed' && (
               <div className="flex items-end gap-3">
                 <div className="w-28">
                   <label htmlFor="validity_value" className={LABEL}>Length</label>
                   <input id="validity_value" name="validity_value" type="number" min={1} max={120} required defaultValue={v?.validity_value ?? type?.validity_value ?? 2} className={INPUT} />
+                  <FieldError name="validity_value" />
                 </div>
                 <div className="w-40">
                   <label htmlFor="validity_unit" className={LABEL}>Unit</label>
@@ -122,6 +132,7 @@ export function TypeForm({ type, issued, today, inModal = false }: {
                     <option value="months">months</option>
                     <option value="years">years</option>
                   </select>
+                  <FieldError name="validity_unit" />
                 </div>
               </div>
             )}
@@ -142,11 +153,13 @@ export function TypeForm({ type, issued, today, inModal = false }: {
                   )}
                   {locked && <LockIcon />}
                 </div>
+                <FieldError name="offered_from" />
                 <p id="from-hint" className={HINT}>{locked ? TYPE_TEXT.lockedHint : TYPE_TEXT.offeredFromHint}</p>
               </div>
               <div>
                 <label htmlFor="offered_until" className={LABEL}>{TYPE_TEXT.offeredUntilLabel}</label>
                 <input id="offered_until" name="offered_until" type="date" min={untilMin || undefined} defaultValue={v?.offered_until ?? type?.offered_until ?? ''} aria-describedby="until-hint" className={INPUT} />
+                <FieldError name="offered_until" />
                 <p id="until-hint" className={HINT}>
                   {TYPE_TEXT.offeredUntilHint}{latest ? ` It can’t be earlier than ${formatCertDate(latest)}, the latest date achieved on an issued certificate.` : ''} It stops new certificates only; existing ones stay as they are. To stop existing certificates, retire the type instead.
                 </p>
@@ -161,6 +174,7 @@ export function TypeForm({ type, issued, today, inModal = false }: {
             {isPending ? 'Saving…' : editing ? 'Save changes' : 'Create type'}
           </button>
         </div>
+      </FormErrorsProvider>
       </form>
     </FormCard>
   )
