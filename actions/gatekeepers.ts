@@ -471,7 +471,7 @@ export async function updateGatekeeperAction(
   }
 
   // Certifications are no longer edited here: they're managed in the profile's
-  // Certifications section (Epic 10), which keeps the old QPR dates in step.
+  // Certifications section (Epic 10), which keeps the older certification dates in step.
   const { data: updated, error: updateError } = await supabase
     .from('profiles')
     .update({

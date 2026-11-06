@@ -13,7 +13,7 @@ export default async function CertificationsPage() {
     <div className="flex flex-col gap-4 p-8 font-[family-name:var(--font-inter)]">
       <PageHeader
         title="Certifications"
-        description="Every certification HMM recognises. Nothing is built in: QPR is an ordinary type, created from the existing certification dates."
+        description="Every certification HMM recognises. Nothing is built in: every type is set up here and treated the same way."
         action={
           <PrimaryLink href="/super-admin/certifications/new">
             {/* eslint-disable-next-line @next/next/no-img-element */}

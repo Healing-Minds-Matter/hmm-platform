@@ -153,7 +153,7 @@ export default async function ChampionDashboard() {
         <MonthlyTrendWidget data={data.monthlyTrend} />
       </div>
 
-      {/* Certification figures per type (Story 10.12 Sc03); there is no separate QPR status. */}
+      {/* Certification figures per type (Story 10.12 Sc03); no type is shown separately. */}
       {data.clubId && <CertificationFiguresCard scope={{ kind: 'club', clubId: data.clubId }} />}
 
       <OnboardingStatusWidget data={data.notYetLoggedIn} />

@@ -108,8 +108,8 @@ export default async function ChampionEventsPage({
       totalCount={(allForCounts ?? []).length}
       selectedEvent={selectedEvent}
       generatedAt={now.toISOString()}
-      upcomingQpr={[]}
-      upcomingQprTotal={0}
+      upcomingProgrammes={[]}
+      upcomingProgrammesTotal={0}
       basePath="/champion/events"
     />
   )

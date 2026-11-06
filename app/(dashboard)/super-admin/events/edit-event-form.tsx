@@ -4,11 +4,11 @@ import { useActionState, useEffect, useState } from 'react'
 import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { useRouter } from 'next/navigation'
 import { updateEventAction } from '@/actions/events'
-import { EVENT_TYPE_STYLES } from './event-type'
+import { CERTIFICATION_PROGRAMME_EVENT, EVENT_TYPE_STYLES } from './event-type'
 import { EventClubsField, type ClubOption } from './event-clubs-field'
 
 const TYPE_OPTIONS = [
-  { value: 'qpr_session', label: 'QPR Session', caption: 'Certification & credits', dot: EVENT_TYPE_STYLES.qpr_session.dot },
+  { value: CERTIFICATION_PROGRAMME_EVENT, label: 'Certification Programme', caption: 'Certification training', dot: EVENT_TYPE_STYLES[CERTIFICATION_PROGRAMME_EVENT].dot },
   { value: 'awareness_program', label: 'Awareness', caption: 'Campus campaigns', dot: EVENT_TYPE_STYLES.awareness_program.dot },
   { value: 'workshop', label: 'Workshop', caption: 'Clinical & coping labs', dot: EVENT_TYPE_STYLES.workshop.dot },
   { value: 'other', label: 'Other', caption: 'Anything else', dot: EVENT_TYPE_STYLES.other.dot },

@@ -5,9 +5,9 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { monthGridRange, weekRange, gridDays, dayKey, MONTH_NAMES, WEEKDAY_LABELS } from './date-grid'
 import { formatOrgDate, formatOrgTime, toOrgWallClock } from '@/lib/org-date'
-import { eventTypeStyle, EVENT_TYPE_STYLES } from './event-type'
+import { eventTypeStyle, EVENT_TYPE_STYLES, EVENT_TYPE_OPTIONS } from './event-type'
 import { EventDetailPanel } from './event-detail-panel'
-import { UpcomingQprSection } from './upcoming-qpr-section'
+import { UpcomingProgrammesSection } from './upcoming-programmes-section'
 
 interface EventItem {
   id: string
@@ -45,18 +45,13 @@ interface Props {
   // shows Edit / Cancel in the detail view.
   selectedEvent: (EventItem & { can_manage?: boolean }) | null
   generatedAt: string
-  upcomingQpr: EventItem[]
-  upcomingQprTotal: number
+  upcomingProgrammes: EventItem[]
+  upcomingProgrammesTotal: number
   basePath?: string
   newEventHref?: string
 }
 
-const EVENT_TYPES = [
-  { value: 'qpr_session', label: EVENT_TYPE_STYLES.qpr_session.label },
-  { value: 'awareness_program', label: EVENT_TYPE_STYLES.awareness_program.label },
-  { value: 'workshop', label: EVENT_TYPE_STYLES.workshop.label },
-  { value: 'other', label: EVENT_TYPE_STYLES.other.label },
-]
+const EVENT_TYPES = EVENT_TYPE_OPTIONS
 
 function shiftMonth(year: number, month: number, delta: number) {
   const d = new Date(Date.UTC(year, month - 1 + delta, 1))
@@ -67,7 +62,7 @@ function ymd(d: Date) {
   return { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() }
 }
 
-export function EventsCalendar({ view, year, month, day, club, type, q, events, clubs, typeCounts, totalCount, selectedEvent, generatedAt, upcomingQpr, upcomingQprTotal, basePath = '/super-admin/events', newEventHref }: Props) {
+export function EventsCalendar({ view, year, month, day, club, type, q, events, clubs, typeCounts, totalCount, selectedEvent, generatedAt, upcomingProgrammes, upcomingProgrammesTotal, basePath = '/super-admin/events', newEventHref }: Props) {
   const router = useRouter()
 
   function hrefWith(overrides: Partial<{ view: string; year: string; month: string; day: string; club: string; type: string; q: string; event: string }>) {
@@ -143,7 +138,7 @@ export function EventsCalendar({ view, year, month, day, club, type, q, events, 
             </span>
           </div>
           <p className="max-w-[768px] text-[14px] leading-5 text-[#475569]">
-            Comprehensive schedule of QPR certification sessions, awareness programs, and clinical workshops across all
+            Comprehensive schedule of certification programmes, awareness programs, and clinical workshops across all
             active clubs.
           </p>
         </div>
@@ -259,7 +254,7 @@ export function EventsCalendar({ view, year, month, day, club, type, q, events, 
         {view === 'agenda' && <AgendaView events={events} hrefWith={hrefWith} />}
       </div>
 
-      <UpcomingQprSection events={upcomingQpr} total={upcomingQprTotal} />
+      <UpcomingProgrammesSection events={upcomingProgrammes} total={upcomingProgrammesTotal} />
 
       {selectedEvent && (
         <EventDetailPanel

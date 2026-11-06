@@ -10,12 +10,17 @@ export type ModuleItem = {
   grantedOverrideCount: number
 }
 
-const CATEGORY_META: Record<string, { icon: string; blurb: string }> = {
+// The stored category text for event permissions. It still names QPR because the
+// live site matches on it; this screen shows CATEGORY_META's title instead.
+export const EVENTS_CATEGORY = 'Events & QPR Training Sessions'
+
+const CATEGORY_META: Record<string, { icon: string; blurb: string; title?: string }> = {
   'Community & Gatekeeper Management': {
     icon: '/icons/permissions/module-community.svg',
     blurb: 'Controls who can onboard and organize youth gatekeeper members.',
   },
-  'Events & QPR Training Sessions': {
+  [EVENTS_CATEGORY]: {
+    title: 'Events & Certification Programmes',
     icon: '/icons/permissions/module-events.svg',
     blurb: 'Scheduling resilience workshops and recording participant attendance.',
   },
@@ -81,7 +86,7 @@ export function ModuleCard({
             <img src={meta.icon} alt="" className="max-h-[16px] max-w-[18px]" />
           </div>
           <div>
-            <h3 className="text-[14px] font-bold text-[#0F172A]">{category}</h3>
+            <h3 className="text-[14px] font-bold text-[#0F172A]">{meta.title ?? category}</h3>
             <p className="text-[12px] text-[#64748B]">{meta.blurb}</p>
           </div>
         </div>

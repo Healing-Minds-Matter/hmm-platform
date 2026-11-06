@@ -174,7 +174,7 @@ describe('describeAudit', () => {
     expect(describeAudit('certification.type_created', { code: 'PFA', validity: '2 years', offered_from: '2025-01-01' })).toBe('Code PFA, 2 years, offered from 1 Jan 2025')
     expect(describeAudit('certification.type_created', { code: 'PFA', validity: '2 years', offered_from: '2025-01-01', offered_until: '2026-12-31' })).toBe('Code PFA, 2 years, offered from 1 Jan 2025, until 31 Dec 2026')
     expect(describeAudit('certification.certificate_removed', { type: 'QPR', reason: 'Duplicate record: entered twice' })).toBe('QPR. Reason: Duplicate record: entered twice')
-    expect(describeAudit('certification.migrated', { certificates: 74 })).toBe('74 certificates created from the existing QPR certification dates')
+    expect(describeAudit('certification.migrated', { certificates: 74 })).toBe('74 certificates created from earlier certification records')
   })
   it('lists each changed field before and after on an edit', () => {
     expect(describeAudit('certification.type_edited', {

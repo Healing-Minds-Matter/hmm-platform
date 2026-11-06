@@ -88,7 +88,7 @@ export function TypeForm({ type, issued, today, inModal = false }: {
             </div>
             <div>
               <label htmlFor="issuing_body" className={LABEL}>Issuing body</label>
-              <input id="issuing_body" name="issuing_body" defaultValue={v?.issuing_body ?? type?.issuing_body ?? ''} placeholder="e.g. QPR Institute" className={INPUT} />
+              <input id="issuing_body" name="issuing_body" defaultValue={v?.issuing_body ?? type?.issuing_body ?? ''} placeholder="e.g. the training institute's name" className={INPUT} />
             </div>
             <div>
               <label htmlFor="description" className={LABEL}>Description</label>

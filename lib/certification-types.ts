@@ -222,7 +222,7 @@ export function describeTypeError(error: { code?: string; message?: string } | n
 
 // ── Audit history (Story 10.16) ──────────────────────────────────────────────
 export const AUDIT_ACTION_LABEL: Record<string, string> = {
-  'certification.migrated': 'Moved from old QPR dates',
+  'certification.migrated': 'Moved from earlier certification records',
   'certification.type_created': 'Type created',
   'certification.type_edited': 'Type edited',
   'certification.type_retired': 'Type retired',
@@ -280,7 +280,7 @@ export function describeAudit(action: string, details: Record<string, unknown> |
   const x = details ?? {}
   switch (action) {
     case 'certification.migrated':
-      return `${x.certificates ?? 0} certificates created from the existing QPR certification dates`
+      return `${x.certificates ?? 0} certificates created from earlier certification records`
     case 'certification.type_created':
       return [`Code ${x.code}`, validityText(x.validity), x.offered_from ? `offered from ${d(x.offered_from)}` : '', x.offered_until ? `until ${d(x.offered_until)}` : ''].filter(Boolean).join(', ')
     case 'certification.type_edited': {
