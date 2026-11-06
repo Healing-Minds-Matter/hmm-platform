@@ -15,6 +15,7 @@ export function CreateClubForm({ onClose }: { onClose?: () => void }) {
   const [mode, setMode] = useState<'single' | 'bulk'>('single')
   const [state, formAction, isPending] = useActionState(createClubAction, null)
   const fe = useFormErrors(state)
+  const { bindForm, onSubmit: checkThen } = fe
   // Values sent back with an error (see createClubAction), so a failed save
   // keeps what was typed instead of clearing the whole form.
   const v = state?.values
@@ -64,7 +65,7 @@ export function CreateClubForm({ onClose }: { onClose?: () => void }) {
       {mode === 'bulk' ? (
         <BulkClubUpload onClose={close} />
       ) : (
-      <form ref={fe.formRef} noValidate onSubmit={fe.onSubmit()} action={formAction} className="flex flex-1 flex-col overflow-hidden">
+      <form ref={bindForm} noValidate onSubmit={checkThen()} action={formAction} className="flex flex-1 flex-col overflow-hidden">
       <FormErrorsProvider value={fe}>
         <div className="flex flex-col gap-4 overflow-y-auto bg-[#F8FAFC] p-6">
           {formLevelError(state) && (
