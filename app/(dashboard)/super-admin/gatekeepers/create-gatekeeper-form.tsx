@@ -334,7 +334,7 @@ export function CreateGatekeeperForm({
               <input type="checkbox" name="send_welcome_email" defaultChecked className="mt-0.5 h-4 w-4 flex-shrink-0 rounded border-[#D4D7E3]" />
               <span className="text-[12px] leading-[16.5px] text-[#475569]">
                 Send a welcome email now, with real login credentials. Uncheck this to share the temporary password
-                with the Gatekeeper yourself instead — it'll be shown once on screen after you register them.
+                with the Gatekeeper yourself instead — it’ll be shown once on screen after you register them.
               </span>
             </label>
           </div>

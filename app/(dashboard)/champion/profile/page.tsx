@@ -15,6 +15,11 @@ function getInitials(name: string): string {
   return name.trim().split(/\s+/).map(n => n[0]).join('').slice(0, 2).toUpperCase()
 }
 
+// Whole days since a timestamp (computed per request, outside render logic).
+function daysSince(iso: string): number {
+  return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / (1000 * 60 * 60 * 24)))
+}
+
 export default async function ChampionProfilePage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -50,9 +55,7 @@ export default async function ChampionProfilePage() {
   const club = profile.clubs as any
 
   const lastPasswordChange = pwHistory?.[0]?.created_at ?? null
-  const daysSincePasswordChange = lastPasswordChange
-    ? Math.max(0, Math.floor((Date.now() - new Date(lastPasswordChange).getTime()) / (1000 * 60 * 60 * 24)))
-    : null
+  const daysSincePasswordChange = lastPasswordChange ? daysSince(lastPasswordChange) : null
 
   const memberSince = new Date(profile.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
   const initials = getInitials(profile.full_name)

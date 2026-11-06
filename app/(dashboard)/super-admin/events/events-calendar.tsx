@@ -515,16 +515,14 @@ function AgendaView({
     )
   }
 
-  let lastDateLabel = ''
-
   return (
     <div className="overflow-hidden rounded-lg bg-white ring-1 ring-[#F1F5F9]">
       <ul className="divide-y divide-[#F1F5F9]">
-        {events.map(ev => {
+        {events.map((ev, i) => {
           const startsAt = ev.starts_at
           const dateLabel = formatOrgDate(startsAt, { dateStyle: 'full' })
-          const showHeading = dateLabel !== lastDateLabel
-          lastDateLabel = dateLabel
+          // A date heading before the first event of each day.
+          const showHeading = i === 0 || formatOrgDate(events[i - 1].starts_at, { dateStyle: 'full' }) !== dateLabel
           const style = eventTypeStyle(ev.type)
           return (
             <li key={ev.id}>

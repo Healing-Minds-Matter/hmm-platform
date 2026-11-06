@@ -151,7 +151,7 @@ export default async function ClubsPage({
   // Windowed page numbers (max 5) — never render fake pages beyond totalPages.
   const windowSize = 5
   let startPage = Math.max(1, page - Math.floor(windowSize / 2))
-  let endPage = Math.min(totalPages, startPage + windowSize - 1)
+  const endPage = Math.min(totalPages, startPage + windowSize - 1)
   startPage = Math.max(1, endPage - windowSize + 1)
   const pageNumbers = Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i)
 
