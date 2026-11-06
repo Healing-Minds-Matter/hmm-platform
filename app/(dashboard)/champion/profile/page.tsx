@@ -1,4 +1,6 @@
 import Link from 'next/link'
+import { groupAccessList, type AccessRow } from '@/lib/access-list'
+import { RoleAccessList } from '@/components/role-access-list'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { CertificatesSection } from '@/components/certifications/certificates-section'
@@ -40,18 +42,11 @@ export default async function ChampionProfilePage() {
   const myCertStatus = personCertStatus(true, myCerts)
   if (profile.role !== 'champion') redirect('/super-admin')
 
-  // Real, not fabricated: pulls each currently-enabled permission for this
-  // user (role default / group / individual override, whichever wins) via
-  // the same resolution engine and catalog built for Epic 9 — not a
-  // hardcoded capability list like the Super Admin profile's Card 4, which
-  // describes a fixed system-wide role rather than a per-user resolved set.
-  const { data: effectivePermissions } = await supabase.rpc('list_effective_permissions', { p_user_id: user.id })
-  const { data: catalog } = await supabase.from('permission_catalog').select('key, label')
-  const labelByKey = Object.fromEntries((catalog ?? []).map(c => [c.key, c.label]))
-  const enabledPermissions = (effectivePermissions ?? [])
-    .filter((p: { is_enabled: boolean }) => p.is_enabled)
-    .map((p: { permission: string }) => labelByKey[p.permission] ?? p.permission)
-    .sort()
+  // Sheet row 62: generated from the user's effective permissions (role
+  // default, exception, group and delegation — my_access_list()), with the
+  // Permissions screens' labels. Never a hard-coded list.
+  const { data: accessRows } = await supabase.rpc('my_access_list')
+  const accessGroups = groupAccessList((accessRows ?? []) as AccessRow[])
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const club = profile.clubs as any
@@ -213,21 +208,7 @@ export default async function ChampionProfilePage() {
               </span>
             </div>
 
-            {enabledPermissions.length === 0 ? (
-              <p className="text-[13px] text-[#64748B]">No permissions currently enabled for your account.</p>
-            ) : (
-              <div className="flex flex-col gap-2 pt-1">
-                {enabledPermissions.map((label: string) => (
-                  <div key={label} className="flex items-center gap-2.5">
-                    <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-[rgba(22,163,74,0.15)]">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src="/icons/c4-checkmark.svg" alt="" className="h-[7px] w-[9.5px]" />
-                    </span>
-                    <span className="text-[13px] text-[#0F172A]">{label}</span>
-                  </div>
-                ))}
-              </div>
-            )}
+            <RoleAccessList groups={accessGroups} />
           </div>
         </div>
       </div>

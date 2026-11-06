@@ -11,5 +11,11 @@ export default async function InterceptedNewExceptionPage() {
     .eq('is_active', true)
     .order('full_name')
 
-  return <NewExceptionModal users={users ?? []} />
+  const { data: permissions } = await supabase
+    .from('permission_catalog')
+    .select('key, label, category, restricted_to')
+    .order('category')
+    .order('display_order')
+
+  return <NewExceptionModal users={users ?? []} permissions={permissions ?? []} />
 }
