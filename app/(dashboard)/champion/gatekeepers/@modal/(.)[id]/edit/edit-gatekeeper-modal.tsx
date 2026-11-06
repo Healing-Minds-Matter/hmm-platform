@@ -11,7 +11,6 @@ interface Gatekeeper {
   phone: string | null
   preferred_language: string
   club_id: string
-  qpr_certification_date: string | null
   version: number
 }
 

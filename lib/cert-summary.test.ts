@@ -1,17 +1,24 @@
 import { describe, expect, it } from 'vitest'
-import { byHolder, certChipText, certificationFigures, matchesCertFilter, qprFigures, qprStatusOf, type CurrentCert } from '@/lib/cert-summary'
+import { byHolder, certChipText, certificationFigures, certifiedFigures, matchesCertFilter, personCertStatus, type CurrentCert } from '@/lib/cert-summary'
 
 const c = (holder: string, type: string, status: CurrentCert['status'], expires: string | null = '2027-01-01'): CurrentCert =>
   ({ id: `${holder}-${type}`, holder_id: holder, type_id: type, status, achieved_on: '2024-01-01', expires_on: expires })
 
-describe('qprStatusOf', () => {
-  it('maps certificate statuses to the existing QPR badges', () => {
-    expect(qprStatusOf(false, c('a', 'q', 'valid'))).toBe('inactive')
-    expect(qprStatusOf(true, undefined)).toBe('not_certified')
-    expect(qprStatusOf(true, c('a', 'q', 'valid'))).toBe('active')
-    expect(qprStatusOf(true, c('a', 'q', 'expiring_soon'))).toBe('expiring_soon')
-    expect(qprStatusOf(true, c('a', 'q', 'expired'))).toBe('expired')
-    expect(qprStatusOf(true, c('a', 'q', 'stopped'))).toBe('expired')
+describe('personCertStatus', () => {
+  it('gives one status across every type, with no type special-cased', () => {
+    expect(personCertStatus(false, [c('a', 't1', 'valid')])).toBe('inactive')
+    expect(personCertStatus(true, undefined)).toBe('none')
+    expect(personCertStatus(true, [])).toBe('none')
+    expect(personCertStatus(true, [c('a', 't1', 'valid')])).toBe('certified')
+    expect(personCertStatus(true, [c('a', 't1', 'expiring_soon')])).toBe('expiring_soon')
+    expect(personCertStatus(true, [c('a', 't1', 'expired')])).toBe('expired')
+    expect(personCertStatus(true, [c('a', 't1', 'stopped')])).toBe('expired')
+  })
+
+  it('uses the best certificate the person holds, whatever its type', () => {
+    expect(personCertStatus(true, [c('a', 't1', 'expired'), c('a', 't2', 'valid')])).toBe('certified')
+    expect(personCertStatus(true, [c('a', 't1', 'expired'), c('a', 't2', 'expiring_soon')])).toBe('expiring_soon')
+    expect(personCertStatus(true, [c('a', 't1', 'expiring_soon'), c('a', 't2', 'valid')])).toBe('certified')
   })
 })
 
@@ -39,8 +46,10 @@ describe('figures', () => {
       ],
       withoutCertifications: 1,
     })
-    const qpr = new Map([...byHolder(rows.filter(r => r.type_id === 'qpr'))].map(([k, v]) => [k, v[0]]))
-    expect(qprFigures(qpr, ['a', 'b', 'c'])).toEqual({ certified: 2, expiringSoon: 1, total: 3 })
+    // a: valid; b: expiring soon (its other one is stopped); c: none; x: out of scope.
+    expect(certifiedFigures(byHolder(rows), ['a', 'b', 'c'])).toEqual({ certified: 2, expiringSoon: 1, total: 3 })
+    // Any type counts: a person certified only in a non-first type is still certified.
+    expect(certifiedFigures(byHolder([c('d', 'pfa', 'valid')]), ['d'])).toEqual({ certified: 1, expiringSoon: 0, total: 1 })
   })
 })
 

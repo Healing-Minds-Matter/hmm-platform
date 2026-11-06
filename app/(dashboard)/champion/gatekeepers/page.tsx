@@ -8,7 +8,7 @@ import { ChampionGatekeeperFilters } from './champion-gatekeeper-filters'
 import { CertChips } from '@/components/certifications/cert-chips'
 import { CertListFilters } from '@/components/certifications/cert-list-filters'
 import { loadCertSummary } from '@/lib/cert-summary.server'
-import { matchesCertFilter, qprStatusOf } from '@/lib/cert-summary'
+import { matchesCertFilter, personCertStatus } from '@/lib/cert-summary'
 import { certCan } from '@/lib/certifications.server'
 
 export const metadata = { title: 'Gatekeepers — HMM Champion' }
@@ -65,8 +65,8 @@ export default async function ChampionGatekeepersPage({
     .map(g => ({
       ...g,
       isSelf: g.id === user.id,
-      // The QPR badge, from the current QPR certificate (Story 10.12 Sc04).
-      status: qprStatusOf(g.is_active, summary.qprByHolder.get(g.id)),
+      // One certification status across all of the person's current certificates.
+      status: personCertStatus(g.is_active, summary.byHolder.get(g.id)),
     }))
     // The Champion's own row first.
     .sort((a, b) => Number(b.isSelf) - Number(a.isSelf))
@@ -90,7 +90,7 @@ export default async function ChampionGatekeepersPage({
         <div>
           <h1 className="text-[24px] font-bold tracking-[-0.7px] text-[#0F172A]">Gatekeeper Management</h1>
           <p className="mt-1 text-sm text-[#475569]">
-            Add, edit, and track QPR-certified Gatekeepers in your club.
+            Add, edit, and track your club&apos;s Gatekeepers and their certifications.
           </p>
         </div>
         <div className="flex flex-shrink-0 items-center gap-2">

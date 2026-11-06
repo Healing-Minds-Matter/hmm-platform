@@ -4,11 +4,11 @@ import { useActionState, useEffect, useState } from 'react'
 import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { useRouter } from 'next/navigation'
 import { createEventAction } from '@/actions/events'
-import { EVENT_TYPE_STYLES } from './event-type'
+import { CERTIFICATION_PROGRAMME_EVENT, EVENT_TYPE_STYLES } from './event-type'
 import { EventClubsField } from './event-clubs-field'
 
 const TYPE_OPTIONS = [
-  { value: 'qpr_session', label: 'QPR Session', caption: 'Certification & credits', dot: EVENT_TYPE_STYLES.qpr_session.dot },
+  { value: CERTIFICATION_PROGRAMME_EVENT, label: 'Certification Programme', caption: 'Certification training', dot: EVENT_TYPE_STYLES[CERTIFICATION_PROGRAMME_EVENT].dot },
   { value: 'awareness_program', label: 'Awareness', caption: 'Campus campaigns', dot: EVENT_TYPE_STYLES.awareness_program.dot },
   { value: 'workshop', label: 'Workshop', caption: 'Clinical & coping labs', dot: EVENT_TYPE_STYLES.workshop.dot },
   { value: 'other', label: 'Other', caption: 'Anything else', dot: EVENT_TYPE_STYLES.other.dot },
@@ -35,7 +35,7 @@ export function CreateEventForm({
   const close = onClose ?? (() => router.push(fallbackPath))
   const [state, formAction, isPending] = useActionState(createEventAction, null)
   const submit = useSubmitWithoutReset(formAction)
-  const [type, setType] = useState('qpr_session')
+  const [type, setType] = useState(CERTIFICATION_PROGRAMME_EVENT)
 
   useEffect(() => {
     if (state?.success) close()
@@ -84,7 +84,7 @@ export function CreateEventForm({
                 type="text"
                 required
                 autoComplete="off"
-                placeholder="e.g., QPR Gatekeeper Certification — Cohort #5"
+                placeholder="e.g., Gatekeeper Certification — Cohort #5"
                 className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
               />
             </div>

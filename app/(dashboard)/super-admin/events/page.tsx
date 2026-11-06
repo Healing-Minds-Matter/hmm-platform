@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { EventsCalendar } from './events-calendar'
+import { CERTIFICATION_PROGRAMME_EVENT } from './event-type'
 import { monthGridRange, weekRange } from './date-grid'
 import { fromOrgWallClock, toOrgWallClock } from '@/lib/org-date'
 import { EVENT_CLUBS_EMBED, eventClubsLabel, isEventForClub } from '@/lib/event-clubs'
@@ -50,20 +51,20 @@ export default async function EventsPage({
   if (typeFilter) eventsQuery = eventsQuery.eq('type', typeFilter)
   if (q) eventsQuery = eventsQuery.or(`title.ilike.%${q}%,venue.ilike.%${q}%`)
 
-  const [{ data: events }, { data: allForCounts }, { data: upcomingQpr, count: upcomingQprCount }] = await Promise.all([
+  const [{ data: events }, { data: allForCounts }, { data: upcomingProgrammes, count: upcomingProgrammesCount }] = await Promise.all([
     eventsQuery,
     supabase.from('events').select('type').eq('is_cancelled', false),
     supabase
       .from('events')
       .select(EVENT_COLUMNS, { count: 'exact' })
-      .eq('type', 'qpr_session')
+      .eq('type', CERTIFICATION_PROGRAMME_EVENT)
       .eq('is_cancelled', false)
       .gt('starts_at', now.toISOString())
       .order('starts_at', { ascending: true })
       .limit(4),
   ])
 
-  const upcomingQprWithClub = (upcomingQpr ?? []).map(e => ({ ...e, club_name: eventClubsLabel(e, clubNameById) }))
+  const upcomingProgrammesWithClub = (upcomingProgrammes ?? []).map(e => ({ ...e, club_name: eventClubsLabel(e, clubNameById) }))
 
   // Club filter: events linked to that club, plus events open to all clubs.
   const eventsWithClub = (events ?? [])
@@ -99,8 +100,8 @@ export default async function EventsPage({
       totalCount={(allForCounts ?? []).length}
       selectedEvent={selectedEvent}
       generatedAt={now.toISOString()}
-      upcomingQpr={upcomingQprWithClub}
-      upcomingQprTotal={upcomingQprCount ?? 0}
+      upcomingProgrammes={upcomingProgrammesWithClub}
+      upcomingProgrammesTotal={upcomingProgrammesCount ?? 0}
     />
   )
 }

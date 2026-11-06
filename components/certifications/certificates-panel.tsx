@@ -200,7 +200,7 @@ function JourneyItem({ entry, typeById, names, today, actions }: {
         c.expires_on ? `Expires ${formatCertDate(c.expires_on)}` : 'Lifetime',
         FORMAT_LABEL[c.format],
         c.certificate_number ? `Certificate ${c.certificate_number}${c.design_version ? ` (design v${c.design_version})` : ''}` : null,
-        c.migrated ? 'Created from the old QPR certification date' : c.added_by ? `Added by ${names[c.added_by] ?? 'someone no longer in the system'}` : null,
+        c.migrated ? 'Created from an earlier certification record' : c.added_by ? `Added by ${names[c.added_by] ?? 'someone no longer in the system'}` : null,
         c.removed_at ? `Removed${c.removed_by ? ` by ${names[c.removed_by] ?? 'someone'}` : ''}: ${c.removed_reason_category}: ${c.removed_reason}` : null,
       ].filter(Boolean).join(' · ')
       break

@@ -3,7 +3,8 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { CertificatesSection } from '@/components/certifications/certificates-section'
 import { loadCertSummary } from '@/lib/cert-summary.server'
-import { formatCertDate } from '@/lib/certification-types'
+import { personCertStatus } from '@/lib/cert-summary'
+import { PERSON_CERT_STATUS_LABEL } from '@/app/(dashboard)/super-admin/gatekeepers/gatekeeper-status'
 import { ProfileForm } from '@/app/(dashboard)/super-admin/profile/profile-form'
 
 export const metadata = { title: 'My Profile — HMM Champion' }
@@ -35,7 +36,8 @@ export default async function ChampionProfilePage() {
   ])
 
   if (!profile) redirect('/login')
-  const myQpr = (await loadCertSummary(supabase)).qprByHolder.get(user.id)
+  const myCerts = (await loadCertSummary(supabase)).byHolder.get(user.id) ?? []
+  const myCertStatus = personCertStatus(true, myCerts)
   if (profile.role !== 'champion') redirect('/super-admin')
 
   // Real, not fabricated: pulls each currently-enabled permission for this
@@ -120,11 +122,9 @@ export default async function ChampionProfilePage() {
                 {club ? club.name : 'No club assigned'}
               </span>
               <span className="text-[12px] text-[#64748B]">
-                {!myQpr
-                  ? 'QPR certification not on file'
-                  : myQpr.status === 'expired' || myQpr.status === 'stopped'
-                    ? `QPR ${myQpr.status === 'stopped' ? 'stopped' : 'expired'}${myQpr.expires_on ? ` ${formatCertDate(myQpr.expires_on)}` : ''}`
-                    : myQpr.expires_on ? `QPR valid until ${formatCertDate(myQpr.expires_on)}` : 'QPR valid for life'}
+                {myCertStatus === 'none'
+                  ? 'No certifications on file'
+                  : `${PERSON_CERT_STATUS_LABEL[myCertStatus]} · ${myCerts.length} certification${myCerts.length === 1 ? '' : 's'}`}
               </span>
             </div>
           </div>

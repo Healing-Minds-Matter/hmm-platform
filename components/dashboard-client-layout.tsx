@@ -345,7 +345,8 @@ export function DashboardClientLayout({
             </svg>
             <input
               type="text"
-              placeholder="Search Champions, QPR records, clubs…"
+              placeholder="Search Champions, Gatekeepers, clubs…"
+              aria-label="Search"
               className="w-full min-w-0 bg-transparent text-[13px] text-[#0F172A] placeholder:text-[#64748B] focus:outline-none"
             />
           </div>

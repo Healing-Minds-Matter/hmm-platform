@@ -33,7 +33,7 @@ export function TypesTable({ types, holders, manage, base }: {
             <tr key={t.id} className="h-[65px] border-t border-[rgba(226,232,240,0.5)] transition-colors hover:bg-gray-50">
               <td className="px-[16px] py-3">
                 <div className="text-[13px] font-semibold text-[#0F172A]">{t.name}</div>
-                {t.created_from_existing && <div className="text-[11px] text-[#64748B]">Created from the existing QPR dates</div>}
+                {t.created_from_existing && <div className="text-[11px] text-[#64748B]">Created from earlier certification records</div>}
               </td>
               <td className="px-[16px] py-3"><Code>{t.code}</Code></td>
               <td className="px-[16px] py-3 text-[13px] text-[#0F172A]">{validityLabel(t)}</td>

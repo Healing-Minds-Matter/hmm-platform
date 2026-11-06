@@ -7,7 +7,6 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { writeAuditLog } from '@/lib/audit'
 import { createGatekeeperWithTempPassword, resendGatekeeperWelcomeEmail } from '@/lib/invite-gatekeeper'
 import { parsePhone } from '@/lib/phone'
-import { validateCertificationDate } from '@/lib/certification-date'
 import { checkPhoneAvailable, describePhoneDbError, findPhoneClash, loadPhoneOwners, phoneChanged, type PhoneOwner } from '@/lib/phone-uniqueness.server'
 import { readCsvUpload } from '@/lib/csv'
 import { batchLines, bulkIntent, type BulkRowResult, type BulkUploadState } from '@/lib/bulk-upload'
@@ -27,14 +26,6 @@ export type GatekeeperActionState = {
   // Set when the Gatekeeper was registered but a certification couldn't be added.
   warning?: string
 } | null
-
-// Blank certification date = not certified yet, so no expiry either.
-function threeYearsFrom(dateStr: string | null): string | null {
-  if (!dateStr) return null
-  const d = new Date(dateStr)
-  d.setUTCFullYear(d.getUTCFullYear() + 3)
-  return d.toISOString().slice(0, 10)
-}
 
 type NewGatekeeper = {
   email: string
@@ -120,7 +111,6 @@ async function inviteAndCreateGatekeeper(params: {
   phone: string // already normalised by parsePhone()
   preferredLanguage: string
   clubId: string
-  certificationDate: string | null // null = not certified yet
   actorId: string
   sendWelcomeEmail: boolean
 }): Promise<{ error: string } | { id: string; gatekeeper_code: string; tempPassword?: string }> {
@@ -168,7 +158,6 @@ async function inviteAndCreateGatekeeper(params: {
   if ('error' in invited) return { error: invited.error }
 
   const newUserId = invited.userId
-  const qprExpiryDate = threeYearsFrom(params.certificationDate)
 
   const { error: profileError } = await admin.from('profiles').insert({
     id: newUserId,
@@ -178,8 +167,6 @@ async function inviteAndCreateGatekeeper(params: {
     role: 'gatekeeper',
     club_id: params.clubId,
     preferred_language: params.preferredLanguage,
-    qpr_certification_date: params.certificationDate,
-    qpr_expiry_date: qprExpiryDate,
     gatekeeper_code: gkCode,
     is_active: true,
     // No forced first-login password change needed — the real invite
@@ -299,7 +286,7 @@ export async function createGatekeeperAction(
   if ('error' in certs) return { error: certs.error }
 
   const result = await inviteAndCreateGatekeeper({
-    fullName, email, phone, preferredLanguage, clubId: scoped.clubId, certificationDate: null, actorId: user.id, sendWelcomeEmail,
+    fullName, email, phone, preferredLanguage, clubId: scoped.clubId, actorId: user.id, sendWelcomeEmail,
   })
   if ('error' in result) return { error: result.error }
 
@@ -325,7 +312,8 @@ export async function createGatekeeperAction(
   return { success: true, tempPassword: result.tempPassword }
 }
 
-// CSV header: full_name,email,phone,club_id,certification_date
+// CSV header: full_name,email,phone,club_id (see lib/gatekeeper-csv.ts). Certificates
+// aren't part of registration: they're added from each person's Certifications section.
 // phone is required and must be unique (also within the same file);
 // club_id must be a real active club UUID.
 
@@ -348,7 +336,6 @@ export async function createGatekeepersBulkAction(
   const emailIdx = col('email')
   const phoneIdx = col('phone')
   const clubIdx = col('club_id')
-  const certIdx = col('certification_date')
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -395,7 +382,6 @@ export async function createGatekeepersBulkAction(
     const email = cells[emailIdx]?.trim().toLowerCase()
     const parsedPhone = parsePhone(cells[phoneIdx])
     const clubId = forcedClubId ?? (clubIdx !== -1 ? cells[clubIdx]?.trim() : undefined)
-    const certificationDate = cells[certIdx]?.trim() || null
     const fail = (error: string) => {
       if (inBatch) results.push({ row: rowNum, label: email || '(missing)', status: 'failed', error })
     }
@@ -404,8 +390,6 @@ export async function createGatekeepersBulkAction(
       fail('Missing required field(s).')
       continue
     }
-    const certificationError = validateCertificationDate(certificationDate)
-    if (certificationError) { fail(certificationError); continue }
     if (!parsedPhone.ok) { fail(parsedPhone.error); continue }
     const phone = parsedPhone.value!
 
@@ -427,7 +411,7 @@ export async function createGatekeepersBulkAction(
     }
 
     const result = await inviteAndCreateGatekeeper({
-      fullName, email, phone, preferredLanguage: 'en', clubId, certificationDate, actorId: user.id, sendWelcomeEmail,
+      fullName, email, phone, preferredLanguage: 'en', clubId, actorId: user.id, sendWelcomeEmail,
     })
     if ('error' in result) fail(result.error)
     else results.push({ row: rowNum, label: email, status: 'created', tempPassword: result.tempPassword })
@@ -487,7 +471,7 @@ export async function updateGatekeeperAction(
   }
 
   // Certifications are no longer edited here: they're managed in the profile's
-  // Certifications section (Epic 10), which keeps the old QPR dates in step.
+  // Certifications section (Epic 10), which keeps the older certification dates in step.
   const { data: updated, error: updateError } = await supabase
     .from('profiles')
     .update({

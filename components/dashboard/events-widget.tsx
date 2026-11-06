@@ -3,7 +3,15 @@
 import { useState, useTransition } from 'react'
 import { getUpcomingEvents } from '@/actions/dashboard'
 import type { EventsData, EventsFilter } from '@/actions/dashboard'
-import { EVENT_TYPE_STYLES } from '@/app/(dashboard)/super-admin/events/event-type'
+import { CERTIFICATION_PROGRAMME_EVENT, EVENT_TYPE_STYLES } from '@/app/(dashboard)/super-admin/events/event-type'
+
+// Short badge text per event type, for this compact widget.
+const SHORT_LABEL: Record<string, string> = {
+  [CERTIFICATION_PROGRAMME_EVENT]: 'Certification',
+  awareness_program: 'Awareness',
+  workshop: 'Workshop',
+  other: 'Other',
+}
 import { formatOrgDate, formatOrgTime } from '@/lib/org-date'
 
 const FILTER_LABELS: Record<EventsFilter, string> = {
@@ -13,7 +21,7 @@ const FILTER_LABELS: Record<EventsFilter, string> = {
 }
 
 const TYPE_SOLID: Record<string, { square: string; badge: string }> = {
-  qpr_session:       { square: 'bg-blue-100',   badge: 'bg-blue-600' },
+  [CERTIFICATION_PROGRAMME_EVENT]: { square: 'bg-blue-100',   badge: 'bg-blue-600' },
   awareness_program: { square: 'bg-purple-100', badge: 'bg-purple-600' },
   workshop:           { square: 'bg-green-100',  badge: 'bg-green-600' },
   other:              { square: 'bg-gray-100',   badge: 'bg-gray-500' },
@@ -42,7 +50,7 @@ function EventRow({ ev }: { ev: EventsData['events'][number] }) {
         </div>
       </div>
       <span className={`ml-2 flex-shrink-0 rounded px-2 py-0.5 text-[10px] font-bold text-white ${solid.badge}`}>
-        {style.label.replace(' Program', '').replace('QPR Certification Session', 'QPR')}
+        {SHORT_LABEL[ev.type] ?? style.label}
       </span>
     </div>
   )

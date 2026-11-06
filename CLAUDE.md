@@ -1815,6 +1815,30 @@ two password fields use `text-sm` (14px) directly on the `<input>`, and
 Your Password screen) uses `text-[13px]` directly on its `<input>`s — both
 would trigger the same iOS auto-zoom.
 
+## Certifications — no hard-coded QPR anywhere — 2026-11-06 (spec deviation)
+
+User decision: QPR is an ordinary certification type; no screen or figure may
+single it out. **This overrides Story 10.12 Scenario 04** ("existing QPR
+displays shall read the person's current QPR certificate"). Branch
+`fix/remove-hardcoded-qpr` (web) plus uncommitted edits on hmm-mobile
+`feature/certifications`.
+- Per-person status (Gatekeeper badges/filters, Champion detail, Club rates,
+  Clubs "Certification Readiness" + CSV, Champion profile) now covers every
+  type: `personCertStatus()` / `certifiedFigures()` in `lib/cert-summary.ts`
+  (Certified if any valid > Expiring soon > Expired > No certifications).
+- Gatekeeper registration no longer writes `profiles.qpr_certification_date` +
+  a hard-coded 3-year expiry; bulk CSVs with `certification_date` are refused.
+- Event type `qpr_session` is labelled "Certification Programme";
+  `event-type.ts` is the single label source (`EVENT_TYPE_OPTIONS`,
+  `CERTIFICATION_PROGRAMME_EVENT`).
+- **Stored values deliberately kept** because the live site and current mobile
+  build share the DB: enum value `qpr_session`, permission key
+  `schedule_qpr_sessions`, permission category text (shown via a display title
+  in `module-card.tsx`), and `qpr_certification_stats()` (new builds use
+  `certification_stats()`). Rename them only after main + mobile have shipped.
+- Migration `20261109000000_remove_hardcoded_qpr.sql` (user runs it).
+- `lib/no-hardcoded-qpr.test.ts` fails if QPR is named again in web code.
+
 ### Not started yet
 - Everything on the Gatekeeper mobile app — BLOCKED until Gatekeeper user
   stories exist, and until the web app's core features are further along.

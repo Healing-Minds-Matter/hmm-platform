@@ -4,9 +4,9 @@ import { createClient } from '@/lib/supabase/server'
 import { CertificatesSection } from '@/components/certifications/certificates-section'
 import { GatekeeperStatusControls } from './gatekeeper-status-controls'
 import { ResendInviteButton } from './resend-invite-button'
-import { QPR_STATUS_LABEL, QPR_STATUS_BADGE, QPR_STATUS_DOT } from '../gatekeeper-status'
+import { PERSON_CERT_STATUS_LABEL, PERSON_CERT_STATUS_BADGE, PERSON_CERT_STATUS_DOT } from '../gatekeeper-status'
 import { loadCertSummary } from '@/lib/cert-summary.server'
-import { qprStatusOf } from '@/lib/cert-summary'
+import { personCertStatus } from '@/lib/cert-summary'
 
 export const metadata = { title: 'Gatekeeper Details — HMM Super Admin' }
 
@@ -35,7 +35,7 @@ export default async function GatekeeperDetailPage({ params, searchParams }: { p
     ? await supabase.from('profiles').select('id, full_name, email').eq('club_id', club.id).eq('role', 'champion').eq('is_active', true).maybeSingle()
     : { data: null }
 
-  const status = qprStatusOf(gatekeeper.is_active, (await loadCertSummary(supabase)).qprByHolder.get(gatekeeper.id))
+  const status = personCertStatus(gatekeeper.is_active, (await loadCertSummary(supabase)).byHolder.get(gatekeeper.id))
 
   return (
     <div className="flex flex-col gap-6 p-6 font-[family-name:var(--font-inter)]">
@@ -54,9 +54,9 @@ export default async function GatekeeperDetailPage({ params, searchParams }: { p
           <div className="flex min-w-0 flex-col gap-1">
             <div className="flex flex-wrap items-center gap-2.5">
               <h1 className="text-[22px] font-bold tracking-[-0.22px] text-[#0F172A]">{gatekeeper.full_name}</h1>
-              <span className={`flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${QPR_STATUS_BADGE[status]}`}>
-                <span className={`h-1.5 w-1.5 rounded-full ${QPR_STATUS_DOT[status]}`} />
-                {QPR_STATUS_LABEL[status]}
+              <span className={`flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${PERSON_CERT_STATUS_BADGE[status]}`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${PERSON_CERT_STATUS_DOT[status]}`} />
+                {PERSON_CERT_STATUS_LABEL[status]}
               </span>
               {gatekeeper.gatekeeper_code && (
                 <span className="font-mono text-xs font-bold text-[#003495]">{gatekeeper.gatekeeper_code}</span>

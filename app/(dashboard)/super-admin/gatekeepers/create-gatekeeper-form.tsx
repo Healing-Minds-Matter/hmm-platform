@@ -84,7 +84,7 @@ export function CreateGatekeeperForm({
         <div className="flex flex-col gap-[3px]">
           <h1 className="text-[18px] font-bold leading-6 text-[#0F172A]">Add New Gatekeeper</h1>
           <p className="max-w-[480px] text-[12px] leading-4 text-[#64748B]">
-            Onboard a QPR community gatekeeper to {scope.mode === 'fixed' ? scope.clubName : 'a regional club'}.
+            Onboard a community gatekeeper to {scope.mode === 'fixed' ? scope.clubName : 'a regional club'}.
           </p>
         </div>
         <button
@@ -370,7 +370,6 @@ function BulkGatekeeperUpload({ scope, onClose }: { scope: ClubScope; onClose: (
     email: 'maya.lin@example.com',
     phone: '077 123 4567',
     club_id: scope.mode === 'select' ? scope.clubs[0]?.id ?? '' : '',
-    certification_date: '2025-06-01',
   }
 
   return (
@@ -392,7 +391,7 @@ function BulkGatekeeperUpload({ scope, onClose }: { scope: ClubScope; onClose: (
           <p className="text-[12px] leading-[18px] text-[#475569]">
             Header row required, exactly: <code className={code}>{columns.join(',')}</code>
             <br />
-            <code className={code}>club_id</code> must be a real club&apos;s internal ID. <code className={code}>certification_date</code> as YYYY-MM-DD, not in the future, or left blank for members who aren&apos;t certified yet. Every row needs its own <code className={code}>phone</code> number.
+            <code className={code}>club_id</code> must be a real club&apos;s internal ID. Every row needs its own <code className={code}>phone</code> number. Add certifications afterwards, from each person&apos;s Certifications section.
           </p>
           <details className="text-[12px] text-[#475569]">
             <summary className="cursor-pointer font-semibold text-[#003495]">Active club IDs</summary>
@@ -407,7 +406,7 @@ function BulkGatekeeperUpload({ scope, onClose }: { scope: ClubScope; onClose: (
         <p className="text-[12px] leading-[18px] text-[#475569]">
           Header row required, exactly: <code className={code}>{columns.join(',')}</code>
           <br />
-          All rows are added to <strong>{scope.clubName}</strong>. <code className={code}>certification_date</code> as YYYY-MM-DD, not in the future, or left blank for members who aren&apos;t certified yet. Every row needs its own <code className={code}>phone</code> number.
+          All rows are added to <strong>{scope.clubName}</strong>. Every row needs its own <code className={code}>phone</code> number. Add certifications afterwards, from each person&apos;s Certifications section.
         </p>
       )}
     />
