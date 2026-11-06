@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { loginPath } from '@/lib/login-redirect.server'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { syncProfileEmail } from '@/lib/email-sync.server'
@@ -37,7 +38,7 @@ function daysSince(iso: string): number {
 export default async function ProfilePage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect(await loginPath())
 
   // Pick up a confirmed email change before reading the profile below.
   await syncProfileEmail(user.id, user.email)
@@ -59,7 +60,7 @@ export default async function ProfilePage() {
       .order('starts_at', { ascending: false }),
   ])
 
-  if (!profile) redirect('/login')
+  if (!profile) redirect(await loginPath())
   if (profile.role !== 'super_admin') redirect(profile.role === 'champion' ? '/champion' : '/login')
 
   const clubCount = (activeClubs ?? []).length

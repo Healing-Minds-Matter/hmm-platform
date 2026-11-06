@@ -1,4 +1,5 @@
 import { notFound, redirect } from 'next/navigation'
+import { loginPath } from '@/lib/login-redirect.server'
 import { createClient } from '@/lib/supabase/server'
 import { EditEventModal } from '../../../edit-event-modal'
 import { loadEventForEdit } from '../../../load-event-for-edit'
@@ -7,7 +8,7 @@ export default async function InterceptedEditEventPage({ params }: { params: Pro
   const { id } = await params
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect(await loginPath())
 
   const props = await loadEventForEdit(id, user.id)
   if (!props) notFound()

@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { loginPath } from '@/lib/login-redirect.server'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -175,7 +176,7 @@ export async function createResourceAction(
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect(await loginPath())
 
   const categoryCheck = checkCategoryChoice(fields.categoryId, await loadCategories(supabase))
   if (!categoryCheck.ok) return fail(categoryCheck.error, 'category_id')
@@ -282,7 +283,7 @@ export async function updateResourceAction(
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect(await loginPath())
 
   // Stored values are read from the database, not the form: the category (so
   // only a genuinely unchanged older category is let through) and the
@@ -406,7 +407,7 @@ export async function deleteResourceAction(formData: FormData) {
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect(await loginPath())
 
   const { error } = await supabase.from('resources').delete().eq('id', resourceId)
   if (error) return
