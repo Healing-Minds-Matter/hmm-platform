@@ -131,7 +131,7 @@ export function BarChartWidget({ data }: { data: BarItem[] }) {
             </Link>
           )}
         </div>
-        <p className="mb-4 text-[11px] text-[#64748B]">Descending order of active, certified gatekeepers.</p>
+        <p className="mb-4 text-[11px] text-[#64748B]">Descending order of active gatekeepers.</p>
 
         {data.length === 0 ? (
           <p className="py-10 text-center text-sm text-gray-400">No data yet</p>
