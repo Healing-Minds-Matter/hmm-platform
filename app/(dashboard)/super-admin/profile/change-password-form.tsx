@@ -3,8 +3,12 @@
 import { startTransition, useActionState, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { changePasswordAction, signOutToForgotPasswordAction } from '@/actions/auth'
 import { checkPasswordRules } from '@/lib/password-validation'
+import { FormErrorsProvider, useFormErrors } from '@/hooks/use-form-errors'
+import { FieldError } from '@/components/field-error'
+import { formLevelError } from '@/lib/form-errors'
 
 const RULES = [
   { key: 'minLength',    label: 'Minimum 8 characters in length' },
@@ -87,6 +91,10 @@ export function ChangePasswordForm({
 }) {
   const router = useRouter()
   const [state, formAction, isPending] = useActionState(changePasswordAction, null)
+  const fe = useFormErrors(state)
+  const { bindForm, onSubmit: checkThen } = fe
+  // Submitted without React's automatic reset, so a refused save keeps what was typed.
+  const submit = useSubmitWithoutReset(formAction)
 
   function goToForgotPassword() {
     const ok = window.confirm("You'll be signed out so you can reset your password by email. Continue?")
@@ -150,11 +158,12 @@ export function ChangePasswordForm({
         )}
       </div>
 
-      <form action={formAction} className="flex flex-1 flex-col overflow-hidden">
+      <form ref={bindForm} noValidate onSubmit={checkThen(submit)} className="flex flex-1 flex-col overflow-hidden">
+      <FormErrorsProvider value={fe}>
         <div className="flex flex-1 flex-col gap-4 overflow-y-auto bg-[#F8FAFC] p-6">
-          {state?.error && (
+          {formLevelError(state) && (
             <div className="whitespace-pre-line rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">
-              {state.error}
+              {formLevelError(state)}
             </div>
           )}
 
@@ -207,6 +216,7 @@ export function ChangePasswordForm({
                 // newPassword/confirm fields use it and don't hit this bug.
                 autoCompleteOverride={mode === 'forced' ? 'new-password' : undefined}
               />
+              <FieldError name="currentPassword" />
             </div>
 
             <div className="flex flex-col gap-1.5">
@@ -214,6 +224,7 @@ export function ChangePasswordForm({
                 New Password <span className="text-[#DC2626]">*</span>
               </label>
               <PasswordInput id="newPassword" name="newPassword" icon="/icons/pw-lock-field.svg" value={newPassword} onChange={setNewPassword} />
+              <FieldError name="newPassword" className="whitespace-pre-line" />
               {newPassword.length > 0 && (
                 <div className="flex flex-col gap-1 pt-1">
                   <div className="flex items-center justify-between">
@@ -268,6 +279,7 @@ export function ChangePasswordForm({
                 onChange={setConfirmPassword}
                 ringClass={passwordsMatch ? 'border-[rgba(22,163,74,0.6)]' : 'border-[#E2E8F0]'}
               />
+              <FieldError name="confirm" />
               {passwordsMatch && (
                 <span className="flex items-center gap-1 text-[12px] text-[#16A34A]">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -316,6 +328,7 @@ export function ChangePasswordForm({
             {isPending ? 'Saving…' : mode === 'forced' ? 'Set Password' : 'Update Password'}
           </button>
         </div>
+      </FormErrorsProvider>
       </form>
     </div>
   )
