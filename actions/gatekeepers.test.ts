@@ -54,8 +54,9 @@ vi.mock('next/navigation', () => ({ redirect: vi.fn(() => { throw new Error('red
 import { createGatekeepersBulkAction } from '@/actions/gatekeepers'
 import { createGatekeeperWithTempPassword } from '@/lib/invite-gatekeeper'
 import { loadPhoneOwners } from '@/lib/phone-uniqueness.server'
+import { RETIRED_CERTIFICATION_DATE_MESSAGE } from '@/lib/gatekeeper-csv'
 
-const HEADER = 'full_name,email,phone,club_id,certification_date'
+const HEADER = 'full_name,email,phone,club_id'
 
 function csvForm(text: string, intent: 'check' | 'save' = 'save') {
   const form = new FormData()
@@ -81,16 +82,16 @@ describe('createGatekeepersBulkAction: file-level checks', () => {
     expect(await createGatekeepersBulkAction(null, new FormData())).toEqual({ error: 'Select a CSV file to upload.' })
     expect(await createGatekeepersBulkAction(null, csvForm('\n'))).toEqual({ error: 'The CSV file is empty.' })
     expect(await createGatekeepersBulkAction(null, csvForm(`${HEADER}\n`))).toEqual({ error: 'The CSV file has no data rows.' })
-    const rows = Array.from({ length: 51 }, (_, i) => `GK ${i},gk${i}@example.com,07712345${String(i).padStart(2, '0')},c,2025-01-01`)
+    const rows = Array.from({ length: 51 }, (_, i) => `GK ${i},gk${i}@example.com,07712345${String(i).padStart(2, '0')},c`)
     expect(await createGatekeepersBulkAction(null, csvForm(`${HEADER}\n${rows.join('\n')}`))).toEqual({
       error: 'The CSV has 51 rows — maximum is 50 per upload.',
     })
   })
 
   it('still requires club_id in a Super Admin file, but not a Champion one', async () => {
-    const noClub = 'full_name,email,phone,certification_date\nA,a@example.com,0771234567,2025-01-01'
+    const noClub = 'full_name,email,phone\nA,a@example.com,0771234567'
     expect(await createGatekeepersBulkAction(null, csvForm(noClub))).toEqual({
-      error: 'CSV header must include: full_name, email, phone, club_id, certification_date.',
+      error: 'CSV header must include: full_name, email, phone, club_id.',
     })
     db.caller = { role: 'champion', club_id: 'club-1' }
     expect(await createGatekeepersBulkAction(null, csvForm(noClub, 'check'))).toMatchObject({
@@ -100,7 +101,7 @@ describe('createGatekeepersBulkAction: file-level checks', () => {
 
   it('still rejects callers who are not Super Admins or Champions', async () => {
     db.caller = { role: 'gatekeeper', club_id: null }
-    expect(await createGatekeepersBulkAction(null, csvForm(`${HEADER}\nA,a@example.com,0771234567,club-1,2025-01-01`))).toEqual({
+    expect(await createGatekeepersBulkAction(null, csvForm(`${HEADER}\nA,a@example.com,0771234567,club-1`))).toEqual({
       error: 'Not authorized.',
     })
   })
@@ -109,14 +110,14 @@ describe('createGatekeepersBulkAction: file-level checks', () => {
 describe('createGatekeepersBulkAction: check step', () => {
   it('runs every check, including the database ones, without creating accounts', async () => {
     const state = await createGatekeepersBulkAction(null, csvForm(`﻿${HEADER}
-Maya Lin,maya@example.com,0771234561,club-1,2025-01-01
-Asha Silva,asha@example.com,0771234562,club-1,2025-01-01
-Ravi Perera,ravi@example.com,0771234563,club-off,2025-01-01
-Kamal Dias,kamal@example.com,0771234564,no-such-club,2025-01-01
+Maya Lin,maya@example.com,0771234561,club-1
+Asha Silva,asha@example.com,0771234562,club-1
+Ravi Perera,ravi@example.com,0771234563,club-off
+Kamal Dias,kamal@example.com,0771234564,no-such-club
 
-Nimal Fernando,MAYA@example.com,0771234565,club-1,2025-01-01
-Sunil Jay,sunil@example.com,077 123 4561,club-1,2025-01-01
-Dilani Raj,dilani@example.com,0771234567,club-1,2999-01-01`, 'check'))
+Nimal Fernando,MAYA@example.com,0771234565,club-1
+Sunil Jay,sunil@example.com,077 123 4561,club-1
+Dilani Raj,dilani@example.com,0771234567,club-1`, 'check'))
 
     expect(state).toEqual({
       intent: 'check',
@@ -127,31 +128,25 @@ Dilani Raj,dilani@example.com,0771234567,club-1,2999-01-01`, 'check'))
         { row: 5, label: 'kamal@example.com', status: 'failed', error: 'The selected club could not be found. Double-check the club_id and try again.' },
         { row: 7, label: 'maya@example.com', status: 'failed', error: 'Same email as row 2 in this file.' },
         { row: 8, label: 'sunil@example.com', status: 'failed', error: 'Same phone number as row 2 in this file. Each user needs their own phone number.' },
-        { row: 9, label: 'dilani@example.com', status: 'failed', error: 'Certification date cannot be in the future.' },
+        { row: 9, label: 'dilani@example.com', status: 'ready' },
       ],
     })
     expect(createGatekeeperWithTempPassword).not.toHaveBeenCalled()
   })
 
-  it('accepts a blank certification_date (not certified yet) but still checks one that is given', async () => {
-    const state = await createGatekeepersBulkAction(null, csvForm(`${HEADER}
-Maya Lin,maya@example.com,0771234561,club-1,
-Ravi Perera,ravi@example.com,0771234562,club-1,2999-01-01
-Kamal Dias,kamal@example.com,0771234563,club-1,01/06/2025`, 'check'))
-
-    expect(state?.results).toEqual([
-      { row: 2, label: 'maya@example.com', status: 'ready' },
-      { row: 3, label: 'ravi@example.com', status: 'failed', error: 'Certification date cannot be in the future.' },
-      { row: 4, label: 'kamal@example.com', status: 'failed', error: 'Certification date must be a valid date in YYYY-MM-DD format.' },
-    ])
+  it('refuses a file with the old certification_date column instead of dropping its dates', async () => {
+    const state = await createGatekeepersBulkAction(null, csvForm(`${HEADER},certification_date
+Maya Lin,maya@example.com,0771234561,club-1,2025-01-01`, 'check'))
+    expect(state).toEqual({ error: RETIRED_CERTIFICATION_DATE_MESSAGE })
+    expect(createGatekeeperWithTempPassword).not.toHaveBeenCalled()
   })
 
   it('reads every user\'s phone number once per request, not once per row', async () => {
     db.takenPhones = [{ phone: '+94771234562' }]
     const state = await createGatekeepersBulkAction(null, csvForm(`${HEADER}
-Maya Lin,maya@example.com,0771234561,club-1,2025-01-01
-Ravi Perera,ravi@example.com,0771234562,club-1,2025-01-01
-Kamal Dias,kamal@example.com,0771234563,club-1,2025-01-01`, 'check'))
+Maya Lin,maya@example.com,0771234561,club-1
+Ravi Perera,ravi@example.com,0771234562,club-1
+Kamal Dias,kamal@example.com,0771234563,club-1`, 'check'))
 
     expect(state?.results).toEqual([
       { row: 2, label: 'maya@example.com', status: 'ready' },
@@ -168,8 +163,8 @@ describe('createGatekeepersBulkAction: save step', () => {
     // the database ("already exists") instead of "same as row N", which
     // would point at a row missing from the "failed rows" file.
     const state = await createGatekeepersBulkAction(null, csvForm(`${HEADER}
-Asha Silva,asha@example.com,0771234569,club-1,2025-01-01
-Asha S,asha@example.com,0771234570,club-1,2025-01-01`))
+Asha Silva,asha@example.com,0771234569,club-1
+Asha S,asha@example.com,0771234570,club-1`))
     expect(state).toMatchObject({
       results: [
         { row: 2, error: 'An account with this email already exists.' },
@@ -180,9 +175,9 @@ Asha S,asha@example.com,0771234570,club-1,2025-01-01`))
 
   it('checks each row again before creating any account', async () => {
     const state = await createGatekeepersBulkAction(null, csvForm(`${HEADER}
-Maya Lin,,0771234567,club-1,2025-01-01
+Maya Lin,,0771234567,club-1
 
-Asha Silva,asha@example.com,0771234569,club-1,2025-01-01`))
+Asha Silva,asha@example.com,0771234569,club-1`))
 
     expect(state).toEqual({
       intent: 'save',
@@ -196,11 +191,11 @@ Asha Silva,asha@example.com,0771234569,club-1,2025-01-01`))
 
 describe('createGatekeepersBulkAction: in batches', () => {
   const FILE = `${HEADER}
-Maya Lin,maya@example.com,0771234561,club-1,2025-01-01
-Ravi Perera,ravi@example.com,0771234562,club-1,2025-01-01
-Nimal Fernando,MAYA@example.com,0771234563,club-1,2025-01-01
-Sunil Jay,sunil@example.com,077 123 4562,club-1,2025-01-01
-Dilani Raj,dilani@example.com,0771234565,club-1,2025-01-01`
+Maya Lin,maya@example.com,0771234561,club-1
+Ravi Perera,ravi@example.com,0771234562,club-1
+Nimal Fernando,MAYA@example.com,0771234563,club-1
+Sunil Jay,sunil@example.com,077 123 4562,club-1
+Dilani Raj,dilani@example.com,0771234565,club-1`
 
   const batchForm = (intent: 'check' | 'save', lines: number[]) => {
     const form = csvForm(FILE, intent)
