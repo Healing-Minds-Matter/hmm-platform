@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { writeAuditLog } from '@/lib/audit'
+import { invalid, type FieldErrors } from '@/lib/form-errors'
 import { endDelegationsForDeactivatedUser } from '@/actions/permissions'
 import { readCsvUpload } from '@/lib/csv'
 import { batchLines, bulkIntent, type BulkUploadState } from '@/lib/bulk-upload'
@@ -12,6 +13,8 @@ import {
   describeClubInsertError,
   findClubConflict,
   validateClubFields,
+  clubConflictField,
+  type ClubField,
   type ClubFields,
   type ExistingClub,
 } from '@/lib/club-rules'
@@ -31,7 +34,7 @@ export type ClubFormValues = {
   contact_phone: string
 }
 
-export type ClubActionState = { error?: string; success?: boolean; values?: ClubFormValues } | null
+export type ClubActionState = { error?: string; fieldErrors?: FieldErrors; success?: boolean; values?: ClubFormValues } | null
 
 export async function createClubAction(
   _prev: ClubActionState,
@@ -55,13 +58,15 @@ export async function createClubAction(
     contact_email: contactEmail ?? '',
     contact_phone: contactPhone ?? '',
   }
-  const fail = (error: string): ClubActionState => ({ error, values })
+  // field = the input the error belongs to, shown next to it (sheet row 32).
+  const fail = (error: string, field?: ClubField | null): ClubActionState =>
+    ({ error, values, ...(field ? { fieldErrors: { [field]: error } } : {}) })
 
   // Same rules as the bulk upload below — see lib/club-rules.ts.
   const checked = validateClubFields({
     name, code: clubCode, address: location, contactEmail, contactPhone, description,
   })
-  if ('error' in checked) return fail(checked.error)
+  if ('error' in checked) return fail(checked.error, checked.field)
   const fields = checked.club
 
   const supabase = await createClient()
@@ -69,10 +74,10 @@ export async function createClubAction(
   if (!user) redirect('/login')
 
   const conflict = findClubConflict(fields, await listExistingClubs(supabase))
-  if (conflict) return fail(conflict)
+  if (conflict) return fail(conflict, clubConflictField(conflict))
 
   const inserted = await insertClub(supabase, fields, user.id)
-  if ('error' in inserted) return fail(inserted.error)
+  if ('error' in inserted) return fail(inserted.error, clubConflictField(inserted.error))
 
   await logClubCreated(user.id, inserted.id, fields)
 
@@ -155,8 +160,8 @@ export async function updateClubAction(
   const contactEmail = (formData.get('contact_email') as string | null)?.trim() || null
   const contactPhone = (formData.get('contact_phone') as string | null)?.trim() || null
 
-  if (!name)     return { error: 'Club name is required.' }
-  if (!location) return { error: 'Location is required.' }
+  if (!name)     return invalid('name', 'Club name is required.')
+  if (!location) return invalid('location', 'Location is required.')
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -168,7 +173,7 @@ export async function updateClubAction(
     .eq('id', clubId)
 
   if (error) {
-    if (error.code === '23505') return { error: 'A club with that name already exists.' }
+    if (error.code === '23505') return invalid('name', 'A club with that name already exists.')
     return { error: error.message }
   }
 

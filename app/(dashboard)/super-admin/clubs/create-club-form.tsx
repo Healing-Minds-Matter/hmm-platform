@@ -5,12 +5,16 @@ import { useRouter } from 'next/navigation'
 import { createClubAction } from '@/actions/clubs'
 import { BulkTabLabel, ModeTabs } from '@/components/mode-tabs'
 import { BulkClubUpload } from './bulk-club-upload'
+import { FormErrorsProvider, useFormErrors } from '@/hooks/use-form-errors'
+import { FieldError } from '@/components/field-error'
+import { formLevelError } from '@/lib/form-errors'
 
 export function CreateClubForm({ onClose }: { onClose?: () => void }) {
   const router = useRouter()
   const close = onClose ?? (() => router.push('/super-admin/clubs'))
   const [mode, setMode] = useState<'single' | 'bulk'>('single')
   const [state, formAction, isPending] = useActionState(createClubAction, null)
+  const fe = useFormErrors(state)
   // Values sent back with an error (see createClubAction), so a failed save
   // keeps what was typed instead of clearing the whole form.
   const v = state?.values
@@ -60,11 +64,12 @@ export function CreateClubForm({ onClose }: { onClose?: () => void }) {
       {mode === 'bulk' ? (
         <BulkClubUpload onClose={close} />
       ) : (
-      <form action={formAction} className="flex flex-1 flex-col overflow-hidden">
+      <form ref={fe.formRef} noValidate onSubmit={fe.onSubmit()} action={formAction} className="flex flex-1 flex-col overflow-hidden">
+      <FormErrorsProvider value={fe}>
         <div className="flex flex-col gap-4 overflow-y-auto bg-[#F8FAFC] p-6">
-          {state?.error && (
+          {formLevelError(state) && (
             <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">
-              {state.error}
+              {formLevelError(state)}
             </div>
           )}
 
@@ -86,6 +91,7 @@ export function CreateClubForm({ onClose }: { onClose?: () => void }) {
                   required
                   className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                 />
+                <FieldError name="name" />
               </div>
               <div>
                 <label htmlFor="club_code" className="mb-1.5 block text-[13px] font-medium text-[#0F172A]">
@@ -100,6 +106,7 @@ export function CreateClubForm({ onClose }: { onClose?: () => void }) {
                   placeholder="e.g. CLB-007"
                   className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 font-mono text-sm text-[#0F172A] placeholder:text-[#94A3B8] placeholder:font-normal focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                 />
+                <FieldError name="club_code" />
                 <p className="mt-1.5 text-[11px] text-[#94A3B8]">Unique identifier — cannot be changed after creation.</p>
               </div>
             </div>
@@ -132,6 +139,7 @@ export function CreateClubForm({ onClose }: { onClose?: () => void }) {
                   className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] pl-9 pr-3.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                 />
               </div>
+              <FieldError name="location" />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -155,6 +163,7 @@ export function CreateClubForm({ onClose }: { onClose?: () => void }) {
                     className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] pl-9 pr-3.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                   />
                 </div>
+                <FieldError name="contact_email" />
               </div>
               <div>
                 <label htmlFor="contact_phone" className="mb-1.5 block text-[13px] font-medium text-[#0F172A]">
@@ -176,6 +185,7 @@ export function CreateClubForm({ onClose }: { onClose?: () => void }) {
                     className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] pl-9 pr-3.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                   />
                 </div>
+                <FieldError name="contact_phone" />
               </div>
             </div>
 
@@ -190,6 +200,7 @@ export function CreateClubForm({ onClose }: { onClose?: () => void }) {
                 rows={3}
                 className="w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 py-2.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
               />
+              <FieldError name="description" />
             </div>
           </div>
         </div>
@@ -212,6 +223,7 @@ export function CreateClubForm({ onClose }: { onClose?: () => void }) {
             {isPending ? 'Creating…' : 'Create Club & Activate'}
           </button>
         </div>
+      </FormErrorsProvider>
       </form>
       )}
       </div>

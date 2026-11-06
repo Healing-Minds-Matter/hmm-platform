@@ -4,6 +4,9 @@ import { useActionState, useEffect } from 'react'
 import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { useRouter } from 'next/navigation'
 import { updateClubAction } from '@/actions/clubs'
+import { FormErrorsProvider, useFormErrors } from '@/hooks/use-form-errors'
+import { FieldError } from '@/components/field-error'
+import { formLevelError } from '@/lib/form-errors'
 
 interface Club {
   id: string
@@ -20,6 +23,7 @@ export function ClubEditForm({ club, onClose }: { club: Club; onClose?: () => vo
   const router = useRouter()
   const close = onClose ?? (() => router.push(`/super-admin/clubs/${club.id}`))
   const [state, formAction, isPending] = useActionState(updateClubAction, null)
+  const fe = useFormErrors(state)
   const submit = useSubmitWithoutReset(formAction)
   const isActive = club.is_active
 
@@ -55,13 +59,14 @@ export function ClubEditForm({ club, onClose }: { club: Club; onClose?: () => vo
         </button>
       </div>
 
-      <form onSubmit={submit}>
+      <form ref={fe.formRef} noValidate onSubmit={fe.onSubmit(submit)}>
+      <FormErrorsProvider value={fe}>
         <input type="hidden" name="club_id" value={club.id} />
 
         <div className="flex flex-col gap-6 bg-[#F8FAFC] p-6">
-          {state?.error && (
+          {formLevelError(state) && (
             <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">
-              {state.error}
+              {formLevelError(state)}
             </div>
           )}
 
@@ -86,6 +91,7 @@ export function ClubEditForm({ club, onClose }: { club: Club; onClose?: () => vo
                 defaultValue={club.name}
                 className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
               />
+              <FieldError name="name" />
             </div>
 
             <div>
@@ -109,6 +115,7 @@ export function ClubEditForm({ club, onClose }: { club: Club; onClose?: () => vo
                   className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] pl-9 pr-3.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                 />
               </div>
+              <FieldError name="location" />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -132,6 +139,7 @@ export function ClubEditForm({ club, onClose }: { club: Club; onClose?: () => vo
                     className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] pl-9 pr-3.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                   />
                 </div>
+                <FieldError name="contact_email" />
               </div>
               <div>
                 <label htmlFor="contact_phone" className="mb-1.5 block text-[13px] font-medium text-[#0F172A]">
@@ -153,6 +161,7 @@ export function ClubEditForm({ club, onClose }: { club: Club; onClose?: () => vo
                     className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] pl-9 pr-3.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                   />
                 </div>
+                <FieldError name="contact_phone" />
               </div>
             </div>
 
@@ -167,6 +176,7 @@ export function ClubEditForm({ club, onClose }: { club: Club; onClose?: () => vo
                 defaultValue={club.description ?? ''}
                 className="w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 py-2.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
               />
+              <FieldError name="description" />
             </div>
           </div>
 
@@ -228,6 +238,7 @@ export function ClubEditForm({ club, onClose }: { club: Club; onClose?: () => vo
             {isPending ? 'Saving…' : 'Save Changes'}
           </button>
         </div>
+      </FormErrorsProvider>
       </form>
     </div>
   )

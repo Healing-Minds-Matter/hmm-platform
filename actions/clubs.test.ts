@@ -209,4 +209,14 @@ describe('createClubAction (single form) uses the same rules', () => {
     expect(state?.error).toBe('Club code "rac-009" is already taken. Please choose a unique code.')
     expect(state?.values?.club_code).toBe('rac-009')
   })
+
+  // Sheet row 32: server errors come back tied to their field.
+  it('ties server-side errors to the field they are about', async () => {
+    expect((await createClubAction(null, form({ club_code: 'rac-009', name: 'New', location: 'Galle' })))?.fieldErrors)
+      .toEqual({ club_code: 'Club code "rac-009" is already taken. Please choose a unique code.' })
+    expect((await createClubAction(null, form({ club_code: 'RAC-030', name: 'X', location: '' })))?.fieldErrors)
+      .toEqual({ location: 'Address is required.' })
+    expect((await createClubAction(null, form({ club_code: 'RAC-031', name: 'Y', location: 'Kandy', contact_email: 'nope' })))?.fieldErrors)
+      .toEqual({ contact_email: 'Enter a valid contact email, e.g. club@example.com.' })
+  })
 })

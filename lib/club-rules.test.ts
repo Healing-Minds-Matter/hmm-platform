@@ -4,6 +4,7 @@ import {
   CLUB_CSV_COLUMNS,
   clubCsvHeaderError,
   createClubsFromCsv,
+  clubConflictField,
   describeClubInsertError,
   findClubConflict,
   validateClubFields,
@@ -42,14 +43,14 @@ describe('validateClubFields', () => {
   })
 
   it('requires code, name and address', () => {
-    expect(validateClubFields({ ...base, code: ' ' })).toEqual({ error: 'Club code is required.' })
-    expect(validateClubFields({ ...base, name: '' })).toEqual({ error: 'Club name is required.' })
-    expect(validateClubFields({ ...base, address: undefined })).toEqual({ error: 'Address is required.' })
+    expect(validateClubFields({ ...base, code: ' ' })).toEqual({ error: 'Club code is required.', field: 'club_code' })
+    expect(validateClubFields({ ...base, name: '' })).toEqual({ error: 'Club name is required.', field: 'name' })
+    expect(validateClubFields({ ...base, address: undefined })).toEqual({ error: 'Address is required.', field: 'location' })
   })
 
   it('rejects a badly formed contact email', () => {
     expect(validateClubFields({ ...base, contactEmail: 'not-an-email' })).toEqual({
-      error: 'Enter a valid contact email, e.g. club@example.com.',
+      error: 'Enter a valid contact email, e.g. club@example.com.', field: 'contact_email',
     })
   })
 
@@ -286,5 +287,13 @@ Club D,RAC-4,Galle,,,`
       const second = await createClubsFromCsv(upload(FILE), fakeDeps(), 'check', new Set([4, 5]))
       expect('results' in first && 'results' in second && [...first.results, ...second.results]).toEqual('results' in whole && whole.results)
     })
+  })
+})
+
+describe('clubConflictField (sheet row 32)', () => {
+  it('points uniqueness errors at the right field', () => {
+    expect(clubConflictField('Club code "X" is already taken. Please choose a unique code.')).toBe('club_code')
+    expect(clubConflictField('A club with that name already exists.')).toBe('name')
+    expect(clubConflictField('The club could not be saved. Please try again.')).toBeNull()
   })
 })
