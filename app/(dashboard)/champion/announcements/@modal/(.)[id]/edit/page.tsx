@@ -1,21 +1,12 @@
-import { notFound, redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { notFound } from 'next/navigation'
+import { championAnnouncementContext, loadOwnAnnouncement } from '../../../champion-announcement-context'
 import { EditAnnouncementModal } from './edit-announcement-modal'
 
 export default async function InterceptedEditChampionAnnouncementPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
-  const { data: announcement } = await supabase
-    .from('announcements')
-    .select('id, title, body, publish_date, expiry_date')
-    .eq('id', id)
-    .eq('created_by', user.id)
-    .single()
-
-  if (!announcement) notFound()
-
-  return <EditAnnouncementModal announcement={announcement} />
+  const ctx = await championAnnouncementContext()
+  if (!ctx) notFound()
+  const loaded = await loadOwnAnnouncement(id, ctx.userId)
+  if (!loaded) notFound()
+  return <EditAnnouncementModal announcement={loaded.announcement} ownClub={ctx.ownClub} canPublish={ctx.canPublish} />
 }

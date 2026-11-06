@@ -28,31 +28,39 @@ export function announcementClubsLabel(a: WithAnnouncementClubs & { audience: st
 export const MSG_PICK_A_CLUB = 'Please choose at least one club.'
 export const MSG_OWN_CLUB_ONLY = 'You can only post announcements to your own club.'
 
-export type AnnouncementScope = { audience: string; allClubs: boolean; clubIds: string[] }
+export type AnnouncementScope = { audience: string; allClubs: boolean; clubIds: string[]; recipientIds: string[] }
+
+/** People picked inside the chosen clubs (sheet row 38), each once. */
+export function readRecipientIds(formData: FormData): string[] {
+  return [...new Set(formData.getAll('recipient_ids').map(v => String(v).trim()).filter(Boolean))]
+}
 
 // What gets saved, by role. Super Admin: any audience; "Specific Cohort"
 // needs "All clubs" or at least one active club (a club the announcement is
-// already linked to may be kept even if it has since become inactive).
-// Champion: always their own club — their form has no audience or club
-// picker, and anything else sent is ignored.
+// already linked to may be kept even if it has since become inactive), and
+// may be narrowed to particular people in those clubs.
+// Champion: always their own club (sheet row 61), optionally narrowed to
+// particular people in it — any audience or club sent is ignored.
+// The database checks the people are really in those clubs (save_announcement).
 export function resolveAnnouncementScope(
   caller: { role: string | null; club_id: string | null },
   audience: string,
   choice: ClubChoice,
   activeClubIds: Set<string>,
-  keptClubIds: string[] = []
+  keptClubIds: string[] = [],
+  recipientIds: string[] = []
 ): AnnouncementScope | { error: string } {
   if (caller.role === 'champion') {
     if (!caller.club_id) return { error: 'Your account has no assigned club.' }
-    return { audience: 'specific_clubs', allClubs: false, clubIds: [caller.club_id] }
+    return { audience: 'specific_clubs', allClubs: false, clubIds: [caller.club_id], recipientIds }
   }
   if (caller.role !== 'super_admin') return { error: 'Not authorized.' }
-  if (audience !== 'specific_clubs') return { audience, allClubs: false, clubIds: [] }
-  if (choice.allClubs) return { audience, allClubs: true, clubIds: [] }
+  if (audience !== 'specific_clubs') return { audience, allClubs: false, clubIds: [], recipientIds: [] }
+  if (choice.allClubs) return { audience, allClubs: true, clubIds: [], recipientIds: [] }
   if (choice.clubIds.length === 0) return { error: MSG_PICK_A_CLUB }
   const kept = new Set(keptClubIds)
   if (choice.clubIds.some(id => !activeClubIds.has(id) && !kept.has(id))) {
     return { error: 'One of the selected clubs is inactive or no longer exists. Please choose active clubs only.' }
   }
-  return { audience, allClubs: false, clubIds: choice.clubIds }
+  return { audience, allClubs: false, clubIds: choice.clubIds, recipientIds }
 }

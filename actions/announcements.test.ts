@@ -8,6 +8,8 @@ const db = vi.hoisted(() => ({
   existing: { id: 'ann-1', is_all_clubs: false, announcement_clubs: [{ club_id: 'old-club' }] } as Record<string, unknown> | null,
   rpcCalls: [] as Record<string, unknown>[],
   rpcError: null as { code?: string; message: string } | null,
+  allowed: { publish_club_announcements: true, delete_announcements: false } as Record<string, boolean>,
+  deleted: [] as string[],
 }))
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -19,8 +21,10 @@ vi.mock('@/lib/supabase/server', () => ({
         if (table === 'clubs') return { eq: async () => ({ data: [{ id: 'own-club' }, { id: 'club-a' }, { id: 'club-b' }] }) }
         return { eq: () => ({ maybeSingle: async () => ({ data: db.existing }) }) }
       },
+      delete: () => ({ eq: async (_c: string, id: string) => { db.deleted.push(id); return { error: null } } }),
     }),
-    rpc: async (_fn: string, args: Record<string, unknown>) => {
+    rpc: async (fn: string, args: Record<string, unknown>) => {
+      if (fn === 'cert_can') return { data: db.allowed[args.p_permission as string] === true }
       db.rpcCalls.push(args)
       return { data: db.rpcError ? null : 'ann-new', error: db.rpcError }
     },
@@ -30,7 +34,7 @@ vi.mock('@/lib/audit', () => ({ writeAuditLog: vi.fn() }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 vi.mock('next/navigation', () => ({ redirect: vi.fn(() => { throw new Error('redirect') }) }))
 
-import { createAnnouncementAction, updateAnnouncementAction } from '@/actions/announcements'
+import { createAnnouncementAction, deleteAnnouncementAction, updateAnnouncementAction } from '@/actions/announcements'
 
 function form(audience: string, scope: 'all' | 'selected' | null, clubIds: string[] = []) {
   const f = new FormData()
@@ -47,6 +51,8 @@ beforeEach(() => {
   db.caller = { role: 'super_admin', club_id: null }
   db.rpcCalls = []
   db.rpcError = null
+  db.allowed = { publish_club_announcements: true, delete_announcements: false }
+  db.deleted = []
 })
 
 describe('Super Admin', () => {
@@ -61,7 +67,9 @@ describe('Super Admin', () => {
   })
 
   it('must pick a club for Specific Cohort', async () => {
-    expect(await createAnnouncementAction(null, form('specific_clubs', 'selected'))).toEqual({ error: 'Please choose at least one club.' })
+    expect(await createAnnouncementAction(null, form('specific_clubs', 'selected'))).toEqual({
+      error: 'Please choose at least one club.', fieldErrors: { club_ids: 'Please choose at least one club.' },
+    })
     expect(db.rpcCalls).toHaveLength(0)
   })
 
@@ -91,5 +99,77 @@ it('turns a database refusal into plain words', async () => {
   db.rpcError = { code: '42501', message: 'new row violates row-level security policy for table "announcement_clubs"' }
   expect(await createAnnouncementAction(null, form('specific_clubs', 'selected', ['club-a']))).toEqual({
     error: "You don't have permission to do that for this announcement or club.",
+  })
+})
+
+// Sheet row 61: Champions are limited by their permissions — checked on the
+// server for direct calls, not only by hiding the buttons.
+describe('Champion permissions', () => {
+  beforeEach(() => { db.caller = { role: 'champion', club_id: 'own-club' } })
+
+  it('needs publish_club_announcements to create or edit', async () => {
+    db.allowed.publish_club_announcements = false
+    expect(await createAnnouncementAction(null, form('specific_clubs', 'selected', ['own-club']))).toEqual({
+      error: "You don't have permission to publish announcements.",
+    })
+    const f = form('specific_clubs', 'selected', ['own-club'])
+    f.set('announcement_id', 'ann-1')
+    expect(await updateAnnouncementAction(null, f)).toEqual({ error: "You don't have permission to edit announcements." })
+    expect(db.rpcCalls).toHaveLength(0)
+  })
+
+  it('needs delete_announcements to delete', async () => {
+    const f = new FormData()
+    f.set('announcement_id', 'ann-1')
+    await deleteAnnouncementAction(f)
+    expect(db.deleted).toEqual([])
+    db.allowed.delete_announcements = true
+    await deleteAnnouncementAction(f)
+    expect(db.deleted).toEqual(['ann-1'])
+  })
+
+  it('may narrow to people in their own club', async () => {
+    const f = form('specific_clubs', 'selected', ['own-club'])
+    f.append('recipient_ids', 'gk-1')
+    expect(await createAnnouncementAction(null, f)).toEqual({ success: true })
+    expect(db.rpcCalls[0]).toMatchObject({ p_club_ids: ['own-club'], p_recipient_ids: ['gk-1'] })
+  })
+})
+
+// Sheet rows 71 and 72, checked on the server with field-level errors.
+describe('schedule', () => {
+  const later = (date: string, time = '', expiryDate = '', expiryTime = '') => {
+    const f = form('all', null)
+    f.set('schedule_mode', 'later')
+    f.set('publish_date', date)
+    if (time) f.set('publish_time', time)
+    if (expiryDate) f.set('expiry_date', expiryDate)
+    if (expiryTime) f.set('expiry_time', expiryTime)
+    return f
+  }
+  const slToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Colombo' }).format(new Date())
+
+  it('today needs a time', async () => {
+    expect((await createAnnouncementAction(null, later(slToday)))?.fieldErrors).toEqual({
+      publish_time: 'The publication date is today, so choose a time later than now.',
+    })
+    expect(db.rpcCalls).toHaveLength(0)
+  })
+
+  it('refuses an expiry before the publication', async () => {
+    expect((await createAnnouncementAction(null, later('2099-01-02', '10:00', '2099-01-02', '09:00')))?.fieldErrors).toEqual({
+      expiry_time: 'The expiry date and time must be after the publication date and time.',
+    })
+  })
+
+  it('stores Sri Lanka times as UTC', async () => {
+    expect(await createAnnouncementAction(null, later('2099-01-02', '10:00', '2099-01-03', '08:30'))).toEqual({ success: true })
+    expect(db.rpcCalls[0]).toMatchObject({ p_publish_date: '2099-01-02T04:30:00.000Z', p_expiry_date: '2099-01-03T03:00:00.000Z' })
+  })
+
+  it('maps the database refusing an expiry to the expiry field', async () => {
+    db.rpcError = { code: '23514', message: 'The expiry date and time must be after the publication date and time.' }
+    expect((await createAnnouncementAction(null, later('2099-01-02', '10:00')))?.fieldErrors)
+      .toEqual({ expiry_date: 'The expiry date and time must be after the publication date and time.' })
   })
 })

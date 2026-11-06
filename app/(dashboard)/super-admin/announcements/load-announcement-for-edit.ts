@@ -11,15 +11,18 @@ export async function loadAnnouncementForEdit(id: string): Promise<{ announcemen
   const [{ data: row }, { data: allClubs }] = await Promise.all([
     supabase
       .from('announcements')
-      .select(`id, title, body, publish_date, expiry_date, priority, audience, status, is_pinned, ${ANNOUNCEMENT_CLUBS_EMBED}`)
+      .select(`id, title, body, publish_date, expiry_date, priority, audience, status, is_pinned, ${ANNOUNCEMENT_CLUBS_EMBED}, announcement_recipients(user_id)`)
       .eq('id', id)
       .maybeSingle(),
     supabase.from('clubs').select('id, name, is_active').order('name'),
   ])
   if (!row) return null
 
-  const { announcement_clubs: _links, ...rest } = row
-  const announcement: AnnouncementValues = { ...rest, is_all_clubs: !!row.is_all_clubs, club_ids: announcementClubIds(row) }
+  const { announcement_clubs: _links, announcement_recipients: people, ...rest } = row
+  const announcement: AnnouncementValues = {
+    ...rest, is_all_clubs: !!row.is_all_clubs, club_ids: announcementClubIds(row),
+    recipient_ids: ((people ?? []) as { user_id: string }[]).map(p => p.user_id),
+  }
   const linked = new Set(announcement.club_ids)
   const clubs = (allClubs ?? [])
     .filter(c => c.is_active || linked.has(c.id))

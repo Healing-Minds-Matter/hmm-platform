@@ -18,16 +18,25 @@ export function EventClubsField({
   defaultAllClubs = false,
   defaultClubIds = [],
   label: heading = 'Assigned Club',
+  onChange,
 }: {
   clubs?: ClubOption[]
   ownClub?: { id: string; name: string }
   defaultAllClubs?: boolean
   defaultClubIds?: string[]
   label?: string
+  /** Called whenever the choice changes (e.g. to update a recipient count). */
+  onChange?: (choice: { allClubs: boolean; clubIds: string[] }) => void
 }) {
   const label = 'mb-1.5 block text-[13px] font-medium tracking-[0.24px] text-[#0F172A]'
-  const [allClubs, setAllClubs] = useState(defaultAllClubs)
-  const [selected, setSelected] = useState<string[]>(defaultClubIds)
+  const [allClubs, setAllClubsState] = useState(defaultAllClubs)
+  const [selected, setSelectedState] = useState<string[]>(defaultClubIds)
+  const setAllClubs = (v: boolean) => { setAllClubsState(v); onChange?.({ allClubs: v, clubIds: selected }) }
+  const setSelected = (update: (s: string[]) => string[]) => {
+    const next = update(selected)
+    setSelectedState(next)
+    onChange?.({ allClubs, clubIds: next })
+  }
   const [query, setQuery] = useState('')
 
   if (ownClub) {

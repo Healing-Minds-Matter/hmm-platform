@@ -2,23 +2,22 @@
 
 import { useRouter } from 'next/navigation'
 import { ModalOverlay } from '@/components/modal-overlay'
-import { EditAnnouncementForm } from '../../../[id]/edit/edit-announcement-form'
+import { AnnouncementForm, type AnnouncementValues } from '@/app/(dashboard)/super-admin/announcements/announcement-form'
+import { NO_PERMISSION_MESSAGE } from '../../../permission-message'
 
-interface AnnouncementValues {
-  id: string
-  title: string
-  body: string
-  publish_date: string
-  expiry_date: string | null
-}
-
-export function EditAnnouncementModal({ announcement }: { announcement: AnnouncementValues }) {
+export function EditAnnouncementModal({ announcement, ownClub, canPublish }: {
+  announcement: AnnouncementValues
+  ownClub: { id: string; name: string }
+  canPublish: boolean
+}) {
   const router = useRouter()
   const close = () => router.back()
 
   return (
     <ModalOverlay onClose={close}>
-      <EditAnnouncementForm announcement={announcement} onClose={close} />
+      {canPublish
+        ? <AnnouncementForm announcement={announcement} clubs={[]} ownClub={ownClub} backHref="/champion/announcements" onClose={close} />
+        : <p role="alert" className="mx-auto max-w-[560px] rounded-2xl bg-white p-6 text-[14px] text-[#475569]">{NO_PERMISSION_MESSAGE}</p>}
     </ModalOverlay>
   )
 }

@@ -5,6 +5,10 @@ import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { useRouter } from 'next/navigation'
 import { EventClubsField, type ClubOption } from '@/app/(dashboard)/super-admin/events/event-clubs-field'
 import { updateAnnouncementAction, type AnnouncementActionState } from '@/actions/announcements'
+import { FormErrorsProvider, useFormErrors } from '@/hooks/use-form-errors'
+import { FieldError } from '@/components/field-error'
+import { formLevelError } from '@/lib/form-errors'
+import { CohortPeopleField, RecipientCount, ScheduleFields } from './announcement-fields'
 
 const AUDIENCE_OPTIONS = [
   { value: 'all', label: 'All Users', caption: 'Admins & Field', icon: '/icons/audience-all.svg', iconClass: 'h-[10px] w-5' },
@@ -30,31 +34,38 @@ export interface AnnouncementValues {
   status: 'draft' | 'published'
   is_all_clubs: boolean
   club_ids: string[] // "Specific Cohort" clubs
+  recipient_ids: string[] // people picked inside those clubs (none = everyone in them)
   is_pinned: boolean
 }
 
-function toDateInputValue(value: string) {
-  return value.slice(0, 10)
-}
-
+// Edit, in both portals (sheet row 61): a Champion (ownClub) gets the same
+// fields with the audience fixed to their own club.
 export function AnnouncementForm({
   announcement,
   clubs,
+  ownClub,
+  backHref = '/super-admin/announcements',
   onClose,
 }: {
   announcement: AnnouncementValues
   clubs: ClubOption[]
+  ownClub?: { id: string; name: string }
+  backHref?: string
   onClose?: () => void
 }) {
   const router = useRouter()
-  const close = onClose ?? (() => router.push('/super-admin/announcements'))
+  const close = onClose ?? (() => router.push(backHref))
   const [state, formAction, isPending] = useActionState<AnnouncementActionState, FormData>(updateAnnouncementAction, null)
   const submit = useSubmitWithoutReset(formAction)
-  const [audience, setAudience] = useState(announcement.audience)
+  const fe = useFormErrors(state)
+  const { bindForm, onSubmit: checkThen } = fe
+  const [audience, setAudience] = useState(ownClub ? 'specific_clubs' : announcement.audience)
   const [priority, setPriority] = useState(announcement.priority)
   const [status, setStatus] = useState(announcement.status)
-  const [hasExpiry, setHasExpiry] = useState(!!announcement.expiry_date)
   const [isPinned, setIsPinned] = useState(announcement.is_pinned)
+  const [clubChoice, setClubChoice] = useState<{ allClubs: boolean; clubIds: string[] }>(
+    ownClub ? { allClubs: false, clubIds: [ownClub.id] } : { allClubs: announcement.is_all_clubs, clubIds: announcement.club_ids })
+  const [recipientIds, setRecipientIds] = useState<string[]>(announcement.recipient_ids)
 
   useEffect(() => {
     if (state?.success) close()
@@ -76,7 +87,8 @@ export function AnnouncementForm({
         </button>
       </div>
 
-      <form onSubmit={submit} className="flex flex-1 flex-col overflow-hidden">
+      <form ref={bindForm} noValidate onSubmit={checkThen(submit)} className="flex flex-1 flex-col overflow-hidden">
+      <FormErrorsProvider value={fe}>
         <input type="hidden" name="announcement_id" value={announcement.id} />
           <input type="hidden" name="audience" value={audience} />
           <input type="hidden" name="priority" value={priority} />
@@ -84,9 +96,9 @@ export function AnnouncementForm({
           <input type="hidden" name="is_pinned" value={isPinned ? 'true' : ''} />
 
           <div className="flex flex-1 flex-col gap-4 overflow-y-auto bg-[#F8FAFC] p-6">
-            {state?.error && (
+            {formLevelError(state) && (
               <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">
-                {state.error}
+                {formLevelError(state)}
               </div>
             )}
 
@@ -102,10 +114,12 @@ export function AnnouncementForm({
                 defaultValue={announcement.title}
                 className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
               />
+              <FieldError name="title" />
             </div>
 
             <div className="flex flex-col gap-2">
               <h3 className="text-[13px] font-medium tracking-[0.24px] text-[#0F172A]">Target Audience &amp; Visibility</h3>
+              {!ownClub && (
               <div className="flex gap-2.5">
                 {AUDIENCE_OPTIONS.map(opt => (
                   <button
@@ -123,11 +137,24 @@ export function AnnouncementForm({
                   </button>
                 ))}
               </div>
+              )}
               {audience === 'specific_clubs' && (
                 <div className="mt-1">
-                  <EventClubsField clubs={clubs} label="Clubs" defaultAllClubs={announcement.is_all_clubs} defaultClubIds={announcement.club_ids} />
+                  <EventClubsField
+                    clubs={clubs}
+                    ownClub={ownClub}
+                    label="Clubs"
+                    defaultAllClubs={announcement.is_all_clubs}
+                    defaultClubIds={announcement.club_ids}
+                    onChange={setClubChoice}
+                  />
+                  <FieldError name="club_ids" />
+                  {!clubChoice.allClubs && (
+                    <CohortPeopleField clubIds={clubChoice.clubIds} selected={recipientIds} onChange={setRecipientIds} />
+                  )}
                 </div>
               )}
+              <RecipientCount audience={audience} allClubs={clubChoice.allClubs} clubIds={clubChoice.clubIds} recipientIds={recipientIds} />
             </div>
 
             <div className="flex flex-col gap-2">
@@ -164,22 +191,10 @@ export function AnnouncementForm({
                 defaultValue={announcement.body}
                 className="w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 py-2.5 text-[13px] leading-[21px] text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
               />
+              <FieldError name="body" />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="publish_date" className="mb-1.5 block text-[13px] font-medium tracking-[0.24px] text-[#0F172A]">
-                  Publish Date <span className="text-[#DC2626]">*</span>
-                </label>
-                <input
-                  id="publish_date"
-                  name="publish_date"
-                  type="date"
-                  required
-                  defaultValue={toDateInputValue(announcement.publish_date)}
-                  className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
-                />
-              </div>
               <div>
                 <label className="mb-1.5 block text-[13px] font-medium tracking-[0.24px] text-[#0F172A]">
                   Status
@@ -213,25 +228,7 @@ export function AnnouncementForm({
               </p>
             </div>
 
-            <div>
-              <label className="flex items-center gap-2 text-[13px] text-[#475569]">
-                <input
-                  type="checkbox"
-                  checked={hasExpiry}
-                  onChange={e => setHasExpiry(e.target.checked)}
-                  className="h-[13px] w-[13px] accent-[#003495]"
-                />
-                Set expiration date (auto-archive after this date)
-              </label>
-              {hasExpiry && (
-                <input
-                  type="date"
-                  name="expiry_date"
-                  defaultValue={announcement.expiry_date ? toDateInputValue(announcement.expiry_date) : undefined}
-                  className="mt-2 h-10 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
-                />
-              )}
-            </div>
+            <ScheduleFields publishIso={announcement.publish_date} expiryIso={announcement.expiry_date} />
           </div>
 
         <div className="flex items-center gap-3 border-t border-[#E2E8F0] px-6 py-4">
@@ -250,6 +247,7 @@ export function AnnouncementForm({
             Cancel
           </button>
         </div>
+      </FormErrorsProvider>
         </form>
       </div>
   )
