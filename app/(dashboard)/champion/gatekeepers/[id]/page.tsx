@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { loginPath } from '@/lib/login-redirect.server'
 import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { CertificatesSection } from '@/components/certifications/certificates-section'
@@ -19,7 +20,7 @@ export default async function ChampionGatekeeperDetailPage({ params, searchParam
   const { renew } = await searchParams
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect(await loginPath())
 
   const { data: callerProfile } = await supabase.from('profiles').select('club_id').eq('id', user.id).single()
   if (!callerProfile?.club_id) redirect('/champion')
