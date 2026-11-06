@@ -1,8 +1,8 @@
 // Dashboard certification figures (Story 10.12 Sc03): per certification type,
 // how many are valid, expiring in 90 days and expired, and how many hold it;
 // plus how many people have no certifications. Super Admins see active
-// Champions and Gatekeepers in active clubs (the same people as the QPR
-// widget); a Champion sees their club's active Gatekeepers and Champions.
+// Champions and Gatekeepers in active clubs (the people the dashboards
+// count); a Champion sees their club's active Gatekeepers and Champions.
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { loadCertSummary } from '@/lib/cert-summary.server'

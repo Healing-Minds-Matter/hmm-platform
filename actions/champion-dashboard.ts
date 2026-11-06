@@ -1,8 +1,6 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { loadCertSummary } from '@/lib/cert-summary.server'
-import { qprFigures } from '@/lib/cert-summary'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { EVENT_CLUBS_EMBED, isEventForClub, type WithEventClubs } from '@/lib/event-clubs'
 
@@ -32,7 +30,6 @@ export type ChampionDashboardData = {
   activeGatekeepers: number
   inactiveGatekeepers: number
   newGatekeepersThisMonth: number
-  qpr: { certified: number; total: number; expiringSoon: number }
   monthlyTrend: MonthlyCount[]
   notYetLoggedIn: NotLoggedInGatekeeper[]
   upcomingEvents: EventSummary[]
@@ -45,7 +42,6 @@ const EMPTY: ChampionDashboardData = {
   activeGatekeepers: 0,
   inactiveGatekeepers: 0,
   newGatekeepersThisMonth: 0,
-  qpr: { certified: 0, total: 0, expiringSoon: 0 },
   monthlyTrend: [],
   notYetLoggedIn: [],
   upcomingEvents: [],
@@ -83,12 +79,10 @@ export async function getChampionDashboardData(): Promise<ChampionDashboardData>
     { count: activeGatekeepers },
     { count: inactiveGatekeepers },
     { count: newThisMonth },
-    { data: qprProfiles },
     { data: trendRows },
     { data: gatekeeperRows },
     { data: upcomingRows },
     { data: completedRows },
-    certSummary,
   ] = await Promise.all([
     supabase.from('profiles').select('id', { count: 'exact', head: true })
       .eq('club_id', club.id).eq('role', 'gatekeeper').eq('is_active', true),
@@ -96,9 +90,6 @@ export async function getChampionDashboardData(): Promise<ChampionDashboardData>
       .eq('club_id', club.id).eq('role', 'gatekeeper').eq('is_active', false),
     supabase.from('profiles').select('id', { count: 'exact', head: true })
       .eq('club_id', club.id).eq('role', 'gatekeeper').gte('created_at', monthStart),
-    // Champions are certified people too, so they count alongside Gatekeepers.
-    supabase.from('profiles').select('id')
-      .eq('club_id', club.id).in('role', ['gatekeeper', 'champion']).eq('is_active', true),
     supabase.from('profiles').select('created_at')
       .eq('club_id', club.id).eq('role', 'gatekeeper').gte('created_at', sixMonthsAgo),
     supabase.from('profiles').select('id, full_name, email, created_at')
@@ -112,15 +103,11 @@ export async function getChampionDashboardData(): Promise<ChampionDashboardData>
       .eq('is_cancelled', false)
       .lt('starts_at', now.toISOString()).gte('starts_at', thirtyDaysAgo)
       .order('starts_at', { ascending: false }),
-    loadCertSummary(supabase),
   ])
 
   // This club's events plus events open to all clubs, without the clubs list.
   const forClub = (rows: (EventSummary & WithEventClubs)[] | null): EventSummary[] =>
     (rows ?? []).filter(e => isEventForClub(e, club.id)).map(({ event_clubs: _clubs, is_all_clubs: _all, ...e }) => e)
-
-  // From each person's current QPR certificate, with the certificate status rules (Story 10.12 Sc04).
-  const { certified, expiringSoon, total } = qprFigures(certSummary.qprByHolder, (qprProfiles ?? []).map(p => p.id))
 
   const monthBuckets: MonthlyCount[] = []
   for (let i = 5; i >= 0; i--) {
@@ -155,7 +142,6 @@ export async function getChampionDashboardData(): Promise<ChampionDashboardData>
     activeGatekeepers: activeGatekeepers ?? 0,
     inactiveGatekeepers: inactiveGatekeepers ?? 0,
     newGatekeepersThisMonth: newThisMonth ?? 0,
-    qpr: { certified, total, expiringSoon },
     monthlyTrend: monthBuckets,
     notYetLoggedIn,
     upcomingEvents: forClub(upcomingRows),

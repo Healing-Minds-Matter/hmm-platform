@@ -1,15 +1,12 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { loadCertSummary } from '@/lib/cert-summary.server'
-import { qprFigures } from '@/lib/cert-summary'
 import { EVENT_CLUBS_EMBED, eventClubsLabel, isEventForClub } from '@/lib/event-clubs'
 
 export type BarItem = { club_id: string; club_name: string; count: number; club_location?: string | null }
 export type StackedItem = { club_id: string; club_name: string; active: number; inactive: number }
 export type UpcomingEvent = { id: string; title: string; club_name: string; starts_at: string; type: string }
 export type EventsData = { total: number; events: UpcomingEvent[] }
-export type QPRData = { certified: number; total: number; expiringSoon: number }
 export type OnboardingFilter = 'this_month' | 'last_month' | 'this_quarter'
 export type EventsFilter = 'next_7_days' | 'next_30_days' | 'all_upcoming'
 
@@ -20,7 +17,6 @@ export type DashboardData = {
   onboardingMomChangePct: number | null
   gatekeeperStatusPerClub: StackedItem[]
   upcomingEvents: EventsData
-  qprData: QPRData
 }
 
 const EMPTY: DashboardData = {
@@ -30,7 +26,6 @@ const EMPTY: DashboardData = {
   onboardingMomChangePct: null,
   gatekeeperStatusPerClub: [],
   upcomingEvents: { total: 0, events: [] },
-  qprData: { certified: 0, total: 0, expiringSoon: 0 },
 }
 
 // Period boundaries for an onboarding filter, plus the immediately-preceding
@@ -91,16 +86,12 @@ export async function getDashboardData(): Promise<DashboardData> {
     { data: newGk },
     { count: lastMonthGkCount },
     { data: events },
-    { data: certUsers },
-    certSummary,
   ] = await Promise.all([
     supabase.from('profiles').select('club_id, is_active').eq('role', 'gatekeeper').in('club_id', clubIds),
     supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'champion').eq('is_active', true).in('club_id', clubIds),
     supabase.from('profiles').select('club_id').eq('role', 'gatekeeper').in('club_id', clubIds).gte('created_at', thisMonthStart),
     supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'gatekeeper').in('club_id', clubIds).gte('created_at', lastMonthStart).lt('created_at', thisMonthStart),
     supabase.from('events').select(`id, title, starts_at, type, ${EVENT_CLUBS_EMBED}`).gt('starts_at', now.toISOString()).eq('is_cancelled', false).order('starts_at', { ascending: true }).lte('starts_at', in30Days),
-    supabase.from('profiles').select('id').in('role', ['champion', 'gatekeeper']).eq('is_active', true).in('club_id', clubIds),
-    loadCertSummary(supabase),
   ])
 
   const activeGkByClub: Record<string, number> = {}
@@ -116,7 +107,6 @@ export async function getDashboardData(): Promise<DashboardData> {
     if (gk.club_id) newGkByClub[gk.club_id] = (newGkByClub[gk.club_id] ?? 0) + 1
   }
 
-  const allCertUsers = certUsers ?? []
   // Events for an active club, or open to all clubs.
   const eventList = (events ?? []).filter(e => isEventForClub(e, clubIds))
 
@@ -152,9 +142,6 @@ export async function getDashboardData(): Promise<DashboardData> {
         type: e.type,
       })),
     },
-
-    // From each person's current QPR certificate, with the certificate status rules (Story 10.12 Sc04).
-    qprData: qprFigures(certSummary.qprByHolder, allCertUsers.map(u => u.id)),
   }
 }
 
