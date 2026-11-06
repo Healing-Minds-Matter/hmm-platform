@@ -24,7 +24,7 @@ export function ClubEditForm({ club, onClose }: { club: Club; onClose?: () => vo
   const close = onClose ?? (() => router.push(`/super-admin/clubs/${club.id}`))
   const [state, formAction, isPending] = useActionState(updateClubAction, null)
   const fe = useFormErrors(state)
-  const { formRef } = fe
+  const { bindForm, onSubmit: checkThen } = fe
   const submit = useSubmitWithoutReset(formAction)
   const isActive = club.is_active
 
@@ -60,7 +60,7 @@ export function ClubEditForm({ club, onClose }: { club: Club; onClose?: () => vo
         </button>
       </div>
 
-      <form ref={formRef} noValidate onSubmit={fe.onSubmit(submit)}>
+      <form ref={bindForm} noValidate onSubmit={checkThen(submit)}>
       <FormErrorsProvider value={fe}>
         <input type="hidden" name="club_id" value={club.id} />
 

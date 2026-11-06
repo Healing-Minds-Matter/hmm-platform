@@ -16,7 +16,7 @@ export function CreateChampionForm({ clubs, onClose }: { clubs: Club[]; onClose?
   const close = onClose ?? (() => router.push('/super-admin/champions'))
   const [state, formAction, isPending] = useActionState(createChampionAction, null)
   const fe = useFormErrors(state)
-  const { formRef } = fe
+  const { bindForm, onSubmit: checkThen } = fe
   const submit = useSubmitWithoutReset(formAction)
 
   useEffect(() => {
@@ -44,7 +44,7 @@ export function CreateChampionForm({ clubs, onClose }: { clubs: Club[]; onClose?
         </button>
       </div>
 
-      <form ref={formRef} noValidate onSubmit={fe.onSubmit(submit)} className="flex flex-1 flex-col overflow-hidden">
+      <form ref={bindForm} noValidate onSubmit={checkThen(submit)} className="flex flex-1 flex-col overflow-hidden">
       <FormErrorsProvider value={fe}>
         <div className="flex flex-1 flex-col gap-4 overflow-y-auto bg-[#F8FAFC] p-6">
           {formLevelError(state) && (

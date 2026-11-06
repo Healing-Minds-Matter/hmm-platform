@@ -32,7 +32,7 @@ export function ChampionEditForm({
   const close = onClose ?? (() => router.push(`/super-admin/champions/${champion.id}`))
   const [state, formAction, isPending] = useActionState(updateChampionAction, null)
   const fe = useFormErrors(state)
-  const { formRef } = fe
+  const { bindForm, onSubmit: checkThen } = fe
   const submit = useSubmitWithoutReset(formAction)
 
   useEffect(() => {
@@ -60,7 +60,7 @@ export function ChampionEditForm({
         </button>
       </div>
 
-      <form ref={formRef} noValidate onSubmit={fe.onSubmit(submit)} className="flex flex-1 flex-col overflow-hidden">
+      <form ref={bindForm} noValidate onSubmit={checkThen(submit)} className="flex flex-1 flex-col overflow-hidden">
       <FormErrorsProvider value={fe}>
         <input type="hidden" name="champion_id" value={champion.id} />
         <input type="hidden" name="version" value={champion.version} />

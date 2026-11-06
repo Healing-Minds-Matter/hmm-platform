@@ -3,9 +3,7 @@
 // Field-level errors for create/edit forms (sheet row 32).
 //
 //   const fe = useFormErrors(state)              // state = the action's result
-//   const { formRef } = fe                       // its own variable: `ref={fe.formRef}`
-//                                                // makes the react-hooks/refs lint flag all of `fe`
-//   <form ref={formRef} noValidate onSubmit={fe.onSubmit(submit)}>
+//   <form ref={fe.bindForm} noValidate onSubmit={fe.onSubmit(submit)}>
 //     <FormErrorsProvider value={fe}>
 //       <input id="title" name="title" required />
 //       <FieldError name="title" />
@@ -24,8 +22,8 @@ import { cleanLabel, validityMessage, type FieldErrors, type FormErrorState } fr
 type Control = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
 
 export type FormErrorsApi = {
-  /** Callback ref for the <form>: `const { formRef } = fe` then `ref={formRef}`. */
-  formRef: (form: HTMLFormElement | null) => void
+  /** Callback ref for the <form> (ref={fe.bindForm}). */
+  bindForm: (form: HTMLFormElement | null) => void
   errors: FieldErrors
   errorId: (name: string) => string
   /** Wraps a submit handler: runs it only when the browser checks pass. Omit it for `<form action>`. */
@@ -52,23 +50,23 @@ function controlsOf(form: HTMLFormElement): Control[] {
     (el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement) && !!el.name && !el.disabled)
 }
 
+const hasFieldErrors = (s: FormErrorState | null | undefined) => !!s?.fieldErrors && Object.keys(s.fieldErrors).length > 0
+
 export function useFormErrors(state: FormErrorState | null | undefined): FormErrorsApi {
-  // The <form> element, held in state via a callback ref (not a ref object),
-  // so the returned api can be read during render.
-  const [form, formRef] = useState<HTMLFormElement | null>(null)
+  const [form, setForm] = useState<HTMLFormElement | null>(null)
   const prefix = useId()
   const [clientErrors, setClientErrors] = useState<FieldErrors | null>(null)
-  const [cleared, setCleared] = useState<Set<string>>(new Set())
+  const [cleared, setCleared] = useState<Set<string>>(() => new Set())
   const [focusRequest, setFocusRequest] = useState(0)
 
-  // A new server result replaces any browser-check messages. Adjusted while
-  // rendering (not in an effect) so there is no extra render pass.
+  // A new server result replaces any browser-check messages (adjusting state
+  // while rendering, as React recommends, rather than in an effect).
   const [seenState, setSeenState] = useState(state)
   if (state !== seenState) {
     setSeenState(state)
     setClientErrors(null)
     setCleared(new Set())
-    if (state?.fieldErrors && Object.keys(state.fieldErrors).length) setFocusRequest(n => n + 1)
+    if (hasFieldErrors(state)) setFocusRequest(n => n + 1)
   }
 
   const errors = useMemo(() => {
@@ -95,23 +93,24 @@ export function useFormErrors(state: FormErrorState | null | undefined): FormErr
     }
   }, [form, errors, errorId])
 
-  // Move focus to the first field with a problem, in the order they appear.
+  // Move focus to the first field with a problem, in the order they appear —
+  // only when a new set of errors arrives, not on every change.
+  const [focusedFor, setFocusedFor] = useState(0)
   useEffect(() => {
-    if (!focusRequest) return
-    if (!form) return
+    if (!form || focusRequest === focusedFor) return
     const first = controlsOf(form).find(el => errors[el.name] && el.type !== 'hidden')
     if (first) {
       first.focus()
       first.scrollIntoView?.({ block: 'center', behavior: 'smooth' })
     }
-    // Only when a new set of errors arrives, not on every change.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusRequest])
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- records that this request was handled
+    setFocusedFor(focusRequest)
+  }, [form, focusRequest, focusedFor, errors])
 
-  const onSubmit: FormErrorsApi['onSubmit'] = submit => e => {
-    const form = e.currentTarget
+  const onSubmit = useCallback<FormErrorsApi['onSubmit']>(submit => e => {
+    const target = e.currentTarget
     const found: FieldErrors = {}
-    for (const el of controlsOf(form)) {
+    for (const el of controlsOf(target)) {
       if (found[el.name] || el.type === 'hidden') continue
       const message = el.checkValidity() ? null : validityMessage(el, labelFor(el))
       if (message) found[el.name] = message
@@ -125,9 +124,9 @@ export function useFormErrors(state: FormErrorState | null | undefined): FormErr
     }
     setClientErrors(null)
     submit?.(e)
-  }
+  }, [])
 
   const clear = useCallback((name: string) => setCleared(prev => (prev.has(name) ? prev : new Set(prev).add(name))), [])
 
-  return { formRef, errors, errorId, onSubmit, clear }
+  return useMemo(() => ({ bindForm: setForm, errors, errorId, onSubmit, clear }), [errors, errorId, onSubmit, clear])
 }

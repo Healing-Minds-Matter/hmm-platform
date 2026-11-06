@@ -26,7 +26,7 @@ export function ReactivateChampionForm({
   const close = onClose ?? (() => router.push(`/super-admin/champions/${champion.id}`))
   const [state, formAction, isPending] = useActionState(reactivateChampionAction, null)
   const fe = useFormErrors(state)
-  const { formRef } = fe
+  const { bindForm, onSubmit: checkThen } = fe
   const submit = useSubmitWithoutReset(formAction)
   const clubIsInactive = currentClub && !currentClub.is_active
 
@@ -53,7 +53,7 @@ export function ReactivateChampionForm({
         </button>
       </div>
 
-      <form ref={formRef} noValidate onSubmit={fe.onSubmit(submit)}>
+      <form ref={bindForm} noValidate onSubmit={checkThen(submit)}>
       <FormErrorsProvider value={fe}>
         <input type="hidden" name="champion_id" value={champion.id} />
         <div className="flex flex-col gap-4 bg-[#F8FAFC] p-6">
