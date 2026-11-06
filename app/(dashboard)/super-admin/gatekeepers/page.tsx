@@ -54,7 +54,9 @@ export default async function GatekeepersPage({
     .from('profiles')
     .select('id, full_name, email, phone, gatekeeper_code, is_active, club_id')
     .eq('role', 'gatekeeper')
-    .order('full_name')
+    // Sheet row 16: newest first, id breaks ties so paging is stable.
+    .order('created_at', { ascending: false })
+    .order('id')
 
   if (q) query = query.or(`full_name.ilike.%${q}%,email.ilike.%${q}%,phone.ilike.%${q}%,gatekeeper_code.ilike.%${q}%`)
   if (clubFilter) query = query.eq('club_id', clubFilter)

@@ -19,7 +19,9 @@ export default async function ChampionAnnouncementsPage() {
   const { data: announcements } = await supabase
     .from('announcements')
     .select(`id, title, body, publish_date, expiry_date, priority, audience, status, created_by, is_pinned, ${ANNOUNCEMENT_CLUBS_EMBED}`)
-    .order('publish_date', { ascending: false })
+    // Sheet row 16: newest first, id breaks ties so paging is stable.
+    .order('created_at', { ascending: false })
+    .order('id')
 
   // Champions may only read their own club (RLS), but an announcement can be
   // for several clubs — names only, read with the admin client.

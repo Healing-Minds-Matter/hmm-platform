@@ -20,7 +20,9 @@ export default async function AnnouncementsPage({
   let query = supabase
     .from('announcements')
     .select(`id, title, body, publish_date, expiry_date, priority, audience, status, is_pinned, ${ANNOUNCEMENT_CLUBS_EMBED}`)
-    .order('publish_date', { ascending: false })
+    // Sheet row 16: newest first, id breaks ties so paging is stable.
+    .order('created_at', { ascending: false })
+    .order('id')
 
   if (q) query = query.ilike('title', `%${q}%`)
   if (audience) query = query.eq('audience', audience)

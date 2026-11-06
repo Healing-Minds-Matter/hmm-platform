@@ -21,7 +21,10 @@ export default async function ResourcesPage({
   let query = supabase
     .from('resources')
     .select('id, title, description, type, category, publication_date, content_url, content_text, status')
-    .order('publication_date', { ascending: sort === 'oldest' })
+    // Sheet row 16: by when the resource was added (newest first unless
+    // "Oldest First" is chosen); id breaks ties.
+    .order('created_at', { ascending: sort === 'oldest' })
+    .order('id')
 
   if (q) query = query.ilike('title', `%${q}%`)
   if (category) query = query.eq('category', category)

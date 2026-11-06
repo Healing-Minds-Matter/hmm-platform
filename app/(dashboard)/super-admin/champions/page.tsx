@@ -70,7 +70,9 @@ export default async function ChampionsPage({
     .from('profiles')
     .select('id, full_name, email, phone, title, is_active, club_id, clubs!profiles_club_id_fkey(id, name)')
     .eq('role', 'champion')
-    .order('full_name')
+    // Sheet row 16: newest first, id breaks ties so paging is stable.
+    .order('created_at', { ascending: false })
+    .order('id')
 
   if (q)          query = query.ilike('full_name', `%${q}%`)
   if (clubFilter) query = query.eq('club_id', clubFilter)
