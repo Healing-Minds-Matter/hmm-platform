@@ -49,7 +49,10 @@ export function CertificateDesigner({ typeId, typeName, lifetime, start, startLa
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const isNew = startLabel.startsWith('New')
-  const dirty = useMemo(() => isNew || JSON.stringify(design) !== JSON.stringify(start), [design, start, isNew])
+  // dirty = edited since the page opened. A new design can be saved untouched (its starting
+  // layout is a real design), but leaving it untouched loses nothing, so it doesn't warn.
+  const dirty = useMemo(() => JSON.stringify(design) !== JSON.stringify(start), [design, start])
+  const canSave = isNew || dirty
 
   // Warn before leaving with unsaved changes.
   useEffect(() => {
@@ -129,12 +132,12 @@ export function CertificateDesigner({ typeId, typeName, lifetime, start, startLa
         <div>
           <h1 className="text-[24px] font-bold tracking-[-0.7px] text-[#0F172A]">Digital certificate design · {typeName}</h1>
           <p className="mt-1 max-w-3xl text-sm text-[#475569]">
-            {startLabel} {dirty ? 'Unsaved changes.' : 'No unsaved changes.'} Saving creates version {nextVersion}; certificates already issued keep the version they were made with.
+            {startLabel} {dirty ? 'Unsaved changes.' : isNew ? 'Not saved yet.' : 'No unsaved changes.'} Saving creates version {nextVersion}; certificates already issued keep the version they were made with.
           </p>
         </div>
         <div className="flex flex-shrink-0 gap-2">
-          <button type="button" onClick={discard} className={CANCEL_BTN}>Discard changes</button>
-          <button type="button" onClick={save} disabled={!dirty || !!busy} className={PRIMARY_BTN}>Save as version {nextVersion}</button>
+          <button type="button" onClick={discard} disabled={!dirty || !!busy} className={`${CANCEL_BTN} disabled:cursor-not-allowed disabled:opacity-50`}>Discard changes</button>
+          <button type="button" onClick={save} disabled={!canSave || !!busy} className={PRIMARY_BTN}>Save as version {nextVersion}</button>
         </div>
       </div>
       {error && <div role="alert" className="rounded-lg bg-[#FEF2F2] px-4 py-2.5 text-[13px] font-medium text-[#DC2626]">{error}</div>}
