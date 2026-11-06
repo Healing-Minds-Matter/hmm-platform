@@ -4,7 +4,10 @@ import { useActionState, useEffect, useRef, useState } from 'react'
 import { useResourceSubmit } from '@/hooks/use-resource-submit'
 import { useRouter } from 'next/navigation'
 import { createResourceAction } from '@/actions/resources'
-import { RESOURCE_CATEGORIES } from '@/lib/resource-categories'
+import { categoryOptions, type ResourceCategory } from '@/lib/resource-categories'
+import { FormErrorsProvider, useFormErrors } from '@/hooks/use-form-errors'
+import { FieldError } from '@/components/field-error'
+import { formLevelError } from '@/lib/form-errors'
 import { RESOURCE_FILE_RULES } from '@/lib/resource-file-types'
 
 const RESOURCE_TYPE_TABS = [
@@ -82,13 +85,15 @@ function FileDropZone({ type }: { type: string }) {
   )
 }
 
-export function CreateResourceForm({ onClose }: { onClose?: () => void }) {
+export function CreateResourceForm({ categories, onClose }: { categories: ResourceCategory[]; onClose?: () => void }) {
   const router = useRouter()
   const close = onClose ?? (() => router.push('/super-admin/resources'))
   const [state, formAction, isPending] = useActionState(createResourceAction, null)
   const { submit, uploading, uploadError } = useResourceSubmit(formAction)
   const busy = uploading || isPending
-  const errorMessage = uploadError ?? state?.error
+  const fe = useFormErrors(state)
+  const { bindForm, onSubmit: checkThen } = fe
+  const errorMessage = uploadError ?? formLevelError(state)
   const [type, setType] = useState('video')
 
   useEffect(() => {
@@ -117,7 +122,8 @@ export function CreateResourceForm({ onClose }: { onClose?: () => void }) {
         </button>
       </div>
 
-      <form onSubmit={submit} className="flex flex-1 flex-col overflow-hidden">
+      <form ref={bindForm} noValidate onSubmit={checkThen(submit)} className="flex flex-1 flex-col overflow-hidden">
+      <FormErrorsProvider value={fe}>
         <input type="hidden" name="type" value={type} />
 
         <div className="flex flex-1 flex-col gap-4 overflow-y-auto bg-[#F8FAFC] p-6">
@@ -160,29 +166,32 @@ export function CreateResourceForm({ onClose }: { onClose?: () => void }) {
                 placeholder="e.g. Gatekeeper Core Intervention Protocol"
                 className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
               />
+              <FieldError name="title" />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label htmlFor="category" className="mb-1.5 block text-[13px] font-medium text-[#0F172A]">
+                <label htmlFor="category_id" className="mb-1.5 block text-[13px] font-medium text-[#0F172A]">
                   Category <span className="text-[#DC2626]">*</span>
                 </label>
                 <div className="relative">
                   <select
-                    id="category"
-                    name="category"
+                    id="category_id"
+                    name="category_id"
                     required
                     defaultValue=""
                     className="h-10 w-full appearance-none rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 pr-9 text-sm text-[#0F172A] invalid:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                   >
                     <option value="" disabled>Select a category</option>
-                    {RESOURCE_CATEGORIES.map(c => (
-                      <option key={c} value={c} className="text-[#0F172A]">{c}</option>
+                    {/* Managed under Resources > Categories (sheet row 26). */}
+                    {categoryOptions(categories).map(c => (
+                      <option key={c.id} value={c.id} className="text-[#0F172A]">{c.name}</option>
                     ))}
                   </select>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src="/icons/chevron-down.svg" alt="" className="pointer-events-none absolute right-3.5 top-1/2 h-[6px] w-[9px] -translate-y-1/2" />
                 </div>
+                <FieldError name="category_id" />
               </div>
               <div>
                 <label htmlFor="estimated_completion" className="mb-1.5 block text-[13px] font-medium text-[#0F172A]">
@@ -200,6 +209,7 @@ export function CreateResourceForm({ onClose }: { onClose?: () => void }) {
                     className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] pl-9 pr-3.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                   />
                 </div>
+                <FieldError name="estimated_completion" />
               </div>
             </div>
 
@@ -215,6 +225,7 @@ export function CreateResourceForm({ onClose }: { onClose?: () => void }) {
                     rows={4}
                     className="w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 py-2.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                   />
+                  <FieldError name="content_text" />
                 </div>
                 <div>
                   <label htmlFor="content_url_article" className="mb-1.5 block text-[13px] font-medium text-[#0F172A]">
@@ -227,6 +238,7 @@ export function CreateResourceForm({ onClose }: { onClose?: () => void }) {
                     placeholder="https://…"
                     className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                   />
+                  <FieldError name="content_url" />
                   <p className="mt-1.5 text-[11px] text-[#94A3B8]">
                     Provide article content, an external link, or both.
                   </p>
@@ -245,6 +257,7 @@ export function CreateResourceForm({ onClose }: { onClose?: () => void }) {
                     placeholder="https://vimeo.com/…"
                     className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                   />
+                  <FieldError name="content_url" />
                 </div>
                 <FileDropZone type={type} />
               </>
@@ -261,6 +274,7 @@ export function CreateResourceForm({ onClose }: { onClose?: () => void }) {
                 rows={3}
                 className="w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 py-2.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
               />
+              <FieldError name="description" />
             </div>
 
             {/* Draft vs. published is decided only by the footer button used
@@ -312,6 +326,7 @@ export function CreateResourceForm({ onClose }: { onClose?: () => void }) {
             {uploading ? 'Uploading file…' : isPending ? 'Saving…' : 'Publish Resource'}
           </button>
         </div>
+      </FormErrorsProvider>
       </form>
     </div>
   )

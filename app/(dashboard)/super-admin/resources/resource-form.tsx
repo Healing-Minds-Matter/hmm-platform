@@ -4,7 +4,10 @@ import { useActionState, useEffect, useRef, useState, type FormEvent } from 'rea
 import { useResourceSubmit } from '@/hooks/use-resource-submit'
 import { useRouter } from 'next/navigation'
 import { updateResourceAction, type ResourceActionState } from '@/actions/resources'
-import { RESOURCE_CATEGORIES, isResourceCategory } from '@/lib/resource-categories'
+import { categoryOptions, type ResourceCategory } from '@/lib/resource-categories'
+import { FormErrorsProvider, useFormErrors } from '@/hooks/use-form-errors'
+import { FieldError } from '@/components/field-error'
+import { formLevelError } from '@/lib/form-errors'
 import { todayDateString } from '@/lib/org-date'
 import { RESOURCE_FILE_RULES } from '@/lib/resource-file-types'
 import { formatPublicationDate, needsRescheduleConfirmation, publicationMessage } from './publication-message'
@@ -15,6 +18,7 @@ interface ResourceValues {
   description: string | null
   type: string
   category: string | null
+  category_id: string | null
   publication_date: string
   content_url: string | null
   content_text: string | null
@@ -28,12 +32,12 @@ const labelClass = 'block text-[13px] font-medium text-[#0F172A]'
 // Figma "Create New Resource" modal). No Figma edit-modal design exists, so
 // this keeps its own simpler field layout — only the surrounding chrome
 // (header/close/footer) matches the app's shared modal-card convention.
-export function EditResourceForm({ resource, onClose }: { resource: ResourceValues; onClose?: () => void }) {
+export function EditResourceForm({ resource, categories, onClose }: { resource: ResourceValues; categories: ResourceCategory[]; onClose?: () => void }) {
   const router = useRouter()
   const close = onClose ?? (() => router.push('/super-admin/resources'))
   const [state, formAction, isPending] = useActionState<ResourceActionState, FormData>(updateResourceAction, null)
   const { submit, uploading, uploadError } = useResourceSubmit(formAction)
-  const errorMessage = uploadError ?? state?.error
+  const errorMessage = uploadError ?? formLevelError(state)
   const [type, setType] = useState(resource.type)
   const isDraft = resource.status === 'draft'
   const today = todayDateString()
@@ -49,6 +53,8 @@ export function EditResourceForm({ resource, onClose }: { resource: ResourceValu
   const [confirmOpen, setConfirmOpen] = useState(false)
   const confirmedRef = useRef(false)
   const formRef = useRef<HTMLFormElement>(null)
+  const fe = useFormErrors(state)
+  const { bindForm, onSubmit: checkThen } = fe
   const publishButtonRef = useRef<HTMLButtonElement>(null)
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -103,7 +109,8 @@ export function EditResourceForm({ resource, onClose }: { resource: ResourceValu
         </button>
       </div>
 
-      <form ref={formRef} onSubmit={handleSubmit} className="flex flex-1 flex-col overflow-hidden">
+      <form ref={el => { formRef.current = el; bindForm(el) }} noValidate onSubmit={e => checkThen(handleSubmit)(e)} className="flex flex-1 flex-col overflow-hidden">
+      <FormErrorsProvider value={fe}>
         <input type="hidden" name="resource_id" value={resource.id} />
         <input type="hidden" name="previous_content_url" value={resource.content_url ?? ''} />
 
@@ -126,6 +133,7 @@ export function EditResourceForm({ resource, onClose }: { resource: ResourceValu
               defaultValue={resource.title}
               className={inputClass}
             />
+            <FieldError name="title" />
           </div>
 
           <div>
@@ -139,6 +147,7 @@ export function EditResourceForm({ resource, onClose }: { resource: ResourceValu
               defaultValue={resource.description ?? ''}
               className={inputClass}
             />
+            <FieldError name="description" />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -158,26 +167,28 @@ export function EditResourceForm({ resource, onClose }: { resource: ResourceValu
                 <option value="article">Article</option>
                 <option value="document">Document</option>
               </select>
+              <FieldError name="type" />
             </div>
             <div>
-              <label htmlFor="category" className={labelClass}>
+              <label htmlFor="category_id" className={labelClass}>
                 Category <span className="text-[#DC2626]">*</span>
               </label>
               <select
-                id="category"
-                name="category"
+                id="category_id"
+                name="category_id"
                 required
-                defaultValue={resource.category ?? ''}
+                defaultValue={resource.category_id ?? ''}
                 className={inputClass}
               >
                 <option value="" disabled>Select a category</option>
-                {RESOURCE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                {/* A category from before the fixed list existed can be kept as
-                    is (the server allows it only while unchanged). */}
-                {resource.category && !isResourceCategory(resource.category) && (
-                  <option value={resource.category}>{resource.category} (older category)</option>
-                )}
+                {/* Active categories (Resources > Categories, sheet row 26). This
+                    resource's own category stays listed if it has since been
+                    deactivated; the server allows it only while unchanged. */}
+                {categoryOptions(categories, resource.category_id).map(c => (
+                  <option key={c.id} value={c.id}>{c.name}{c.is_active ? '' : ' (deactivated)'}</option>
+                ))}
               </select>
+              <FieldError name="category_id" />
             </div>
           </div>
 
@@ -199,6 +210,7 @@ export function EditResourceForm({ resource, onClose }: { resource: ResourceValu
               }}
               className={inputClass}
             />
+            <FieldError name="publication_date" />
             {/* Spells out what saving will do to the resource's visibility,
                 updated as the date changes (see publication-message.ts). */}
             {pubMessage && (
@@ -231,6 +243,7 @@ export function EditResourceForm({ resource, onClose }: { resource: ResourceValu
                   defaultValue={resource.content_text ?? ''}
                   className={inputClass}
                 />
+                <FieldError name="content_text" />
               </div>
               <div>
                 <label htmlFor="content_url" className={labelClass}>
@@ -244,6 +257,7 @@ export function EditResourceForm({ resource, onClose }: { resource: ResourceValu
                   defaultValue={resource.content_url && /^https?:\/\//i.test(resource.content_url) ? resource.content_url : ''}
                   className={inputClass}
                 />
+                <FieldError name="content_url" />
                 <p className="mt-1.5 text-[12px] text-[#64748B]">
                   Provide article content, an external link, or both.
                 </p>
@@ -262,6 +276,7 @@ export function EditResourceForm({ resource, onClose }: { resource: ResourceValu
                   accept={(type === 'video' ? RESOURCE_FILE_RULES.video : RESOURCE_FILE_RULES.document).accept}
                   className={inputClass}
                 />
+                <FieldError name="file" />
                 <p className="mt-1.5 text-[12px] text-[#64748B]">
                   Supports {(type === 'video' ? RESOURCE_FILE_RULES.video : RESOURCE_FILE_RULES.document).label} (Max 50MB).
                 </p>
@@ -283,6 +298,7 @@ export function EditResourceForm({ resource, onClose }: { resource: ResourceValu
                   defaultValue={resource.content_url && /^https?:\/\//i.test(resource.content_url) ? resource.content_url : ''}
                   className={inputClass}
                 />
+                <FieldError name="content_url" />
                 <p className="mt-1.5 text-[12px] text-[#64748B]">
                   Upload a file or link to an external URL (e.g. YouTube).
                 </p>
@@ -322,6 +338,7 @@ export function EditResourceForm({ resource, onClose }: { resource: ResourceValu
             {uploading ? 'Uploading file…' : isPending ? 'Saving…' : isDraft ? 'Publish' : 'Save Changes'}
           </button>
         </div>
+      </FormErrorsProvider>
       </form>
 
       {confirmOpen && (

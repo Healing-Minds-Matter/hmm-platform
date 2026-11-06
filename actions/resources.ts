@@ -5,7 +5,8 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { writeAuditLog } from '@/lib/audit'
-import { isAllowedCategory, isResourceCategory } from '@/lib/resource-categories'
+import { checkCategoryChoice, type ResourceCategory } from '@/lib/resource-categories'
+import type { FieldErrors } from '@/lib/form-errors'
 import { todayDateString } from '@/lib/org-date'
 import { checkResourceFile } from '@/lib/resource-file-types'
 
@@ -21,7 +22,17 @@ type ResourceType = (typeof RESOURCE_TYPES)[number]
 // platform ceiling, not something raisable from application code alone.
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024
 
-export type ResourceActionState = { error?: string; success?: boolean } | null
+export type ResourceActionState = { error?: string; fieldErrors?: FieldErrors; success?: boolean } | null
+
+// A failed save, tied to the form field it's about when there is one (sheet row 32).
+function failState(error: string, field?: string | null): ResourceActionState {
+  return { error, ...(field ? { fieldErrors: { [field]: error } } : {}) }
+}
+
+async function loadCategories(supabase: Awaited<ReturnType<typeof createClient>>): Promise<ResourceCategory[]> {
+  const { data } = await supabase.from('resource_categories').select('id, name, is_active')
+  return data ?? []
+}
 
 function isExternalUrl(value: string) {
   return /^https?:\/\//i.test(value)
@@ -116,7 +127,7 @@ function readCommonFields(formData: FormData) {
   const title           = (formData.get('title') as string | null)?.trim()
   const description     = (formData.get('description') as string | null)?.trim() || null
   const type            = formData.get('type') as string | null
-  const category         = (formData.get('category') as string | null)?.trim() || null
+  const categoryId      = (formData.get('category_id') as string | null)?.trim() || null
   const publicationDate = formData.get('publication_date') as string | null
   const contentUrl      = (formData.get('content_url') as string | null)?.trim() || null
   const contentText     = (formData.get('content_text') as string | null)?.trim() || null
@@ -125,20 +136,20 @@ function readCommonFields(formData: FormData) {
   const uploadedPath    = (formData.get('uploaded_path') as string | null)?.trim() || null
   const durationSeconds = parseDurationSeconds(formData.get('duration_seconds'))
 
-  return { title, description, type, category, publicationDate, contentUrl, contentText, uploadedPath, durationSeconds }
+  return { title, description, type, categoryId, publicationDate, contentUrl, contentText, uploadedPath, durationSeconds }
 }
 
 function validate({
   title, type, publicationDate, contentUrl, contentText, uploadedPath,
-}: ReturnType<typeof readCommonFields>): string | null {
-  if (!title) return 'Title is required.'
-  if (!type || !RESOURCE_TYPES.includes(type as ResourceType)) return 'A valid resource type is required.'
-  if (!publicationDate) return 'Publication date is required.'
+}: ReturnType<typeof readCommonFields>): { field: string; error: string } | null {
+  if (!title) return { field: 'title', error: 'Title is required.' }
+  if (!type || !RESOURCE_TYPES.includes(type as ResourceType)) return { field: 'type', error: 'A valid resource type is required.' }
+  if (!publicationDate) return { field: 'publication_date', error: 'Publication date is required.' }
 
   if (type === 'article') {
-    if (!contentText && !contentUrl) return 'Provide article content or an external link.'
+    if (!contentText && !contentUrl) return { field: 'content_text', error: 'Provide article content or an external link.' }
   } else {
-    if (!uploadedPath && !contentUrl) return 'Upload a file or provide an external URL.'
+    if (!uploadedPath && !contentUrl) return { field: 'content_url', error: 'Upload a file or provide an external URL.' }
   }
 
   return null
@@ -154,18 +165,20 @@ export async function createResourceAction(
   // The older full-page create form still sends an explicit date, which wins.
   if (!fields.publicationDate) fields.publicationDate = new Date().toISOString().slice(0, 10)
 
-  const fail = async (error: string): Promise<ResourceActionState> => {
+  const fail = async (error: string, field?: string): Promise<ResourceActionState> => {
     await discardUpload(fields.uploadedPath)
-    return { error }
+    return failState(error, field)
   }
 
   const validationError = validate(fields)
-  if (validationError) return fail(validationError)
-  if (!isResourceCategory(fields.category)) return fail('Choose a category from the list.')
+  if (validationError) return fail(validationError.error, validationError.field)
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+
+  const categoryCheck = checkCategoryChoice(fields.categoryId, await loadCategories(supabase))
+  if (!categoryCheck.ok) return fail(categoryCheck.error, 'category_id')
 
   let contentUrl = fields.contentUrl
   let durationSeconds: number | null = null
@@ -173,7 +186,7 @@ export async function createResourceAction(
 
   if (fields.uploadedPath) {
     const fileTypeError = checkResourceFile(fields.type, fields.uploadedPath)
-    if (fileTypeError) return fail(fileTypeError)
+    if (fileTypeError) return fail(fileTypeError, 'content_url')
     const uploadError = await verifyUploadedPath(fields.uploadedPath)
     if (uploadError) return { error: uploadError }
     contentUrl = fields.uploadedPath
@@ -199,7 +212,8 @@ export async function createResourceAction(
       title: fields.title,
       description: fields.description,
       type: fields.type,
-      category: fields.category,
+      // resources.category (the name) is filled in by the database from category_id.
+      category_id: fields.categoryId,
       publication_date: fields.publicationDate,
       content_url: contentUrl,
       content_text: fields.type === 'article' ? fields.contentText : null,
@@ -215,6 +229,8 @@ export async function createResourceAction(
 
   if (error) {
     if (hasFile && contentUrl) await deleteResourceFile(contentUrl)
+    // The database refuses an inactive or unknown category (migration 20261110000000).
+    if (error.code === '23514' && /categor/i.test(error.message)) return failState(error.message, 'category_id')
     return { error: error.message }
   }
 
@@ -245,9 +261,9 @@ export async function updateResourceAction(
   const previousContentUrl = (formData.get('previous_content_url') as string | null) || null
   const fields = readCommonFields(formData)
   const hasFile = !!fields.uploadedPath
-  const fail = async (error: string): Promise<ResourceActionState> => {
+  const fail = async (error: string, field?: string): Promise<ResourceActionState> => {
     await discardUpload(fields.uploadedPath)
-    return { error }
+    return failState(error, field)
   }
 
   // The External URL field is intentionally left blank in the edit form when the
@@ -273,7 +289,7 @@ export async function updateResourceAction(
   // status/date (for the publishing rules below).
   const { data: existing } = await supabase
     .from('resources')
-    .select('category, status, publication_date')
+    .select('category_id, status, publication_date')
     .eq('id', resourceId)
     .single()
   if (!existing) return fail('Resource not found.')
@@ -286,14 +302,14 @@ export async function updateResourceAction(
   const newStatus: 'draft' | 'published' =
     intent === 'draft' ? 'draft' : intent === 'publish' ? 'published' : existing.status
   const publishDateError = resolvePublicationDate(fields, newStatus, existing)
-  if (publishDateError) return fail(publishDateError)
+  if (publishDateError) return fail(publishDateError, 'publication_date')
 
   const validationError = validate(fields)
-  if (validationError) return fail(validationError)
+  if (validationError) return fail(validationError.error, validationError.field)
 
-  if (!isAllowedCategory(fields.category, existing.category ?? null)) {
-    return fail('Choose a category from the list.')
-  }
+  // An unchanged category may stay even if it has been deactivated since.
+  const categoryCheck = checkCategoryChoice(fields.categoryId, await loadCategories(supabase), existing.category_id ?? null)
+  if (!categoryCheck.ok) return fail(categoryCheck.error, 'category_id')
 
   let contentUrl = fields.contentUrl
   // Only set when a NEW file is uploaded this request — omitted from the
@@ -304,7 +320,7 @@ export async function updateResourceAction(
 
   if (fields.uploadedPath) {
     const fileTypeError = checkResourceFile(fields.type, fields.uploadedPath)
-    if (fileTypeError) return fail(fileTypeError)
+    if (fileTypeError) return fail(fileTypeError, 'content_url')
     const uploadError = await verifyUploadedPath(fields.uploadedPath)
     if (uploadError) return { error: uploadError }
     contentUrl = fields.uploadedPath
@@ -317,7 +333,7 @@ export async function updateResourceAction(
       title: fields.title,
       description: fields.description,
       type: fields.type,
-      category: fields.category,
+      category_id: fields.categoryId,
       publication_date: fields.publicationDate,
       content_url: contentUrl,
       content_text: fields.type === 'article' ? fields.contentText : null,
@@ -328,6 +344,8 @@ export async function updateResourceAction(
 
   if (error) {
     if (hasFile && contentUrl) await deleteResourceFile(contentUrl)
+    // The database refuses an inactive or unknown category (migration 20261110000000).
+    if (error.code === '23514' && /categor/i.test(error.message)) return failState(error.message, 'category_id')
     return { error: error.message }
   }
 

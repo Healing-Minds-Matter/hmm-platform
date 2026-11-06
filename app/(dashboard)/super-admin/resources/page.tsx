@@ -72,14 +72,23 @@ export default async function ResourcesPage({
             Gatekeepers.
           </p>
         </div>
-        <Link
-          href="/super-admin/resources/new"
-          className="flex flex-shrink-0 items-center gap-2 rounded-lg bg-[#F4AC1E] px-6 py-2.5 text-[12px] font-semibold tracking-[0.24px] text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F]"
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/icons/plus-small.svg" alt="" width={10.5} height={10.5} />
-          Add Resource
-        </Link>
+        <div className="flex flex-shrink-0 items-center gap-2">
+          {/* Resources > Categories (sheet row 26). */}
+          <Link
+            href="/super-admin/resources/categories"
+            className="flex items-center rounded-lg bg-[#F1F5F9] px-4 py-2.5 text-[12px] font-semibold tracking-[0.24px] text-[#003495] transition-colors hover:bg-slate-200"
+          >
+            Categories
+          </Link>
+          <Link
+            href="/super-admin/resources/new"
+            className="flex flex-shrink-0 items-center gap-2 rounded-lg bg-[#F4AC1E] px-6 py-2.5 text-[12px] font-semibold tracking-[0.24px] text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F]"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/icons/plus-small.svg" alt="" width={10.5} height={10.5} />
+            Add Resource
+          </Link>
+        </div>
       </div>
 
       <div className="flex flex-col gap-4 rounded-xl bg-white p-4 shadow-[0px_1px_1px_rgba(0,0,0,0.05)]">
