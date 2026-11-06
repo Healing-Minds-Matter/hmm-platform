@@ -3,7 +3,9 @@
 // Field-level errors for create/edit forms (sheet row 32).
 //
 //   const fe = useFormErrors(state)              // state = the action's result
-//   <form ref={fe.bindForm} noValidate onSubmit={fe.onSubmit(submit)}>
+//   const { bindForm, onSubmit: checkThen } = fe // destructure: the React Compiler
+//                                                // lint rejects fe.bindForm in JSX
+//   <form ref={bindForm} noValidate onSubmit={checkThen(submit)}>
 //     <FormErrorsProvider value={fe}>
 //       <input id="title" name="title" required />
 //       <FieldError name="title" />
