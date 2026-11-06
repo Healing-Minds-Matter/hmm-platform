@@ -4,7 +4,7 @@ import { useActionState, useEffect, useState } from 'react'
 import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { useRouter } from 'next/navigation'
 import { todayDateString } from '@/lib/org-date'
-import { formatCertDate } from '@/lib/certification-types'
+import { formatCertDate, lastAwardDate } from '@/lib/certification-types'
 import { expiryFor } from '@/lib/certificates'
 import type { AwardableType } from '@/lib/certifications.server'
 import { createGatekeeperAction, createGatekeepersBulkAction } from '@/actions/gatekeepers'
@@ -295,7 +295,7 @@ export function CreateGatekeeperForm({
                           <div>
                             <label htmlFor={`cert_date_${row.key}`} className="mb-1.5 block text-[13px] font-medium text-[#0F172A]">Date achieved</label>
                             <input
-                              id={`cert_date_${row.key}`} name="cert_achieved_on" type="date" required max={today} min={type?.offered_from}
+                              id={`cert_date_${row.key}`} name="cert_achieved_on" type="date" required max={lastAwardDate(type, today)} min={type?.offered_from}
                               value={row.date} onChange={e => update({ date: e.target.value })}
                               className="h-10 w-full rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                             />

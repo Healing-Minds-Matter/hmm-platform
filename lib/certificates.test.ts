@@ -50,6 +50,26 @@ describe('validateAward', () => {
   })
 })
 
+describe('validateAward: programme period (new awards only)', () => {
+  const pfa = { name: 'PFA', status: 'active' as const, offered_from: '2026-01-01', offered_until: '2026-06-30' }
+  it('accepts a date achieved inside the period, including its first and last day, while it is still running', () => {
+    const running = { ...pfa, offered_until: '2026-12-31' }
+    expect(validateAward({ achievedOn: '2026-01-01', format: 'physical' }, running, TODAY)).toBeNull()
+    expect(validateAward({ achievedOn: '2026-11-03', format: 'physical' }, { ...pfa, offered_until: TODAY }, TODAY)).toBeNull()
+  })
+  it('refuses a date achieved before Offered from or after Offered until', () => {
+    expect(validateAward({ achievedOn: '2025-12-31', format: 'physical' }, pfa, TODAY)).toBe('PFA was only offered from 1 Jan 2026.')
+    expect(validateAward({ achievedOn: '2026-07-01', format: 'physical' }, pfa, TODAY)).toBe('PFA was only offered until 30 Jun 2026, so the date achieved can’t be after that.')
+  })
+  it('refuses any new award once Offered until has passed, even with a date inside the period', () => {
+    expect(validateAward({ achievedOn: '2026-03-01', format: 'physical' }, pfa, TODAY)).toBe('PFA stopped being offered on 30 Jun 2026, so no new certificates of it can be added.')
+  })
+  it('doesn’t re-check an edit of an existing certificate against Offered until', () => {
+    expect(validateAward({ achievedOn: '2026-03-01', format: 'physical' }, pfa, TODAY, null, { edit: true })).toBeNull()
+    expect(validateAward({ achievedOn: '2026-08-01', format: 'physical' }, pfa, TODAY, null, { edit: true })).toBeNull()
+  })
+})
+
 describe('validateRemoval and attachments', () => {
   it('needs a listed reason and at least 10 characters of explanation', () => {
     expect(validateRemoval('Because', 'long enough reason')).toBe('Choose a reason.')
@@ -83,6 +103,10 @@ describe('canRenew', () => {
     expect(canRenew(cert({ status: 'expiring_soon' }), 'active')).toBe(false)
     expect(canRenew(cert({ status: 'expired', is_current: false }), 'active')).toBe(false)
     expect(canRenew(cert({ status: 'removed', removed_at: '2026-11-01T00:00:00Z' }), 'active')).toBe(false)
+  })
+  it('not once the programme’s Offered until has passed (a renewal is a new award)', () => {
+    expect(canRenew(cert({ status: 'expired' }), 'active', { programmeEnded: true })).toBe(false)
+    expect(canRenew(cert({ status: 'expired' }), 'active', { programmeEnded: false })).toBe(true)
   })
 })
 

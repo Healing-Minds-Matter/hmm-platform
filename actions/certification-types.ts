@@ -1,14 +1,18 @@
 'use server'
 
 // Certification types (Epic 10, Stories 10.1 and 10.2). Every write uses the
-// signed-in user's own client, so the database's rules (migration
-// 20261103000000: cert_can, triggers) decide what is allowed; the role check
-// here only gives a clearer message than a refused row.
+// signed-in user's own client, so the database's rules (migrations
+// 20261103000000 and 20261108000000: cert_can, triggers) decide what is allowed;
+// the checks here only give a clearer message than a refused row.
+//
+// The programme period (Offered from / Offered until) is part of the type and only
+// limits new awards. Retiring is a separate action (Retire type / Change retirement).
 
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { todayDateString } from '@/lib/org-date'
+import { typeIssuedFacts } from '@/lib/certifications.server'
 import {
   TYPE_COLUMNS,
   describeTypeError,
@@ -16,7 +20,6 @@ import {
   validateRetirement,
   validateTypeForm,
   type CertificationTypeRow,
-  type RetirementOption,
   type TypeFormInput,
 } from '@/lib/certification-types'
 
@@ -24,7 +27,7 @@ type ServerClient = Awaited<ReturnType<typeof createClient>>
 
 export type TypeFormState = { error?: string; success?: boolean; id?: string; values?: TypeFormInput } | null
 export type RetireFormState = { error?: string; success?: boolean; values?: { retire_on: string; option: string } } | null
-export type ReactivateFormState = { error?: string; success?: boolean; values?: { from: string; until: string } } | null
+export type ReactivateFormState = { error?: string; success?: boolean; values?: { from: string } } | null
 
 const str = (formData: FormData, key: string) => ((formData.get(key) as string | null) ?? '').trim()
 
@@ -39,7 +42,6 @@ function readTypeForm(formData: FormData): TypeFormInput {
     validity_unit: str(formData, 'validity_unit'),
     offered_from: str(formData, 'offered_from'),
     offered_until: str(formData, 'offered_until'),
-    retire_option: str(formData, 'retire_option'),
   }
 }
 
@@ -65,7 +67,7 @@ function revalidateTypes(id?: string) {
 export async function createTypeAction(_prev: TypeFormState, formData: FormData): Promise<TypeFormState> {
   const values = readTypeForm(formData)
   const fail = (error: string): TypeFormState => ({ error, values })
-  const checked = validateTypeForm(values, todayDateString())
+  const checked = validateTypeForm(values)
   if ('error' in checked) return fail(checked.error)
 
   const supabase = await createClient()
@@ -75,21 +77,14 @@ export async function createTypeAction(_prev: TypeFormState, formData: FormData)
   const { data, error } = await supabase.from('certification_types').insert(checked.fields).select('id').single()
   if (error || !data) return fail(describeTypeError(error, checked.fields))
 
-  if (checked.until) {
-    const { error: rErr } = await supabase
-      .from('certification_type_retirements')
-      .insert({ type_id: data.id, retire_on: checked.until, option: checked.retireOption })
-    if (rErr) {
-      revalidateTypes(data.id)
-      return { error: `${checked.fields.name} was created, but its Offered until date wasn’t saved: ${describeTypeError(rErr)} Set it from the type’s page.`, values }
-    }
-  }
-
   revalidateTypes(data.id)
   return { success: true, id: data.id }
 }
 
 // ── Edit ─────────────────────────────────────────────────────────────────────
+// Once certificates exist, the code and Offered from can't change and Offered until
+// can't be earlier than the latest date achieved (the database refuses it too).
+// Issued certificates never change: they keep their dates, validity, number and PDF.
 export async function updateTypeAction(_prev: TypeFormState, formData: FormData): Promise<TypeFormState> {
   const id = str(formData, 'id')
   const values = readTypeForm(formData)
@@ -102,49 +97,15 @@ export async function updateTypeAction(_prev: TypeFormState, formData: FormData)
   const current = await loadType(supabase, id)
   if (!current) return fail('This certification type no longer exists.')
 
-  const today = todayDateString()
-  const retired = current.status === 'retired'
-  const checked = validateTypeForm(values, today, { untilLocked: retired, currentUntil: current.offered_until })
+  const issued = await typeIssuedFacts(supabase, id)
+  const checked = validateTypeForm(values, { current, issued })
   if ('error' in checked) return fail(checked.error)
 
   const { error } = await supabase.from('certification_types').update(checked.fields).eq('id', id)
   if (error) return fail(describeTypeError(error, checked.fields))
 
-  // Offered until is the open retirement's date (only while it hasn't taken effect).
-  if (!retired) {
-    const retireErr = await saveUntil(supabase, current, checked.until, checked.retireOption, today)
-    if (retireErr) {
-      revalidateTypes(id)
-      return { error: `The details were saved, but the Offered until date wasn’t: ${retireErr}`, values }
-    }
-  }
-
   revalidateTypes(id)
   return { success: true, id }
-}
-
-async function saveUntil(
-  supabase: ServerClient,
-  current: CertificationTypeRow,
-  until: string | null,
-  option: RetirementOption,
-  today: string
-): Promise<string | null> {
-  const open = current.open_retirement_id
-  if (!open && until) {
-    const { error } = await supabase.from('certification_type_retirements').insert({ type_id: current.id, retire_on: until, option })
-    return error ? describeTypeError(error) : null
-  }
-  if (open && !until) {
-    // Cancel a scheduled retirement.
-    const { error } = await supabase.from('certification_type_retirements').update({ reactivated_on: today }).eq('id', open)
-    return error ? describeTypeError(error) : null
-  }
-  if (open && until && (until !== current.offered_until || option !== current.retirement_option)) {
-    const { error } = await supabase.from('certification_type_retirements').update({ retire_on: until, option }).eq('id', open)
-    return error ? describeTypeError(error) : null
-  }
-  return null
 }
 
 // ── Retire / change retirement ───────────────────────────────────────────────
@@ -175,9 +136,10 @@ export async function retireTypeAction(_prev: RetireFormState, formData: FormDat
 }
 
 // ── Reactivate ───────────────────────────────────────────────────────────────
+// The programme period isn't part of reactivating: change Offered until with Edit.
 export async function reactivateTypeAction(_prev: ReactivateFormState, formData: FormData): Promise<ReactivateFormState> {
   const id = str(formData, 'type_id')
-  const values = { from: str(formData, 'from'), until: str(formData, 'until') }
+  const values = { from: str(formData, 'from') }
   const fail = (error: string): ReactivateFormState => ({ error, values })
 
   const supabase = await createClient()
@@ -187,19 +149,11 @@ export async function reactivateTypeAction(_prev: ReactivateFormState, formData:
   const current = await loadType(supabase, id)
   if (!current) return fail('This certification type no longer exists.')
   if (current.status !== 'retired' || !current.open_retirement_id) return fail('This type isn’t retired.')
-  const dateErr = validateReactivation(values.from, values.until, todayDateString())
+  const dateErr = validateReactivation(values.from, todayDateString())
   if (dateErr) return fail(dateErr)
 
   const { error } = await supabase.from('certification_type_retirements').update({ reactivated_on: values.from }).eq('id', current.open_retirement_id)
   if (error) return fail(describeTypeError(error))
-
-  if (values.until) {
-    const { error: uErr } = await supabase.from('certification_type_retirements').insert({ type_id: id, retire_on: values.until, option: 'keep' })
-    if (uErr) {
-      revalidateTypes(id)
-      return { error: `${current.name} was reactivated, but its new Offered until date wasn’t saved: ${describeTypeError(uErr)}`, values }
-    }
-  }
 
   revalidateTypes(id)
   return { success: true }

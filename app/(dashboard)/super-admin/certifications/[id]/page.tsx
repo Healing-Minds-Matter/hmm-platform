@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { loadRetirements, loadType, typeImpact } from '@/lib/certifications.server'
-import { formatCertDate, retirementEffect, validityLabel } from '@/lib/certification-types'
+import { TYPE_TEXT, formatCertDate, programmePeriodLabel, retirementEffect, validityLabel } from '@/lib/certification-types'
 import { formatOrgDate } from '@/lib/org-date'
 import { Badge, Card, Code, Facts, PrimaryLink, SecondaryLink, TypeStatusBadge } from '@/components/certifications/cert-ui'
 import { placeholderValues, sampleValues } from '@/lib/certificate-design'
@@ -67,9 +67,9 @@ export default async function CertificationTypePage({ params, searchParams }: {
         <Card title="Details">
           <Facts rows={[
             ['Issuing body', type.issuing_body || '—'],
-            ['Validity', validityLabel(type)],
-            ['Offered', `From ${formatCertDate(type.offered_from)}${type.offered_until ? ` until ${formatCertDate(type.offered_until)}` : ', no end date'}`],
-            ['Code', <span key="c"><Code>{type.code}</Code> <span className="text-[12px] text-[#64748B]">{(awarded ?? 0) > 0 ? 'Can’t be changed: already awarded.' : 'Can still be changed.'}</span></span>],
+            [TYPE_TEXT.validityLabel, validityLabel(type)],
+            [TYPE_TEXT.periodLabel, `${programmePeriodLabel(type)}${type.offered_until ? '' : ', no end date'}`],
+            ['Code', <span key="c"><Code>{type.code}</Code> <span className="text-[12px] text-[#64748B]">{(awarded ?? 0) > 0 ? TYPE_TEXT.lockedHint : 'Can still be changed.'}</span></span>],
             ['Holders', `${impact.holders} ${impact.holders === 1 ? 'person' : 'people'}`],
           ]} />
         </Card>

@@ -4,7 +4,7 @@ import { useActionState, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { reactivateTypeAction } from '@/actions/certification-types'
-import { formatCertDate, type CertificationTypeRow } from '@/lib/certification-types'
+import { formatCertDate, programmeEnded, programmePeriodLabel, type CertificationTypeRow } from '@/lib/certification-types'
 import { CANCEL_BTN, FormCard, HINT, INPUT, LABEL, PRIMARY_BTN } from '@/components/certifications/cert-ui'
 
 // Reactivate a retired type (Story 10.2 Sc06, Sc07).
@@ -23,7 +23,7 @@ export function ReactivateForm({ type, stopped, today, inModal = false }: {
   const [from, setFrom] = useState(v?.from ?? today)
   // Reactivating on (or before) the retirement date cancels the retirement, so
   // nothing stays stopped; a later date keeps stopped certificates stopped.
-  const cancels = !!type.offered_until && !!from && from <= type.offered_until
+  const cancels = !!type.retire_on && !!from && from <= type.retire_on
   const certs = `${stopped} ${stopped === 1 ? 'certificate' : 'certificates'}`
 
   useEffect(() => {
@@ -34,7 +34,7 @@ export function ReactivateForm({ type, stopped, today, inModal = false }: {
   return (
     <FormCard
       title={`Reactivate ${type.name}`}
-      subtitle={`Retired on ${formatCertDate(type.offered_until)}. Reactivating lets it be awarded again and its certificate design be edited.`}
+      subtitle={`Retired on ${formatCertDate(type.retire_on)}. Reactivating lets it be awarded again and its certificate design be edited.`}
       onClose={close}
     >
       <form onSubmit={onSubmit} className="flex flex-1 flex-col overflow-hidden">
@@ -42,24 +42,23 @@ export function ReactivateForm({ type, stopped, today, inModal = false }: {
         <div className="flex flex-col gap-4 overflow-y-auto bg-[#F8FAFC] p-6">
           {state?.error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">{state.error}</div>}
           <div className="flex flex-col gap-4 rounded-xl bg-white p-5">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="from" className={LABEL}>Offered again from <span className="text-[#DC2626]">*</span></label>
-                <input id="from" name="from" type="date" min={today} required value={from} onChange={e => setFrom(e.target.value)} className={INPUT} autoFocus />
-              </div>
-              <div>
-                <label htmlFor="until" className={LABEL}>Offered until</label>
-                <input id="until" name="until" type="date" min={today} defaultValue={v?.until ?? ''} className={INPUT} />
-                <p className={HINT}>Optional. Leave empty for no end date.</p>
-              </div>
+            <div className="max-w-[260px]">
+              <label htmlFor="from" className={LABEL}>Offered again from <span className="text-[#DC2626]">*</span></label>
+              <input id="from" name="from" type="date" min={today} required value={from} onChange={e => setFrom(e.target.value)} className={INPUT} autoFocus />
             </div>
+            {programmeEnded(type, from || today) && (
+              <p role="note" className="rounded-xl border border-[#FDE68A] bg-[#FFFBEB] p-3.5 text-[13px] text-[#92400E]">
+                The programme period ended on {formatCertDate(type.offered_until)}, so no new certificates can be added even after reactivating. To award it again, change Offered until with Edit.
+              </p>
+            )}
+            <p className={HINT}>The programme period ({programmePeriodLabel(type)}) doesn’t change. Use Edit to change it.</p>
             <div className="rounded-xl border border-[#DBEAFE] bg-[#EFF6FF] p-3.5 text-[13px]">
               <b className="block text-[#0F172A]">Existing certificates</b>
               <span className="text-[#475569]">
                 {type.retirement_option !== 'stop'
                   ? 'Certificates were kept valid at retirement, so nothing changes for them.'
                   : cancels
-                  ? `Reactivating from the retirement date (${formatCertDate(type.offered_until)}) cancels the retirement, so the ${certs} that stopped ${stopped === 1 ? 'becomes' : 'become'} valid again.`
+                  ? `Reactivating from the retirement date (${formatCertDate(type.retire_on)}) cancels the retirement, so the ${certs} that stopped ${stopped === 1 ? 'becomes' : 'become'} valid again.`
                   : `${certs} stopped when the type retired. They stay stopped; holders can be renewed to become valid again.`}
               </span>
             </div>

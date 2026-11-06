@@ -91,7 +91,7 @@ export function Badge({ tone, children }: { tone: Tone; children: React.ReactNod
   )
 }
 
-export function TypeStatusBadge({ type }: { type: Pick<CertificationTypeRow, 'status' | 'offered_until' | 'returns_on'> }) {
+export function TypeStatusBadge({ type }: { type: Pick<CertificationTypeRow, 'status' | 'retire_on' | 'returns_on'> }) {
   const b = typeStatusBadge(type)
   return <Badge tone={b.tone}>{b.label}</Badge>
 }

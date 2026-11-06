@@ -22,7 +22,7 @@ export function RetireForm({ type, impact, today, inModal = false }: {
   const inEffect = type.status === 'retired'
   const existing = !!type.open_retirement_id
   const [option, setOption] = useState<RetirementOption>((state?.values?.option as RetirementOption | undefined) ?? type.retirement_option ?? 'keep')
-  const [on, setOn] = useState(state?.values?.retire_on ?? type.offered_until ?? today)
+  const [on, setOn] = useState(state?.values?.retire_on ?? type.retire_on ?? today)
   const lifetime = type.validity_value == null
 
   useEffect(() => {
@@ -36,8 +36,8 @@ export function RetireForm({ type, impact, today, inModal = false }: {
     <FormCard
       title={existing ? `Change retirement · ${type.name}` : `Retire ${type.name}`}
       subtitle={inEffect
-        ? `Retired on ${formatCertDate(type.offered_until)}. You can still change what happens to holders; the change is recorded in the audit history.`
-        : 'No one can receive this type after the retirement date. Nothing is deleted. This date is also the type’s Offered until date.'}
+        ? `Retired on ${formatCertDate(type.retire_on)}. You can still change what happens to holders; the change is recorded in the audit history.`
+        : 'No one can receive this type after the retirement date, and you choose what happens to existing certificates. Nothing is deleted. This is separate from the programme’s Offered until date, which only stops new certificates.'}
       onClose={close}
     >
       <form onSubmit={onSubmit} className="flex flex-1 flex-col overflow-hidden">
@@ -46,7 +46,7 @@ export function RetireForm({ type, impact, today, inModal = false }: {
           {state?.error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">{state.error}</div>}
           <div className="flex flex-col gap-4 rounded-xl bg-white p-5">
             {inEffect ? (
-              <input type="hidden" name="retire_on" value={type.offered_until ?? ''} />
+              <input type="hidden" name="retire_on" value={type.retire_on ?? ''} />
             ) : (
               <div className="max-w-[260px]">
                 <label htmlFor="retire_on" className={LABEL}>Retirement date <span className="text-[#DC2626]">*</span></label>

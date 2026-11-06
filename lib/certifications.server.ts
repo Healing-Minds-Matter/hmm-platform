@@ -2,7 +2,8 @@ import 'server-only'
 // Data loading for the Certifications screens (Epic 10). Uses the signed-in
 // user's client, so each person only gets what the database lets them see.
 import { createClient } from '@/lib/supabase/server'
-import { TYPE_COLUMNS, type CertificationTypeRow, type RetirementOption } from '@/lib/certification-types'
+import { TYPE_COLUMNS, programmeEnded, type CertificationTypeRow, type IssuedFacts, type RetirementOption } from '@/lib/certification-types'
+import { todayDateString } from '@/lib/org-date'
 
 type ServerClient = Awaited<ReturnType<typeof createClient>>
 
@@ -23,6 +24,18 @@ export async function holderCounts(supabase: ServerClient): Promise<Record<strin
   const counts: Record<string, number> = {}
   for (const row of data ?? []) counts[row.type_id] = (counts[row.type_id] ?? 0) + 1
   return counts
+}
+
+// For editing a type: every certificate ever issued for it (removed included), how
+// many people they went to, and the latest date achieved (the earliest Offered until).
+export async function typeIssuedFacts(supabase: ServerClient, typeId: string): Promise<IssuedFacts> {
+  const { data } = await supabase.from('certificates').select('holder_id, achieved_on').eq('type_id', typeId)
+  const rows = data ?? []
+  return {
+    certificates: rows.length,
+    people: new Set(rows.map(r => r.holder_id)).size,
+    latestAchievedOn: rows.reduce<string | null>((max, r) => (!max || r.achieved_on > max ? r.achieved_on : max), null),
+  }
 }
 
 // For the retire / reactivate pop-ups: how many people hold the type, how many
@@ -83,13 +96,15 @@ export async function certCan(supabase: ServerClient, permission: string): Promi
   return data === true
 }
 
-export type AwardableType = Pick<CertificationTypeRow, 'id' | 'name' | 'code' | 'offered_from' | 'validity_value' | 'validity_unit'>
+export type AwardableType = Pick<CertificationTypeRow, 'id' | 'name' | 'code' | 'offered_from' | 'offered_until' | 'validity_value' | 'validity_unit'>
 
 // Types the signed-in user can add to people (for the Add Gatekeeper form),
-// or null when they may not add certificates at all.
+// or null when they may not add certificates at all. Leaves out retired types and
+// programmes whose Offered until has passed.
 export async function awardableTypes(supabase: ServerClient): Promise<AwardableType[] | null> {
   if (!(await certCan(supabase, 'certifications.award'))) return null
+  const today = todayDateString()
   return (await loadTypes(supabase))
-    .filter(t => t.status !== 'retired')
-    .map(({ id, name, code, offered_from, validity_value, validity_unit }) => ({ id, name, code, offered_from, validity_value, validity_unit }))
+    .filter(t => t.status !== 'retired' && !programmeEnded(t, today))
+    .map(({ id, name, code, offered_from, offered_until, validity_value, validity_unit }) => ({ id, name, code, offered_from, offered_until, validity_value, validity_unit }))
 }

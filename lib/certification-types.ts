@@ -1,13 +1,15 @@
 // Certification types (Epic 10, Stories 10.1 and 10.2): form rules, labels and
 // friendly error messages. Pure functions, shared by the pages and the server
-// actions. The database (migration 20261103000000) enforces the same rules;
-// these give a clear message before a save is attempted.
+// actions. The database (migrations 20261103000000 and 20261108000000) enforces
+// the same rules; these give a clear message before a save is attempted.
 
 export type ValidityUnit = 'months' | 'years'
 export type RetirementOption = 'keep' | 'stop'
 export type TypeStatus = 'active' | 'retiring' | 'retired'
 
 // A row of the certification_type_statuses view.
+// offered_from / offered_until are the programme period: they only limit new awards.
+// retire_on is the open retirement's date (a separate action, with its keep/stop choice).
 export type CertificationTypeRow = {
   id: string
   name: string
@@ -17,16 +19,17 @@ export type CertificationTypeRow = {
   validity_value: number | null
   validity_unit: ValidityUnit | null
   offered_from: string
+  offered_until: string | null
   created_from_existing: boolean
   status: TypeStatus
   open_retirement_id: string | null
-  offered_until: string | null
+  retire_on: string | null
   retirement_option: RetirementOption | null
   returns_on: string | null
 }
 
 export const TYPE_COLUMNS =
-  'id, name, code, description, issuing_body, validity_value, validity_unit, offered_from, created_from_existing, status, open_retirement_id, offered_until, retirement_option, returns_on'
+  'id, name, code, description, issuing_body, validity_value, validity_unit, offered_from, offered_until, created_from_existing, status, open_retirement_id, retire_on, retirement_option, returns_on'
 
 export type TypeFields = {
   name: string
@@ -36,6 +39,7 @@ export type TypeFields = {
   validity_value: number | null
   validity_unit: ValidityUnit | null
   offered_from: string
+  offered_until: string | null
 }
 
 export type TypeFormInput = {
@@ -48,7 +52,42 @@ export type TypeFormInput = {
   validity_unit?: string | null
   offered_from?: string | null
   offered_until?: string | null
-  retire_option?: string | null
+}
+
+// What's already been issued for a type being edited. Once any certificate exists
+// (any status, removed included), the code and Offered from are fixed, and Offered
+// until can't be earlier than the latest date achieved.
+export type IssuedFacts = {
+  certificates: number          // all certificates of the type, removed included
+  people: number                // distinct holders of them
+  latestAchievedOn: string | null
+}
+
+// ── Form wording (shared by the form, the type pages and the tests) ─────────
+export const TYPE_TEXT = {
+  validityLabel: 'Certificate validity period',
+  validityHint: 'How long each certificate stays valid after the date it’s achieved. This applies to certificates issued to Champions and Gatekeepers. Choose Lifetime if the certificate never expires.',
+  periodLabel: 'Programme period',
+  periodHint: 'The dates this certification programme runs. Certificates can only be issued for this programme within these dates.',
+  offeredFromLabel: 'Offered from',
+  offeredFromHint: 'The date the certification programme starts.',
+  offeredUntilLabel: 'Offered until',
+  offeredUntilHint: 'Optional. The last date the programme runs. Leave blank for no end date.',
+  lockedHint: 'Can’t be changed because certificates have already been issued.',
+} as const
+
+export function issuedBanner(people: number): string {
+  return `This certification has been issued to ${people} ${people === 1 ? 'person' : 'people'}. Changes you make here apply only to certificates issued from now on. Existing certificates keep their dates, numbers and PDFs.`
+}
+
+// "From 1 Jan 2025" or "1 Jan 2025 – 31 Dec 2026".
+export function programmePeriodLabel(t: Pick<CertificationTypeRow, 'offered_from' | 'offered_until'>): string {
+  return t.offered_until ? `${formatCertDate(t.offered_from)} – ${formatCertDate(t.offered_until)}` : `From ${formatCertDate(t.offered_from)}`
+}
+
+// True once the programme's last day has passed (no new awards).
+export function programmeEnded(t: Pick<CertificationTypeRow, 'offered_until'>, today: string): boolean {
+  return !!t.offered_until && today > t.offered_until
 }
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
@@ -61,13 +100,13 @@ export function isRealDate(value: string): boolean {
 const clean = (v: string | null | undefined) => (v ?? '').trim()
 
 // Validates the New / Edit certification type form.
-// `until` is the Offered until (retirement) date; `untilLocked` is true when the
-// type has already retired, so the date can no longer change.
+// When editing a type that has certificates (`issued.certificates > 0`), its code and
+// Offered from must stay as they are (`current`), and Offered until can't be earlier
+// than the latest date achieved. Retiring is a separate action, not part of this form.
 export function validateTypeForm(
   input: TypeFormInput,
-  today: string,
-  opts: { untilLocked?: boolean; currentUntil?: string | null } = {}
-): { fields: TypeFields; until: string | null; retireOption: RetirementOption } | { error: string } {
+  opts: { current?: Pick<CertificationTypeRow, 'code' | 'offered_from'>; issued?: IssuedFacts } = {}
+): { fields: TypeFields } | { error: string } {
   const name = clean(input.name)
   const code = clean(input.code).toUpperCase()
   if (!name) return { error: 'Enter a name.' }
@@ -86,22 +125,26 @@ export function validateTypeForm(
     validity_value = n
     validity_unit = unit
   } else if (clean(input.validity_kind) !== 'lifetime') {
-    return { error: 'Choose a validity.' }
+    return { error: 'Choose a certificate validity period.' }
   }
 
   const offered_from = clean(input.offered_from)
-  if (!isRealDate(offered_from)) return { error: 'Enter the date it’s offered from.' }
+  if (!isRealDate(offered_from)) return { error: 'Enter the date the programme is offered from.' }
 
-  let until: string | null = opts.untilLocked ? (opts.currentUntil ?? null) : clean(input.offered_until) || null
-  if (!opts.untilLocked && until) {
-    if (!isRealDate(until)) return { error: 'Enter a real Offered until date.' }
-    if (until !== opts.currentUntil && until < today) return { error: 'Offered until must be today or later. To retire a type straight away, use Retire type.' }
-    if (until <= offered_from) return { error: 'Offered until must be after Offered from.' }
+  const offered_until = clean(input.offered_until) || null
+  if (offered_until) {
+    if (!isRealDate(offered_until)) return { error: 'Enter a real Offered until date, or leave it blank for no end date.' }
+    if (offered_until < offered_from) return { error: 'Offered until must be on or after Offered from.' }
   }
-  if (!until) until = null
 
-  const option = clean(input.retire_option)
-  const retireOption: RetirementOption = option === 'stop' ? 'stop' : 'keep'
+  const issued = opts.issued && opts.issued.certificates > 0 ? opts.issued : null
+  if (issued && opts.current) {
+    if (code !== opts.current.code) return { error: 'The code can’t be changed because certificates have already been issued. It’s part of every certificate number.' }
+    if (offered_from !== opts.current.offered_from) return { error: `Offered from can’t be changed because certificates have already been issued.` }
+  }
+  if (issued?.latestAchievedOn && offered_until && offered_until < issued.latestAchievedOn) {
+    return { error: `Offered until can’t be earlier than ${formatCertDate(issued.latestAchievedOn)}, the latest date achieved on a certificate of this type.` }
+  }
 
   return {
     fields: {
@@ -112,9 +155,8 @@ export function validateTypeForm(
       validity_value,
       validity_unit,
       offered_from,
+      offered_until,
     },
-    until,
-    retireOption,
   }
 }
 
@@ -125,13 +167,9 @@ export function validateRetirement(retireOn: string, today: string, opts: { lock
   return null
 }
 
-export function validateReactivation(from: string, until: string, today: string): string | null {
+export function validateReactivation(from: string, today: string): string | null {
   if (!isRealDate(from)) return 'Enter the date it’s offered again from.'
   if (from < today) return 'Choose today or a later date.'
-  if (until) {
-    if (!isRealDate(until)) return 'Enter a real Offered until date.'
-    if (until <= from) return 'Offered until must be after the date it’s offered again.'
-  }
   return null
 }
 
@@ -152,11 +190,11 @@ export function formatCertDate(date: string | null | undefined): string {
   return `${day} ${MONTHS[m - 1]} ${y}`
 }
 
-export function typeStatusBadge(t: Pick<CertificationTypeRow, 'status' | 'offered_until' | 'returns_on'>): { label: string; tone: 'ok' | 'warn' | 'grey' } {
+export function typeStatusBadge(t: Pick<CertificationTypeRow, 'status' | 'retire_on' | 'returns_on'>): { label: string; tone: 'ok' | 'warn' | 'grey' } {
   if (t.status === 'retired') {
     return { label: t.returns_on ? `Retired · returns ${formatCertDate(t.returns_on)}` : 'Retired', tone: 'grey' }
   }
-  if (t.status === 'retiring' && t.offered_until) return { label: `Active · retires ${formatCertDate(t.offered_until)}`, tone: 'warn' }
+  if (t.status === 'retiring' && t.retire_on) return { label: `Active · retires ${formatCertDate(t.retire_on)}`, tone: 'warn' }
   return { label: 'Active', tone: 'ok' }
 }
 
@@ -222,14 +260,35 @@ function validityText(v: unknown): string {
   return m ? validityLabel({ validity_value: Number(m[1]), validity_unit: m[2] as ValidityUnit }) : typeof v === 'string' ? v : ''
 }
 
+const AUDIT_FIELD_LABEL: Record<string, string> = {
+  name: 'Name',
+  code: 'Code',
+  description: 'Description',
+  issuing_body: 'Issuing body',
+  validity: TYPE_TEXT.validityLabel,
+  offered_from: 'Offered from',
+  offered_until: 'Offered until',
+}
+function auditValue(field: string, v: unknown): string {
+  if (v == null || v === '') return field === 'offered_until' ? 'no end date' : 'none'
+  if (field === 'validity') return validityText(v)
+  if (field === 'offered_from' || field === 'offered_until') return d(v)
+  return String(v)
+}
+
 export function describeAudit(action: string, details: Record<string, unknown> | null): string {
   const x = details ?? {}
   switch (action) {
     case 'certification.migrated':
       return `${x.certificates ?? 0} certificates created from the existing QPR certification dates`
     case 'certification.type_created':
-    case 'certification.type_edited':
-      return [`Code ${x.code}`, validityText(x.validity), x.offered_from ? `offered from ${d(x.offered_from)}` : ''].filter(Boolean).join(', ')
+      return [`Code ${x.code}`, validityText(x.validity), x.offered_from ? `offered from ${d(x.offered_from)}` : '', x.offered_until ? `until ${d(x.offered_until)}` : ''].filter(Boolean).join(', ')
+    case 'certification.type_edited': {
+      // Newer entries list each changed field's before and after; older ones only the result.
+      const changes = x.changes && typeof x.changes === 'object' ? Object.entries(x.changes as Record<string, { from?: unknown; to?: unknown }>) : []
+      if (!changes.length) return [`Code ${x.code}`, validityText(x.validity), x.offered_from ? `offered from ${d(x.offered_from)}` : ''].filter(Boolean).join(', ')
+      return changes.map(([field, c]) => `${AUDIT_FIELD_LABEL[field] ?? field}: ${auditValue(field, c?.from)} → ${auditValue(field, c?.to)}`).join('; ')
+    }
     case 'certification.type_retired':
       return `Retires ${d(x.retire_on)}; ${optionWord(x.option)}`
     case 'certification.retirement_changed':
@@ -259,4 +318,10 @@ export function describeAudit(action: string, details: Record<string, unknown> |
     default:
       return typeof x.name === 'string' ? x.name : ''
   }
+}
+
+// The latest date achieved a new award can have: today, or the programme's
+// Offered until if that's earlier (used as the date picker's max).
+export function lastAwardDate(t: { offered_until?: string | null } | null | undefined, today: string): string {
+  return t?.offered_until && t.offered_until < today ? t.offered_until : today
 }

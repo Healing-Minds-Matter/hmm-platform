@@ -108,17 +108,24 @@ export function expiryFor(achievedOn: string, value: number | null, unit: 'month
   return target.toISOString().slice(0, 10)
 }
 
+// Checks a new award, or (with `edit`) a correction to an existing certificate.
+// The programme's Offered until only limits new awards: edits aren't re-checked against it.
 export function validateAward(
   input: { achievedOn: string; format: string },
-  type: Pick<CertificationTypeRow, 'name' | 'status' | 'offered_from'> | null,
+  type: Pick<CertificationTypeRow, 'name' | 'status' | 'offered_from'> & { offered_until?: string | null } | null,
   today: string,
-  previousAchievedOn?: string | null
+  previousAchievedOn?: string | null,
+  opts: { edit?: boolean } = {}
 ): string | null {
   if (!type) return 'Choose a certification type.'
   if (type.status === 'retired') return `${type.name} is retired and can’t be awarded.`
   if (!isRealDate(input.achievedOn)) return 'Enter the date achieved.'
   if (input.achievedOn > today) return 'The date achieved can’t be in the future.'
   if (input.achievedOn < type.offered_from) return `${type.name} was only offered from ${formatCertDate(type.offered_from)}.`
+  if (!opts.edit && type.offered_until) {
+    if (input.achievedOn > type.offered_until) return `${type.name} was only offered until ${formatCertDate(type.offered_until)}, so the date achieved can’t be after that.`
+    if (today > type.offered_until) return `${type.name} stopped being offered on ${formatCertDate(type.offered_until)}, so no new certificates of it can be added.`
+  }
   if (!(input.format in FORMAT_LABEL)) return 'Choose a certificate format.'
   if (previousAchievedOn && input.achievedOn <= previousAchievedOn) return `The renewal must be after the previous certificate (${formatCertDate(previousAchievedOn)}).`
   return null
@@ -130,9 +137,10 @@ export function validateRemoval(category: string, reason: string): string | null
   return null
 }
 
-// Renew appears on a current certificate that is expired (or stopped by a past retirement) when its type is active.
-export function canRenew(cert: Pick<CertificateRow, 'status' | 'removed_at' | 'is_current'>, typeStatus: string | undefined): boolean {
-  return !cert.removed_at && cert.is_current && (cert.status === 'expired' || cert.status === 'stopped') && typeStatus !== 'retired'
+// Renew appears on a current certificate that is expired (or stopped by a past retirement) when its type is active
+// and its programme is still running (a renewal is a new award, so Offered until applies).
+export function canRenew(cert: Pick<CertificateRow, 'status' | 'removed_at' | 'is_current'>, typeStatus: string | undefined, opts: { programmeEnded?: boolean } = {}): boolean {
+  return !cert.removed_at && cert.is_current && (cert.status === 'expired' || cert.status === 'stopped') && typeStatus !== 'retired' && !opts.programmeEnded
 }
 
 export function describeCertError(error: { code?: string; message?: string } | null): string {

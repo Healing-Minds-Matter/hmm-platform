@@ -144,7 +144,8 @@ export async function editCertificateAction(_prev: CertActionState, formData: Fo
   const achievedOn = str(formData, 'achieved_on')
   const format = str(formData, 'format')
   // A retired type can still have its certificates corrected, so check the date rules as if it were active.
-  const invalid = validateAward({ achievedOn, format }, type && { ...type, status: 'active' }, todayDateString())
+  // Corrections aren't new awards, so the programme's Offered until doesn't apply.
+  const invalid = validateAward({ achievedOn, format }, type && { ...type, status: 'active' }, todayDateString(), null, { edit: true })
   if (invalid) return { error: invalid }
   if (!reason) return { error: 'Give a reason for the change. The person will see it.' }
 

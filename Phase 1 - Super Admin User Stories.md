@@ -1095,7 +1095,7 @@ Certification types are listed in a new Certifications menu item. Create and edi
 
 **Scenario 01: Create a Type**  
 GIVEN a Super Admin opens New certification type  
-WHEN they enter a name, a code, a validity (Lifetime, or a fixed number of months or years), an Offered from date and optionally a description, issuing body and Offered until date  
+WHEN they enter a name, a code, a certificate validity period (Lifetime, or a fixed number of months or years), a programme period (an Offered from date and, optionally, an Offered until date) and optionally a description and issuing body  
 THEN the type shall be created as Active and the change recorded in the audit history
 
 **Scenario 02: Unique Name and Code**  
@@ -1103,25 +1103,30 @@ GIVEN a name or code is already used by another type, in any combination of capi
 WHEN the Super Admin saves  
 THEN the system shall refuse and say which one is already used. Codes may contain only letters, numbers and hyphens and are stored in capitals
 
-**Scenario 03: Code Locked Once Awarded**  
-GIVEN a type has been awarded at least once  
+**Scenario 03: Code and Offered From Locked Once Issued**  
+GIVEN at least one certificate of a type exists (any status, including removed)  
 WHEN a Super Admin edits it  
-THEN the code shall be read-only
+THEN the code and Offered from shall be read-only (refused by the database too), Offered until cannot be earlier than the latest date achieved on its certificates, and a banner shall say how many people it has been issued to and that changes apply only to certificates issued from now on
 
 **Scenario 04: Changing Validity**  
-GIVEN a Super Admin changes a type's validity  
+GIVEN a Super Admin changes a type's certificate validity period  
 WHEN they save  
 THEN only certificates awarded afterwards shall use the new validity; each existing certificate keeps the validity it was awarded with
 
 **Scenario 05: List of Types**  
 GIVEN any Super Admin or Champion opens Certifications  
 WHEN the list is shown  
-THEN each type shall show its name, code, validity, offered dates and status (Active, Active · retires on a date, or Retired); Super Admins also see the digital certificate design version, the number of holders, and View and Edit actions
+THEN each type shall show its name, code, certificate validity period, programme period ("From <date>" or "<from> – <until>") and status (Active, Active · retires on a date, or Retired); Super Admins also see the digital certificate design version, the number of holders, and View and Edit actions
 
 **Scenario 06: Type Details**  
 GIVEN a Super Admin views a type  
 WHEN the page opens  
 THEN it shall show the type's details, its digital certificate design (Story 10.4), and a Retirement section only if a retirement date has been set
+
+**Scenario 07: Programme Period**  
+GIVEN a type has a programme period  
+WHEN anyone adds or renews a certificate of it  
+THEN the date achieved must fall within Offered from and Offered until, and no new certificate can be added once Offered until has passed. Offered until only stops new awards: existing and migrated certificates are not re-checked, stopped or expired by it; retiring (Story 10.2) is a separate action
 
 ---
 
@@ -1133,12 +1138,12 @@ THEN it shall show the type's details, its digital certificate design (Story 10.
 | **So that** | programmes that end stop being awarded, without losing anyone's history |
 
 **Description**  
-Retiring never deletes anything. The Offered until date and the retirement date are the same thing.
+Retiring never deletes anything. Retirement is separate from the programme period's Offered until date (Story 10.1 Sc07): Offered until only stops new awards, while retiring also lets the Super Admin keep or stop existing certificates.
 
 **Acceptance Criteria**
 
 **Scenario 01: Retire or Schedule a Retirement**  
-GIVEN a Super Admin chooses Retire type, or sets an Offered until date  
+GIVEN a Super Admin chooses Retire type  
 WHEN they choose a date (today or later) and what happens to existing certificates: Keep them valid until their own expiry, or Stop them on the retirement date  
 THEN the retirement shall be saved, shown in the type's Retirement section and recorded in the audit history; before the date the type shows "Active · retires on" that date
 
@@ -1164,8 +1169,8 @@ THEN the change shall apply to all its certificates and be recorded in the audit
 
 **Scenario 06: Reactivate**  
 GIVEN a type is retired  
-WHEN a Super Admin chooses Reactivate type and a date it is offered again from (today or later), and optionally a new Offered until date  
-THEN the type shall become Active from that date, can be awarded again, and its design can be edited again
+WHEN a Super Admin chooses Reactivate type and a date it is offered again from (today or later)  
+THEN the type shall become Active from that date, can be awarded again within its programme period, and its design can be edited again. The programme period itself is changed with Edit
 
 **Scenario 07: Certificates After Reactivation**  
 GIVEN a type is reactivated  

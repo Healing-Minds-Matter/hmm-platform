@@ -9,7 +9,7 @@ import { useRouter } from 'next/navigation'
 import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { ModalOverlay } from '@/components/modal-overlay'
 import { FormCard, CANCEL_BTN, HINT, INPUT, LABEL, OPTION, PRIMARY_BTN } from '@/components/certifications/cert-ui'
-import { formatCertDate } from '@/lib/certification-types'
+import { formatCertDate, lastAwardDate } from '@/lib/certification-types'
 import { FORMAT_LABEL, expiryFor, type CertificateFormat } from '@/lib/certificates'
 import { addCertificateToManyAction } from '@/actions/certificates'
 import type { AwardableType } from '@/lib/certifications.server'
@@ -107,7 +107,7 @@ function BulkAwardForm({ people, types, clubs, today, onClose }: {
             </div>
             <div>
               <label className={LABEL} htmlFor="bulk-date">Date achieved</label>
-              <input id="bulk-date" type="date" name="achieved_on" value={date} max={today} min={type?.offered_from} onChange={e => setDate(e.target.value)} className={INPUT} required />
+              <input id="bulk-date" type="date" name="achieved_on" value={date} max={lastAwardDate(type, today)} min={type?.offered_from} onChange={e => setDate(e.target.value)} className={INPUT} required />
               {type && <p className={HINT}>{type.validity_value == null ? 'Lifetime (no expiry)' : expiry ? `Valid until ${formatCertDate(expiry)}` : ''}</p>}
             </div>
           </div>

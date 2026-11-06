@@ -10,7 +10,7 @@ import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { ModalOverlay } from '@/components/modal-overlay'
 import { downloadBlob, fetchPdf, printBlob } from '@/components/certifications/pdf-actions'
 import { Badge, Code, FormCard, CANCEL_BTN, DANGER_BTN, HINT, INPUT, LABEL, OPTION, PRIMARY_BTN } from '@/components/certifications/cert-ui'
-import { formatCertDate, validityLabel, type CertificationTypeRow } from '@/lib/certification-types'
+import { formatCertDate, lastAwardDate, programmeEnded, validityLabel, type CertificationTypeRow } from '@/lib/certification-types'
 import {
   ATTACHMENT_ACCEPT, FORMAT_LABEL, REMOVE_REASONS, STATUS_BADGE, canRenew, describeChanges, expiryFor,
   type CertificateFormat, type CertificateRow, type JourneyEntry,
@@ -44,11 +44,14 @@ type Props = {
   openRenew?: string
 }
 
+const renewable = (c: CertificateRow, t: CertificationTypeRow | undefined, today: string) =>
+  canRenew(c, t?.status, { programmeEnded: !!t && programmeEnded(t, today) })
+
 export function CertificatesPanel(props: Props) {
   const { certs, selfReported, types, journey, names, perms } = props
   const [popup, setPopup] = useState<Popup | null>(() => {
     const c = props.openRenew ? certs.find(x => x.id === props.openRenew) : undefined
-    return c && perms.award && canRenew(c, types.find(t => t.id === c.type_id)?.status) ? { kind: 'renew', cert: c } : null
+    return c && perms.award && renewable(c, types.find(t => t.id === c.type_id), props.today) ? { kind: 'renew', cert: c } : null
   })
   const [notice, setNotice] = useState<string | null>(null)
   const typeById = new Map(types.map(t => [t.id, t]))
@@ -60,7 +63,7 @@ export function CertificatesPanel(props: Props) {
     <div className="flex flex-wrap justify-end gap-1.5">
       {c.pdf_path && <CertificateButton certId={c.id} />}
       {c.attachment_path && <AttachmentButton path={c.attachment_path} />}
-      {perms.award && canRenew(c, typeById.get(c.type_id)?.status) && (
+      {perms.award && renewable(c, typeById.get(c.type_id), props.today) && (
         <SmallButton tone="primary" onClick={() => setPopup({ kind: 'renew', cert: c })}>Renew</SmallButton>
       )}
       {perms.edit && !c.removed_at && <SmallButton onClick={() => setPopup({ kind: 'edit', cert: c })}>Edit</SmallButton>}
@@ -415,7 +418,7 @@ function AwardForm({ holderId, holderName, certs, types, designVersions, today, 
   onDone: (m?: string) => void
 }) {
   const { state, onSubmit, pending } = useClosingAction(addCertificateAction, onDone)
-  const offered = types.filter(t => t.status !== 'retired')
+  const offered = types.filter(t => t.status !== 'retired' && !programmeEnded(t, today))
   const [typeId, setTypeId] = useState(renew?.type_id ?? '')
   const [date, setDate] = useState('')
   const [chosenFormat, setFormat] = useState<CertificateFormat>(renew?.format ?? 'physical')
@@ -428,7 +431,7 @@ function AwardForm({ holderId, holderName, certs, types, designVersions, today, 
   return (
     <FormCard
       title={renew ? `Renew ${type?.name ?? 'certificate'}` : 'Add certification'}
-      subtitle={`For ${holderName}. The expiry is worked out from the type’s validity.`}
+      subtitle={`For ${holderName}. The expiry is worked out from the type’s certificate validity period.`}
       onClose={onClose}
     >
       <form onSubmit={onSubmit} className="flex min-h-0 flex-col">
@@ -457,7 +460,7 @@ function AwardForm({ holderId, holderName, certs, types, designVersions, today, 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className={LABEL} htmlFor="cert-date">Date achieved</label>
-              <input id="cert-date" type="date" name="achieved_on" value={date} max={today} min={held ? undefined : type?.offered_from} onChange={e => setDate(e.target.value)} className={INPUT} required />
+              <input id="cert-date" type="date" name="achieved_on" value={date} max={lastAwardDate(type, today)} min={held ? undefined : type?.offered_from} onChange={e => setDate(e.target.value)} className={INPUT} required />
             </div>
             <div>
               <span className={LABEL}>Expires</span>
@@ -510,7 +513,7 @@ function EditForm({ cert, type, designVersion, today, onClose, onDone }: {
               <div className={`${INPUT} flex items-center bg-[#F8FAFC] text-[#475569]`}>
                 {cert.validity_value == null ? 'Lifetime (no expiry)' : expiry ? formatCertDate(expiry) : '—'}
               </div>
-              <p className={HINT}>Uses the validity it was awarded with.</p>
+              <p className={HINT}>Uses the certificate validity period it was awarded with.</p>
             </div>
           </div>
           {/* A numbered certificate keeps its number and PDF even if it becomes Physical. */}

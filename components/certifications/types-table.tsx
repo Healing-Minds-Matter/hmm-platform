@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { formatCertDate, validityLabel, type CertificationTypeRow } from '@/lib/certification-types'
+import { TYPE_TEXT, programmePeriodLabel, validityLabel, type CertificationTypeRow } from '@/lib/certification-types'
 import { Code, TypeStatusBadge } from './cert-ui'
 
 // The list of certification types (Story 10.1 Sc05). Super Admins also see
@@ -21,8 +21,8 @@ export function TypesTable({ types, holders, manage, base }: {
           <tr className="h-[46px] border-b border-[rgba(226,232,240,0.8)] bg-[#F9F9F9]">
             <th className={th}>Name</th>
             <th className={th}>Code</th>
-            <th className={th}>Validity</th>
-            <th className={th}>Offered</th>
+            <th className={th}>{TYPE_TEXT.validityLabel}</th>
+            <th className={th}>{TYPE_TEXT.periodLabel}</th>
             <th className={th}>Status</th>
             {manage && <th className={th}>Holders</th>}
             {manage && <th className="w-[100px] px-[16px]"><span className="sr-only">Actions</span></th>}
@@ -37,10 +37,7 @@ export function TypesTable({ types, holders, manage, base }: {
               </td>
               <td className="px-[16px] py-3"><Code>{t.code}</Code></td>
               <td className="px-[16px] py-3 text-[13px] text-[#0F172A]">{validityLabel(t)}</td>
-              <td className="px-[16px] py-3 text-[13px] text-[#0F172A]">
-                From {formatCertDate(t.offered_from)}
-                {t.offered_until && <div className="text-[11px] text-[#64748B]">Until {formatCertDate(t.offered_until)}</div>}
-              </td>
+              <td className="px-[16px] py-3 text-[13px] text-[#0F172A]">{programmePeriodLabel(t)}</td>
               <td className="px-[16px] py-3"><TypeStatusBadge type={t} /></td>
               {manage && <td className="px-[16px] py-3 text-[13px] tabular-nums text-[#0F172A]">{holders[t.id] ?? 0}</td>}
               {manage && (
