@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { writeAuditLog } from '@/lib/audit'
+import { invalid, type FieldErrors } from '@/lib/form-errors'
 
 export type PermissionActionState = { error?: string } | null
 
@@ -118,7 +119,8 @@ export async function revokeIndividualExceptionAction(formData: FormData) {
 
 // ── Story 9.3: Permission Groups ────────────────────────────────────────────
 
-export type GroupActionState = { error?: string } | null
+// fieldErrors: errors tied to a form field, shown next to it (sheet row 32).
+export type GroupActionState = { error?: string; fieldErrors?: FieldErrors } | null
 
 export async function createGroupAction(
   _prev: GroupActionState,
@@ -127,7 +129,7 @@ export async function createGroupAction(
   const name = (formData.get('name') as string | null)?.trim()
   const description = (formData.get('description') as string | null)?.trim() || null
 
-  if (!name) return { error: 'Group name is required.' }
+  if (!name) return invalid('name', 'Group name is required.')
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -140,7 +142,7 @@ export async function createGroupAction(
     .single()
 
   if (error) {
-    if (error.code === '23505') return { error: `A group named "${name}" already exists.` }
+    if (error.code === '23505') return invalid('name', `A group named "${name}" already exists.`)
     return { error: error.message }
   }
 
@@ -316,7 +318,7 @@ export async function searchAssignableUsersAction(query: string): Promise<Assign
 
 // ── Story 9.4: Temporary Role Delegation ────────────────────────────────────
 
-export type DelegationActionState = { error?: string; success?: boolean } | null
+export type DelegationActionState = { error?: string; fieldErrors?: FieldErrors; success?: boolean } | null
 
 export async function createDelegationAction(
   _prev: DelegationActionState,
@@ -327,10 +329,12 @@ export async function createDelegationAction(
   const startsAt = formData.get('starts_at') as string
   const endsAt = formData.get('ends_at') as string
 
-  if (!delegatorId || !delegateId) return { error: 'Select both a delegator and a delegate.' }
-  if (delegatorId === delegateId) return { error: 'Delegator and delegate must be different people.' }
-  if (!startsAt || !endsAt) return { error: 'Start and end dates are required.' }
-  if (new Date(endsAt) <= new Date(startsAt)) return { error: 'End date must be after the start date.' }
+  if (!delegatorId) return invalid('delegator_id', 'Select the delegator (the person going on leave).')
+  if (!delegateId) return invalid('delegate_id', 'Select the delegate (the person covering).')
+  if (delegatorId === delegateId) return invalid('delegate_id', 'Delegator and delegate must be different people.')
+  if (!startsAt) return invalid('starts_at', 'Start date is required.')
+  if (!endsAt) return invalid('ends_at', 'End date is required.')
+  if (new Date(endsAt) <= new Date(startsAt)) return invalid('ends_at', 'End date must be after the start date.')
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
