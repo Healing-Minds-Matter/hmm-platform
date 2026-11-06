@@ -42,7 +42,7 @@ export function UpcomingQprSection({ events, total }: { events: QprEvent[]; tota
           <div className="flex items-center gap-2.5">
             <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[#EFF4FF]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/icons/qpr-cert-icon.svg" alt="" className="h-[17px] w-[17px]" />
+              <img src="/icons/certification-programme.svg" alt="" className="h-[17px] w-[17px]" />
             </span>
             <div>
               <h2 className="text-[18px] font-bold leading-6 text-[#0F172A] font-[family-name:var(--font-jakarta)]">Upcoming QPR Certifications</h2>
@@ -67,7 +67,7 @@ export function UpcomingQprSection({ events, total }: { events: QprEvent[]; tota
               <div className="flex items-start gap-3 min-w-0">
                 <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[rgba(0,52,149,0.1)]">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="/icons/qpr-cert-icon.svg" alt="" className="h-[18px] w-[18px]" />
+                  <img src="/icons/certification-programme.svg" alt="" className="h-[18px] w-[18px]" />
                 </span>
                 <div className="min-w-0">
                   <p className="truncate text-[12px] font-bold tracking-[0.24px] leading-4 text-[#0F172A]">{ev.title}</p>
@@ -76,7 +76,7 @@ export function UpcomingQprSection({ events, total }: { events: QprEvent[]; tota
                   </p>
                   <p className="mt-1 flex items-center gap-2 text-[11px] font-semibold tracking-[0.44px] text-[#475569]">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src="/icons/qpr-clock-icon.svg" alt="" className="h-[13.333px] w-[13.333px]" />
+                    <img src="/icons/event-clock.svg" alt="" className="h-[13.333px] w-[13.333px]" />
                     {formatWhen(ev.starts_at, ev.ends_at)}
                   </p>
                 </div>

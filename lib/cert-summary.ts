@@ -4,7 +4,7 @@
 
 import { formatCertDate } from '@/lib/certification-types'
 import type { CertificateStatus } from '@/lib/certificates'
-import type { QprStatus } from '@/app/(dashboard)/super-admin/gatekeepers/gatekeeper-status'
+import type { PersonCertStatus } from '@/app/(dashboard)/super-admin/gatekeepers/gatekeeper-status'
 
 export type CurrentCert = { id: string; holder_id: string; type_id: string; status: CertificateStatus; achieved_on: string; expires_on: string | null }
 export const CURRENT_CERT_COLUMNS = 'id, holder_id, type_id, status, achieved_on, expires_on'
@@ -19,14 +19,16 @@ export function byHolder(rows: CurrentCert[]): Map<string, CurrentCert[]> {
   return m
 }
 
-// The one-QPR-status-per-person displays (Story 10.12 Sc04): badges in lists,
-// QPR widgets. An inactive person shows as Inactive, as before.
-export function qprStatusOf(isActive: boolean, qpr: CurrentCert | undefined): QprStatus {
+// One status per person across all their current certificates, whatever the type:
+// Certified if any certificate is valid; otherwise Expiring soon if any is expiring
+// soon; otherwise Expired (expired, or stopped by a retirement); No certifications
+// if they hold none. An inactive person shows as Inactive.
+export function personCertStatus(isActive: boolean, certs: CurrentCert[] | undefined): PersonCertStatus {
   if (!isActive) return 'inactive'
-  if (!qpr) return 'not_certified'
-  if (qpr.status === 'valid') return 'active'
-  if (qpr.status === 'expiring_soon') return 'expiring_soon'
-  return 'expired'   // expired, or stopped by a retirement
+  if (!certs?.length) return 'none'
+  if (certs.some(c => c.status === 'valid')) return 'certified'
+  if (certs.some(c => c.status === 'expiring_soon')) return 'expiring_soon'
+  return 'expired'
 }
 
 // The three statuses lists can be filtered by (Story 10.12 Sc01).
@@ -86,13 +88,15 @@ export function certificationFigures(rows: CurrentCert[], people: string[]): { p
   }
 }
 
-// QPR widget numbers: certified = valid or expiring soon (as before), of `people`.
-export function qprFigures(qprByHolder: Map<string, CurrentCert>, people: string[]): { certified: number; expiringSoon: number; total: number } {
+// Club/Champion certification-rate numbers, of `people`, across all types:
+// certified = holds at least one certificate that is valid or expiring soon;
+// expiringSoon = certified, but every such certificate is expiring soon.
+export function certifiedFigures(byHolderMap: Map<string, CurrentCert[]>, people: string[]): { certified: number; expiringSoon: number; total: number } {
   let certified = 0
   let expiringSoon = 0
   for (const p of people) {
-    const s = qprByHolder.get(p)?.status
-    if (s === 'valid' || s === 'expiring_soon') certified++
+    const s = personCertStatus(true, byHolderMap.get(p))
+    if (s === 'certified' || s === 'expiring_soon') certified++
     if (s === 'expiring_soon') expiringSoon++
   }
   return { certified, expiringSoon, total: people.length }

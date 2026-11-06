@@ -7,7 +7,7 @@ import { GatekeeperFilters } from './gatekeeper-filters'
 import { CertChips } from '@/components/certifications/cert-chips'
 import { CertListFilters } from '@/components/certifications/cert-list-filters'
 import { loadCertSummary } from '@/lib/cert-summary.server'
-import { matchesCertFilter, qprStatusOf } from '@/lib/cert-summary'
+import { matchesCertFilter, personCertStatus } from '@/lib/cert-summary'
 import { certCan } from '@/lib/certifications.server'
 
 export const metadata = { title: 'Gatekeepers — HMM Super Admin' }
@@ -67,10 +67,10 @@ export default async function GatekeepersPage({
   const allMatching = gatekeepers ?? []
   const typeMap = new Map(summary.types.map(t => [t.id, t]))
 
-  // Status = the QPR badge, from the current QPR certificate (Story 10.12 Sc04).
+  // Status = one certification status across all of the person's current certificates.
   const withStatus = allMatching.map(g => ({
     ...g,
-    status: qprStatusOf(g.is_active, summary.qprByHolder.get(g.id)),
+    status: personCertStatus(g.is_active, summary.byHolder.get(g.id)),
   }))
 
   const filtered = withStatus
@@ -92,7 +92,7 @@ export default async function GatekeepersPage({
         <div>
           <h1 className="text-[24px] font-bold tracking-[-0.7px] text-[#0F172A]">Gatekeeper Management</h1>
           <p className="mt-1 text-sm text-[#475569]">
-            Monitor, search, and manage all QPR-certified Gatekeepers across all {activeClubCount} active regional clubs, and audit 3-year certification lifecycles.
+            Monitor, search, and manage Gatekeepers and their certifications across all {activeClubCount} active regional clubs.
           </p>
         </div>
         <div className="flex flex-shrink-0 items-center gap-2">

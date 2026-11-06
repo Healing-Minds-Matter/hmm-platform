@@ -2,9 +2,9 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { loadCertSummary } from '@/lib/cert-summary.server'
-import { qprFigures } from '@/lib/cert-summary'
+import { certifiedFigures } from '@/lib/cert-summary'
 import { ClubStatusToggle } from './club-status-toggle'
-import { eventTypeStyle } from '@/app/(dashboard)/super-admin/events/event-type'
+import { eventTypeStyle, EVENT_TYPE_OPTIONS } from '@/app/(dashboard)/super-admin/events/event-type'
 // Event dates/times are shown in Sri Lanka time (see lib/org-date.ts).
 import { ORG_TIME_ZONE } from '@/lib/org-date'
 import { EVENT_CLUBS_EMBED, isEventForClub } from '@/lib/event-clubs'
@@ -15,12 +15,6 @@ const PAGE_SIZE = 10
 
 type Tab = 'roster' | 'events'
 
-const EVENT_TYPE_OPTIONS: { value: string; label: string }[] = [
-  { value: 'qpr_session',       label: 'QPR Certification Session' },
-  { value: 'awareness_program', label: 'Awareness Program' },
-  { value: 'workshop',          label: 'Workshop' },
-  { value: 'other',             label: 'Other' },
-]
 
 function getInitials(name: string): string {
   return name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
@@ -121,11 +115,11 @@ export default async function ClubDetailPage({
   const activeChampions     = championList.filter(c => c.is_active)
 
   const now      = new Date()
-  // Active champions + gatekeepers in this club; certified = a current QPR certificate that is
-  // valid or expiring soon, using the certificate status rules (Story 10.12 Sc04).
+  // Active champions + gatekeepers in this club; certified = holds at least one current
+  // certificate, of any type, that is valid or expiring soon (status rules of Story 10.0).
   const certPool = [...championList, ...gatekeeperList].filter(p => p.is_active)
-  const { certified: certifiedCount, expiringSoon: expiringSoonCount } = qprFigures((await loadCertSummary(supabase)).qprByHolder, certPool.map(p => p.id))
-  const qprPct = certPool.length > 0 ? Math.round((certifiedCount / certPool.length) * 100) : 0
+  const { certified: certifiedCount, expiringSoon: expiringSoonCount } = certifiedFigures((await loadCertSummary(supabase)).byHolder, certPool.map(p => p.id))
+  const certifiedPct = certPool.length > 0 ? Math.round((certifiedCount / certPool.length) * 100) : 0
 
   const upcomingEvents = eventList.filter(e => new Date(e.starts_at) > now) // eventList already sorted ascending
   const nextEvent = upcomingEvents[0]
@@ -235,9 +229,9 @@ export default async function ClubDetailPage({
           caption="Assigned to manage this club"
         />
         <KpiCard
-          label="QPR Certification Rate"
-          iconSrc="/icons/kpi-qpr.svg"
-          value={`${qprPct}%`}
+          label="Certification Rate"
+          iconSrc="/icons/kpi-certification.svg"
+          value={`${certifiedPct}%`}
           caption={`${certifiedCount} certified, ${expiringSoonCount} expiring soon`}
         />
         <KpiCard

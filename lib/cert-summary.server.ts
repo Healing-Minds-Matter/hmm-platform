@@ -10,9 +10,7 @@ type ServerClient = Awaited<ReturnType<typeof createClient>>
 
 export type CertSummary = {
   byHolder: Map<string, CurrentCert[]>
-  qprByHolder: Map<string, CurrentCert>
   types: { id: string; name: string; code: string; status: string }[]   // types that appear, plus all active ones, by name
-  qprTypeId: string | null
 }
 
 export async function loadCertSummary(supabase: ServerClient): Promise<CertSummary> {
@@ -21,15 +19,9 @@ export async function loadCertSummary(supabase: ServerClient): Promise<CertSumma
     supabase.from('certification_type_statuses').select('id, name, code, status').order('name'),
   ])
   const certs = (rows as CurrentCert[] | null) ?? []
-  const qprTypeId = (types ?? []).find(t => t.code === 'QPR')?.id ?? null
   const held = new Set(certs.map(c => c.type_id))
-  const grouped = byHolder(certs)
-  const qprByHolder = new Map<string, CurrentCert>()
-  if (qprTypeId) for (const c of certs) if (c.type_id === qprTypeId) qprByHolder.set(c.holder_id, c)
   return {
-    byHolder: grouped,
-    qprByHolder,
+    byHolder: byHolder(certs),
     types: (types ?? []).filter(t => t.status !== 'retired' || held.has(t.id)).map(({ id, name, code, status }) => ({ id, name, code, status })),
-    qprTypeId,
   }
 }

@@ -3,10 +3,12 @@ import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { CertificatesSection } from '@/components/certifications/certificates-section'
 import { loadCertSummary } from '@/lib/cert-summary.server'
-import { qprFigures, type CurrentCert } from '@/lib/cert-summary'
-import { formatCertDate } from '@/lib/certification-types'
+import { certifiedFigures, personCertStatus, type CurrentCert } from '@/lib/cert-summary'
+import { CertChips } from '@/components/certifications/cert-chips'
+import { todayDateString } from '@/lib/org-date'
+import { PERSON_CERT_STATUS_LABEL, PERSON_CERT_STATUS_BADGE, PERSON_CERT_STATUS_DOT } from '@/app/(dashboard)/super-admin/gatekeepers/gatekeeper-status'
 import { ChampionStatusControls } from './champion-status-controls'
-import { eventTypeStyle } from '@/app/(dashboard)/super-admin/events/event-type'
+import { eventTypeStyle, EVENT_TYPE_OPTIONS } from '@/app/(dashboard)/super-admin/events/event-type'
 // Event dates/times are shown in Sri Lanka time (see lib/org-date.ts).
 import { ORG_TIME_ZONE } from '@/lib/org-date'
 import { EVENT_CLUBS_EMBED, isEventForClub } from '@/lib/event-clubs'
@@ -16,13 +18,6 @@ export const metadata = { title: 'Champion Details — HMM Super Admin' }
 const PAGE_SIZE = 10
 
 type Tab = 'roster' | 'events'
-
-const EVENT_TYPE_OPTIONS: { value: string; label: string }[] = [
-  { value: 'qpr_session',       label: 'QPR Certification Session' },
-  { value: 'awareness_program', label: 'Awareness Program' },
-  { value: 'workshop',          label: 'Workshop' },
-  { value: 'other',             label: 'Other' },
-]
 
 function getInitials(name: string): string {
   return name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
@@ -63,17 +58,15 @@ function KpiCard({
   )
 }
 
-// The Champion's current QPR certificate, using the certificate status rules (Story 10.12 Sc04).
-function qprLine(qpr: CurrentCert | undefined) {
-  if (!qpr) return { text: 'QPR certification not on file', className: 'text-[#94A3B8]' }
-  const expiryLabel = qpr.expires_on ? formatCertDate(qpr.expires_on) : null
-  if (qpr.status === 'expired' || qpr.status === 'stopped') {
-    return { text: `QPR Certification ${qpr.status === 'stopped' ? 'Stopped' : 'Expired'}${expiryLabel ? ` (${expiryLabel})` : ''}`, className: 'text-[#94A3B8]' }
-  }
-  if (qpr.status === 'expiring_soon') {
-    return { text: `QPR Certified — Expiring soon (Expires ${expiryLabel})`, className: 'text-[#D97706]' }
-  }
-  return { text: expiryLabel ? `QPR Certified (Expires ${expiryLabel})` : 'QPR Certified (Lifetime)', className: 'text-[#16A34A]' }
+// One line summarising the Champion's current certificates, of any type.
+function certificationLine(certs: CurrentCert[] | undefined) {
+  const status = personCertStatus(true, certs)
+  if (status === 'none') return { text: 'No certifications on file', className: 'text-[#64748B]' }
+  const n = certs!.length
+  const count = `${n} certification${n === 1 ? '' : 's'}`
+  if (status === 'certified') return { text: `Certified · ${count}`, className: 'text-[#15803D]' }
+  if (status === 'expiring_soon') return { text: `Expiring soon · ${count}`, className: 'text-[#B45309]' }
+  return { text: `Expired · ${count}`, className: 'text-[#64748B]' }
 }
 
 export default async function ChampionDetailPage({
@@ -131,7 +124,9 @@ export default async function ChampionDetailPage({
       : Promise.resolve({ data: [] as { id: string; title: string; type: string; starts_at: string; ends_at: string | null; venue: string; max_participants: number | null; is_cancelled: boolean; is_all_clubs?: boolean; event_clubs?: { club_id: string }[] }[] }),
     loadCertSummary(supabase),
   ])
-  const qprOf = (personId: string) => summary.qprByHolder.get(personId)
+  const certsOf = (personId: string) => summary.byHolder.get(personId)
+  const typeMap = new Map(summary.types.map(t => [t.id, t]))
+  const todayStr = todayDateString()
 
   const clubChampionList = clubChampions ?? []
   const gatekeeperList   = gatekeepers ?? []
@@ -143,17 +138,15 @@ export default async function ChampionDetailPage({
   const inactiveGatekeepers = gatekeeperList.filter(g => !g.is_active)
 
 
-  // "Gatekeepers in this club" and "Club QPR Certification Rate" — reframed
-  // honestly per the club-scope decision (a champion isn't individually
-  // assigned specific gatekeepers; a club can have multiple champions). Rate
-  // computation is the exact same certified/expiring-soon convention as the
-  // Club detail page's QPR Certification Rate KPI, scoped to this champion's
-  // club_id, among active champions + gatekeepers in that club.
+  // "Gatekeepers in this club" and "Club Certification Rate" (a champion isn't
+  // individually assigned gatekeepers; a club can have several champions). Same
+  // rule as the Club detail page: the share of the club's active Champions and
+  // Gatekeepers holding at least one valid or expiring-soon certificate, of any type.
   const certPool = [...clubChampionList, ...gatekeeperList].filter(p => p.is_active)
-  const { certified: certifiedCount, expiringSoon: expiringSoonCount } = qprFigures(summary.qprByHolder, certPool.map(p => p.id))
-  const qprPct = certPool.length > 0 ? Math.round((certifiedCount / certPool.length) * 100) : 0
+  const { certified: certifiedCount, expiringSoon: expiringSoonCount } = certifiedFigures(summary.byHolder, certPool.map(p => p.id))
+  const certifiedPct = certPool.length > 0 ? Math.round((certifiedCount / certPool.length) * 100) : 0
 
-  const championQpr = qprLine(qprOf(champion.id))
+  const championCerts = certificationLine(certsOf(champion.id))
 
   // ── Filtering ──────────────────────────────────────────────────────────────
   const gkFiltered = gkQ
@@ -253,7 +246,7 @@ export default async function ChampionDetailPage({
               <div className="flex items-center gap-1.5">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src="/icons/shield-check.svg" alt="" width={14.67} height={14} />
-                <span className={`text-[13px] ${championQpr.className}`}>{championQpr.text}</span>
+                <span className={`text-[13px] ${championCerts.className}`}>{championCerts.text}</span>
               </div>
             </div>
           </div>
@@ -292,9 +285,9 @@ export default async function ChampionDetailPage({
           caption={club ? `${activeGatekeepers.length} active, ${inactiveGatekeepers.length} inactive` : 'No club assigned'}
         />
         <KpiCard
-          label="Club QPR Certification Rate"
-          iconSrc="/icons/kpi-qpr.svg"
-          value={club ? `${qprPct}%` : '—'}
+          label="Club Certification Rate"
+          iconSrc="/icons/kpi-certification.svg"
+          value={club ? `${certifiedPct}%` : '—'}
           caption={club ? `${certifiedCount} certified, ${expiringSoonCount} expiring soon` : 'No club assigned'}
         />
       </div>
@@ -390,15 +383,13 @@ export default async function ChampionDetailPage({
                   <tr className="bg-[#F9F9F9] text-left text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">
                     <th className="px-6 py-3.5">Gatekeeper</th>
                     <th className="px-6 py-3.5">Email &amp; Phone</th>
-                    <th className="px-6 py-3.5">QPR Certified Date</th>
-                    <th className="px-6 py-3.5">Expiry Date</th>
+                    <th className="px-6 py-3.5">Certifications</th>
                     <th className="px-6 py-3.5">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#F1F5F9]">
                   {gkPage.map(g => {
-                    const qpr = qprOf(g.id)
-                    const expiringSoon = g.is_active && qpr?.status === 'expiring_soon'
+                    const status = personCertStatus(g.is_active, certsOf(g.id))
                     return (
                       <tr key={g.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4">
@@ -413,29 +404,14 @@ export default async function ChampionDetailPage({
                           <p className="text-sm font-medium text-[#0F172A]">{g.email}</p>
                           <p className="mt-0.5 text-xs text-[#64748B]">{g.phone ?? '—'}</p>
                         </td>
-                        <td className="px-6 py-4 text-sm text-[#475569]">
-                          {qpr ? formatCertDate(qpr.achieved_on) : '—'}
-                        </td>
-                        <td className={`px-6 py-4 text-sm ${expiringSoon ? 'font-medium text-[#D97706]' : 'text-[#0F172A]'}`}>
-                          {qpr ? (qpr.expires_on ? formatCertDate(qpr.expires_on) : 'Lifetime') : '—'}
+                        <td className="px-6 py-4">
+                          <CertChips certs={certsOf(g.id) ?? []} types={typeMap} today={todayStr} renewBase={null} />
                         </td>
                         <td className="px-6 py-4">
-                          {!g.is_active ? (
-                            <span className="inline-flex items-center gap-1.5 rounded-full bg-[#F1F5F9] px-2.5 py-0.5 text-xs font-semibold text-[#64748B]">
-                              <span className="h-1.5 w-1.5 rounded-full bg-[#94A3B8]" />
-                              Inactive
-                            </span>
-                          ) : expiringSoon ? (
-                            <span className="inline-flex items-center gap-1.5 rounded-full bg-[#D97706]/10 px-2.5 py-0.5 text-xs font-semibold text-[#D97706]">
-                              <span className="h-1.5 w-1.5 rounded-full bg-[#D97706]" />
-                              Expiring soon
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1.5 rounded-full bg-[#E6FFE7] px-2.5 py-0.5 text-xs font-semibold text-[#0D8275]">
-                              <span className="h-1.5 w-1.5 rounded-full bg-[#10B981]" />
-                              Active
-                            </span>
-                          )}
+                          <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold ${PERSON_CERT_STATUS_BADGE[status]}`}>
+                            <span className={`h-1.5 w-1.5 rounded-full ${PERSON_CERT_STATUS_DOT[status]}`} />
+                            {PERSON_CERT_STATUS_LABEL[status]}
+                          </span>
                         </td>
                       </tr>
                     )
