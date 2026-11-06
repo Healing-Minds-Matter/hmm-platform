@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { countTickStep } from '@/lib/chart-scale'
 import Link from 'next/link'
 import type { BarItem } from '@/actions/dashboard'
 
@@ -81,14 +82,6 @@ function ViewAllModal({
 
 // Smallest "nice" step (1/2/5/10 × a power of 10) so the Y axis reads like
 // 0/20/40/60/80 rather than an arbitrary max — matches the real design.
-function niceStep(rough: number): number {
-  if (rough <= 0) return 1
-  const magnitude = Math.pow(10, Math.floor(Math.log10(rough)))
-  const norm = rough / magnitude
-  const niceNorm = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10
-  return niceNorm * magnitude
-}
-
 function VerticalBar({ item, scaleMax }: { item: BarItem; scaleMax: number }) {
   const pct = scaleMax > 0 ? Math.max((item.count / scaleMax) * 100, item.count > 0 ? 2 : 0) : 0
   return (
@@ -106,7 +99,8 @@ export function BarChartWidget({ data }: { data: BarItem[] }) {
   const hasMore = data.length > MAX_VISIBLE
   const average = data.length > 0 ? Math.round(data.reduce((sum, d) => sum + d.count, 0) / data.length) : 0
 
-  const step = niceStep(maxCount / 4)
+  // Whole-number ticks only (sheet row 51).
+  const step = countTickStep(maxCount)
   const scaleMax = step * 4
   const gridLabels = [scaleMax, step * 3, step * 2, step, 0]
 

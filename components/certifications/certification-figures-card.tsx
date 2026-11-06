@@ -6,7 +6,8 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { loadCertSummary } from '@/lib/cert-summary.server'
-import { certificationFigures } from '@/lib/cert-summary'
+import { certificationFigures, certifiedFigures, certifiedThisMonth } from '@/lib/cert-summary'
+import { todayDateString } from '@/lib/org-date'
 
 export async function CertificationFiguresCard({ scope }: { scope: { kind: 'all' } | { kind: 'club'; clubId: string } }) {
   const supabase = await createClient()
@@ -25,6 +26,10 @@ export async function CertificationFiguresCard({ scope }: { scope: { kind: 'all'
   const summary = await loadCertSummary(supabase)
   const rows = [...summary.byHolder.values()].flat()
   const { perType, withoutCertifications } = certificationFigures(rows, people)
+  // Sheet rows 59/78: people with at least one current (valid or expiring soon)
+  // certificate, any type — the same figure as the mobile Home tile.
+  const { certified } = certifiedFigures(summary.byHolder, people)
+  const newThisMonth = certifiedThisMonth(summary.byHolder, people, `${todayDateString().slice(0, 7)}-01`)
   const typeName = new Map(summary.types.map(t => [t.id, t]))
   // A Champion's numbers open their Gatekeepers list with the same filter.
   const link = (typeId: string | null, status?: string) => scope.kind === 'club'
@@ -47,6 +52,11 @@ export async function CertificationFiguresCard({ scope }: { scope: { kind: 'all'
           </p>
         </div>
         <p className="text-[13px] text-[#475569]">
+          People with a current certification:{' '}
+          <span className="font-semibold text-[#0F172A]">{certified}</span>
+          <span className="text-[#94A3B8]"> of {people.length}</span>
+          {newThisMonth > 0 && <span className="text-[#0D8275]"> (+{newThisMonth} this month)</span>}
+          <span aria-hidden className="mx-2 text-[#CBD5E1]">·</span>
           No certifications:{' '}
           {noneHref && withoutCertifications
             ? <Link href={noneHref} className="font-semibold text-[#0F172A] hover:underline">{withoutCertifications}</Link>
