@@ -45,8 +45,10 @@ export default async function ChampionGatekeepersPage({
   let query = supabase
     .from('profiles')
     .select('id, full_name, email, phone, gatekeeper_code, is_active')
-    .eq('role', 'gatekeeper')
     .eq('club_id', profile.club_id)
+    // The Champion is certified like a Gatekeeper, so their own row is listed
+    // too; the dashboard's certification figures count them.
+    .or(`role.eq.gatekeeper,id.eq.${user.id}`)
     .order('full_name')
 
   if (q) query = query.or(`full_name.ilike.%${q}%,email.ilike.%${q}%,phone.ilike.%${q}%,gatekeeper_code.ilike.%${q}%`)
@@ -59,11 +61,15 @@ export default async function ChampionGatekeepersPage({
     ? await supabase.from('profiles').select('id, full_name, gatekeeper_code').eq('role', 'gatekeeper').eq('club_id', profile.club_id).eq('is_active', true).order('full_name')
     : { data: [] }
 
-  const withStatus = allMatching.map(g => ({
-    ...g,
-    // The QPR badge, from the current QPR certificate (Story 10.12 Sc04).
-    status: qprStatusOf(g.is_active, summary.qprByHolder.get(g.id)),
-  }))
+  const withStatus = allMatching
+    .map(g => ({
+      ...g,
+      isSelf: g.id === user.id,
+      // The QPR badge, from the current QPR certificate (Story 10.12 Sc04).
+      status: qprStatusOf(g.is_active, summary.qprByHolder.get(g.id)),
+    }))
+    // The Champion's own row first.
+    .sort((a, b) => Number(b.isSelf) - Number(a.isSelf))
 
   const filtered = withStatus
     .filter(g => !status || g.status === status)
@@ -132,7 +138,10 @@ export default async function ChampionGatekeepersPage({
                 {pageRows.map(g => (
                   <tr key={g.id} className="h-[65px] border-t border-[rgba(226,232,240,0.5)] hover:bg-gray-50 transition-colors">
                     <td className="px-[16px] py-3">
-                      <div className="text-[13px] font-semibold text-[#0F172A]">{g.full_name}</div>
+                      <div className="flex items-center gap-2 text-[13px] font-semibold text-[#0F172A]">
+                        {g.full_name}
+                        {g.isSelf && <span className="rounded-full bg-[#FEF3C7] px-2 py-0.5 text-[10px] font-semibold text-[#92400E]">You · Champion</span>}
+                      </div>
                       <div className="text-[13px] text-[#64748B]">{g.email}{g.phone ? ` • ${g.phone}` : ''}</div>
                       {g.gatekeeper_code && (
                         <div className="font-mono text-[11px] font-bold text-[#003495]">{g.gatekeeper_code}</div>
@@ -140,9 +149,21 @@ export default async function ChampionGatekeepersPage({
                     </td>
                     <td className="px-[16px] py-3 text-[13px]">
                       {!g.is_active && <span className="mb-1 inline-flex rounded-full bg-[#F1F5F9] px-2 py-0.5 text-[11px] font-semibold text-[#64748B]">Inactive</span>}
-                      <CertChips certs={summary.byHolder.get(g.id) ?? []} types={typeMap} today={todayStr} renewBase={mayRenew ? `/champion/gatekeepers/${g.id}` : null} />
+                      <CertChips certs={summary.byHolder.get(g.id) ?? []} types={typeMap} today={todayStr} renewBase={mayRenew && !g.isSelf ? `/champion/gatekeepers/${g.id}` : null} />
                     </td>
                     <td className="px-[16px] py-3">
+                      {g.isSelf ? (
+                      <div className="flex items-center justify-end gap-1">
+                        <Link
+                          href="/champion/profile"
+                          aria-label="View my profile"
+                          className="flex items-center justify-center rounded-[8px] p-2 hover:bg-gray-100 transition-colors"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src="/icons/eye.svg" alt="" width={16.5} height={11.25} />
+                        </Link>
+                      </div>
+                      ) : (
                       <div className="flex items-center justify-end gap-1">
                         <Link
                           href={`/champion/gatekeepers/${g.id}`}
@@ -172,6 +193,7 @@ export default async function ChampionGatekeepersPage({
                           </Link>
                         )}
                       </div>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -181,7 +203,7 @@ export default async function ChampionGatekeepersPage({
             <div className="flex items-center justify-between border-t border-[rgba(226,232,240,0.8)] bg-white py-[16px] pl-[25px] pr-[16px]">
               <p className="text-[10px] text-[#8492A6]">
                 Showing <span className="font-bold text-[#5D626E]">{showingFrom} to {showingTo}</span> of{' '}
-                <span className="font-bold text-[#5D626E]">{total}</span> Gatekeepers
+                <span className="font-bold text-[#5D626E]">{total}</span> {filtered.some(g => g.isSelf) ? 'people' : 'Gatekeepers'}
               </p>
               <div className="flex items-center gap-[6px]">
                 {page <= 1 ? (
