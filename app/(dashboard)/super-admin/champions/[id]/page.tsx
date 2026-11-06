@@ -397,7 +397,8 @@ export default async function ChampionDetailPage({
                             <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[#012C51] text-xs font-bold text-white">
                               {getInitials(g.full_name)}
                             </div>
-                            <span className="text-xs font-semibold tracking-[0.24px] text-[#0F172A]">{g.full_name}</span>
+                            {/* Sheet row 19: Super Admins can open every Gatekeeper's profile. */}
+                            <Link href={`/super-admin/gatekeepers/${g.id}`} className="rounded text-xs font-semibold tracking-[0.24px] text-[#0F172A] hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[#265BA2]">{g.full_name}</Link>
                           </div>
                         </td>
                         <td className="px-6 py-4">
