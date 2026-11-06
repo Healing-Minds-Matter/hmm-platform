@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { writeAuditLog } from '@/lib/audit'
+import { invalid, type FieldErrors } from '@/lib/form-errors'
 import { createGatekeeperWithTempPassword, resendGatekeeperWelcomeEmail } from '@/lib/invite-gatekeeper'
 import { parsePhone } from '@/lib/phone'
 import { checkPhoneAvailable, describePhoneDbError, findPhoneClash, loadPhoneOwners, phoneChanged, type PhoneOwner } from '@/lib/phone-uniqueness.server'
@@ -17,6 +18,8 @@ import { describeCertError, validateAward } from '@/lib/certificates'
 
 export type GatekeeperActionState = {
   error?: string
+  /** Errors tied to a form field, shown next to it (sheet row 32). */
+  fieldErrors?: FieldErrors
   conflict?: boolean
   success?: boolean
   // Only set when the Champion/Super Admin chose "I'll share credentials
@@ -73,19 +76,31 @@ async function loadGatekeeperLookups(rows: Pick<NewGatekeeper, 'email' | 'clubId
 // Everything that can rule a new Gatekeeper out, checked before any account
 // is created or email sent. Also used on its own by the bulk upload's
 // "check" step, which must not create anything.
-async function checkNewGatekeeper(params: NewGatekeeper): Promise<{ club: { name: string } } | { error: string }> {
+// `field` is the single-create form input the error belongs to (sheet row 32).
+// Certification problems go under the Certifications list (`cert_type_id`),
+// since its inputs repeat once per row.
+type GatekeeperField = 'email' | 'phone' | 'club_id' | 'cert_type_id'
+type CheckError = { error: string; field?: GatekeeperField }
+
+const EMAIL_TAKEN = 'An account with this email already exists.'
+
+function checkFailed({ error, field }: CheckError): GatekeeperActionState {
+  return field ? invalid(field, error) : { error }
+}
+
+async function checkNewGatekeeper(params: NewGatekeeper): Promise<{ club: { name: string } } | CheckError> {
   return checkNewGatekeeperAgainst(params, await loadGatekeeperLookups([params]))
 }
 
 function checkNewGatekeeperAgainst(
   params: NewGatekeeper,
   lookups: GatekeeperLookups
-): { club: { name: string } } | { error: string } {
-  if (lookups.takenEmails.has(params.email)) return { error: 'An account with this email already exists.' }
+): { club: { name: string } } | CheckError {
+  if (lookups.takenEmails.has(params.email)) return { error: EMAIL_TAKEN, field: 'email' }
 
   // Before createInvitedUser() below sends a real account email.
   const phoneError = findPhoneClash(params.phone, lookups.phoneOwners, { creatingGatekeeper: true })
-  if (phoneError) return { error: phoneError }
+  if (phoneError) return { error: phoneError, field: 'phone' }
 
   // Validate club_id BEFORE creating the auth user / sending the invite
   // email below — clubId reaches here as a raw string typed into a CSV
@@ -97,10 +112,10 @@ function checkNewGatekeeperAgainst(
   // rolled back.
   const club = lookups.clubs.get(params.clubId)
   if (!club) {
-    return { error: 'The selected club could not be found. Double-check the club_id and try again.' }
+    return { error: 'The selected club could not be found. Double-check the club_id and try again.', field: 'club_id' }
   }
   if (!club.is_active) {
-    return { error: `Club "${club.name}" is currently inactive. Reactivate it first or choose a different club.` }
+    return { error: `Club "${club.name}" is currently inactive. Reactivate it first or choose a different club.`, field: 'club_id' }
   }
   return { club: { name: club.name } }
 }
@@ -113,9 +128,9 @@ async function inviteAndCreateGatekeeper(params: {
   clubId: string
   actorId: string
   sendWelcomeEmail: boolean
-}): Promise<{ error: string } | { id: string; gatekeeper_code: string; tempPassword?: string }> {
+}): Promise<CheckError | { id: string; gatekeeper_code: string; tempPassword?: string }> {
   const checked = await checkNewGatekeeper(params)
-  if ('error' in checked) return { error: checked.error }
+  if ('error' in checked) return checked
   const club = checked.club
   const admin = createAdminClient()
 
@@ -155,7 +170,7 @@ async function inviteAndCreateGatekeeper(params: {
     appLoginLink,
     sendWelcomeEmail: params.sendWelcomeEmail,
   })
-  if ('error' in invited) return { error: invited.error }
+  if ('error' in invited) return invited.error === EMAIL_TAKEN ? { error: invited.error, field: 'email' } : { error: invited.error }
 
   const newUserId = invited.userId
 
@@ -185,7 +200,8 @@ async function inviteAndCreateGatekeeper(params: {
     if (profileError.code === '23503') {
       return { error: 'Could not save this gatekeeper — one of the referenced records (e.g. the club) no longer exists.' }
     }
-    return { error: describePhoneDbError(profileError) ?? profileError.message }
+    const phoneDbError = describePhoneDbError(profileError)
+    return phoneDbError ? { error: phoneDbError, field: 'phone' } : { error: profileError.message }
   }
 
   await writeAuditLog({
@@ -208,7 +224,7 @@ async function inviteAndCreateGatekeeper(params: {
 async function resolveScopedClubId(
   supabase: Awaited<ReturnType<typeof createClient>>,
   requestedClubId: string | null
-): Promise<{ clubId: string } | { error: string }> {
+): Promise<{ clubId: string } | CheckError> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
@@ -223,7 +239,7 @@ async function resolveScopedClubId(
     return { clubId: caller.club_id }
   }
   if (caller?.role === 'super_admin') {
-    if (!requestedClubId) return { error: 'Assigned club is required.' }
+    if (!requestedClubId) return { error: 'Assigned club is required.', field: 'club_id' }
     return { clubId: requestedClubId }
   }
   return { error: 'Not authorized.' }
@@ -233,7 +249,7 @@ type ServerClient = Awaited<ReturnType<typeof createClient>>
 
 // Checks the Add Gatekeeper form's certifications before anyone is created.
 async function checkNewGatekeeperCertificates(supabase: ServerClient, typeIds: string[], dates: string[]):
-  Promise<{ rows: { type: CertificationTypeRow; achievedOn: string }[] } | { error: string }> {
+  Promise<{ rows: { type: CertificationTypeRow; achievedOn: string }[] } | CheckError> {
   const pairs = typeIds.map((typeId, i) => ({ typeId, achievedOn: dates[i] ?? '' })).filter(p => p.typeId || p.achievedOn)
   if (!pairs.length) return { rows: [] }
   const { data: allowed } = await supabase.rpc('cert_can', { p_permission: 'certifications.award' })
@@ -245,8 +261,8 @@ async function checkNewGatekeeperCertificates(supabase: ServerClient, typeIds: s
   for (const [i, p] of pairs.entries()) {
     const type = types.get(p.typeId) ?? null
     const invalid = validateAward({ achievedOn: p.achievedOn, format: 'physical' }, type, today)
-    if (invalid) return { error: `Certification ${i + 1}: ${invalid}` }
-    if (rows.some(r => r.type.id === type!.id)) return { error: `${type!.name} is listed twice.` }
+    if (invalid) return { error: `Certification ${i + 1}: ${invalid}`, field: 'cert_type_id' }
+    if (rows.some(r => r.type.id === type!.id)) return { error: `${type!.name} is listed twice.`, field: 'cert_type_id' }
     rows.push({ type: type!, achievedOn: p.achievedOn })
   }
   return { rows }
@@ -269,10 +285,10 @@ export async function createGatekeeperAction(
   // present in FormData when checked, so absence means "off."
   const sendWelcomeEmail = formData.get('send_welcome_email') === 'on'
 
-  if (!fullName) return { error: 'Full name is required.' }
-  if (!email)    return { error: 'Email is required.' }
-  if (!parsedPhone.ok) return { error: parsedPhone.error }
-  if (!parsedPhone.value) return { error: 'Phone number is required.' }
+  if (!fullName) return invalid('full_name', 'Full name is required.')
+  if (!email)    return invalid('email', 'Email is required.')
+  if (!parsedPhone.ok) return invalid('phone', parsedPhone.error)
+  if (!parsedPhone.value) return invalid('phone', 'Phone number is required.')
   const phone = parsedPhone.value
 
   const supabase = await createClient()
@@ -280,15 +296,15 @@ export async function createGatekeeperAction(
   if (!user) redirect('/login')
 
   const scoped = await resolveScopedClubId(supabase, requestedClubId)
-  if ('error' in scoped) return { error: scoped.error }
+  if ('error' in scoped) return checkFailed(scoped)
 
   const certs = await checkNewGatekeeperCertificates(supabase, certTypeIds, certDates)
-  if ('error' in certs) return { error: certs.error }
+  if ('error' in certs) return checkFailed(certs)
 
   const result = await inviteAndCreateGatekeeper({
     fullName, email, phone, preferredLanguage, clubId: scoped.clubId, actorId: user.id, sendWelcomeEmail,
   })
-  if ('error' in result) return { error: result.error }
+  if ('error' in result) return checkFailed(result)
 
   // Added with the user's own client, so the certificate rules and audit apply as on a profile.
   const failed: string[] = []
@@ -445,12 +461,12 @@ export async function updateGatekeeperAction(
   const preferredLanguage = (formData.get('preferred_language') as string | null) || 'en'
   const clubId   = formData.get('club_id') as string | null
 
-  if (!fullName) return { error: 'Full name is required.' }
-  if (!email)    return { error: 'Email is required.' }
-  if (!parsedPhone.ok) return { error: parsedPhone.error }
-  if (!parsedPhone.value) return { error: 'Phone number is required.' }
+  if (!fullName) return invalid('full_name', 'Full name is required.')
+  if (!email)    return invalid('email', 'Email is required.')
+  if (!parsedPhone.ok) return invalid('phone', parsedPhone.error)
+  if (!parsedPhone.value) return invalid('phone', 'Phone number is required.')
   const phone = parsedPhone.value
-  if (!clubId)   return { error: 'Assigned club is required.' }
+  if (!clubId)   return invalid('club_id', 'Assigned club is required.')
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -467,7 +483,7 @@ export async function updateGatekeeperAction(
 
   if (phoneChanged(current.phone, phone)) {
     const phoneError = await checkPhoneAvailable(phone, { excludeUserId: gatekeeperId })
-    if (phoneError) return { error: phoneError }
+    if (phoneError) return invalid('phone', phoneError)
   }
 
   // Certifications are no longer edited here: they're managed in the profile's
@@ -488,8 +504,8 @@ export async function updateGatekeeperAction(
   if (updateError) {
     // Phone first — a phone clash is also a 23505, and isn't an email problem.
     const phoneDbError = describePhoneDbError(updateError)
-    if (phoneDbError) return { error: phoneDbError }
-    if (updateError.code === '23505') return { error: 'That email is already used by another account.' }
+    if (phoneDbError) return invalid('phone', phoneDbError)
+    if (updateError.code === '23505') return invalid('email', 'That email is already used by another account.')
     return { error: updateError.message }
   }
   if (!updated || updated.length === 0) return { conflict: true }
@@ -547,7 +563,7 @@ export async function reactivateGatekeeperAction(
   const gatekeeperId    = formData.get('gatekeeper_id') as string
   const confirmedClubId = formData.get('club_id') as string | null
 
-  if (!confirmedClubId) return { error: 'Club assignment is required.' }
+  if (!confirmedClubId) return invalid('club_id', 'Club assignment is required.')
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -559,9 +575,9 @@ export async function reactivateGatekeeperAction(
     .eq('id', confirmedClubId)
     .single()
 
-  if (!club) return { error: 'Club not found.' }
+  if (!club) return invalid('club_id', 'Club not found.')
   if (!club.is_active) {
-    return { error: `Club "${club.name}" is currently inactive. Reactivate the club first or assign an active club.` }
+    return invalid('club_id', `Club "${club.name}" is currently inactive. Reactivate the club first or assign an active club.`)
   }
 
   await supabase
