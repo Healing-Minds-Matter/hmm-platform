@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { loginPath } from '@/lib/login-redirect.server'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { writeAuditLog } from '@/lib/audit'
@@ -59,7 +60,7 @@ type ServerClient = Awaited<ReturnType<typeof createClient>>
 
 async function getCaller(supabase: ServerClient): Promise<EventCaller> {
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect(await loginPath())
   const { data: profile } = await supabase.from('profiles').select('role, club_id').eq('id', user.id).single()
   return { id: user.id, role: profile?.role ?? null, club_id: profile?.club_id ?? null }
 }

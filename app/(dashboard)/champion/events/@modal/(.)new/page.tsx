@@ -1,11 +1,12 @@
 import { redirect } from 'next/navigation'
+import { loginPath } from '@/lib/login-redirect.server'
 import { createClient } from '@/lib/supabase/server'
 import { NewChampionEventModal } from './new-event-modal'
 
 export default async function InterceptedNewChampionEventPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect(await loginPath())
 
   const { data: profile } = await supabase
     .from('profiles')

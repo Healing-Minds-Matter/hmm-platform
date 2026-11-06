@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { loginPath } from '@/lib/login-redirect.server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { EventsCalendar } from '@/app/(dashboard)/super-admin/events/events-calendar'
@@ -28,7 +29,7 @@ export default async function ChampionEventsPage({
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect(await loginPath())
 
   const { data: profile } = await supabase.from('profiles').select('club_id').eq('id', user.id).single()
   if (!profile?.club_id) redirect('/champion')

@@ -6,7 +6,9 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
 import { syncProfileEmail } from '@/lib/email-sync.server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { FORGOT_PASSWORD_PATH, LOGIN_PATH, parsePortal, portalForRole } from '@/lib/portals'
+import { FORGOT_PASSWORD_PATH, LOGIN_PATH, PORTAL_HINT_COOKIE, parsePortal, portalForRole, type Portal } from '@/lib/portals'
+import { LAST_ACTIVE_COOKIE, SESSION_MAX_AGE_MS } from '@/lib/session-policy'
+import { loginPath } from '@/lib/login-redirect.server'
 import {
   RESET_GRANT_COOKIE,
   RESET_GRANT_MAX_AGE_SECONDS,
@@ -72,6 +74,7 @@ export async function loginAction(
       await supabase.auth.signOut()
       return { error: 'This is a Super Admin account. Please sign in from the Super Admin login page.' }
     }
+    await startSessionCookies('super_admin')
     redirect('/super-admin')
   }
   if (profile.role === 'champion') {
@@ -79,6 +82,7 @@ export async function loginAction(
       await supabase.auth.signOut()
       return { error: 'This is a Champion account. Please sign in from the Champion login page.' }
     }
+    await startSessionCookies('champion')
     redirect('/champion')
   }
 
@@ -439,12 +443,47 @@ export async function confirmEmailChangeAction(
 }
 
 // ---------------------------------------------------------------------------
-// Logout — Story 1.4 Scenario 01
+// Session cookies (sheet rows 5 and 58)
+// ---------------------------------------------------------------------------
+const COOKIE_BASE = { httpOnly: true, sameSite: 'lax' as const, secure: process.env.NODE_ENV === 'production', path: '/' }
+
+// A fresh idle clock for the new sign-in (middleware.ts keeps it updated), and
+// a note of which portal this browser uses, so later login redirects go there.
+async function startSessionCookies(portal: Portal) {
+  const store = await cookies()
+  store.set(LAST_ACTIVE_COOKIE, String(Date.now()), { ...COOKIE_BASE, maxAge: SESSION_MAX_AGE_MS / 1000 })
+  store.set(PORTAL_HINT_COOKIE, portal, { ...COOKIE_BASE, maxAge: 60 * 60 * 24 * 365 })
+}
+
+// Signs out and returns the login page of the user's own portal.
+// 'local' = this browser only (an idle tab here mustn't end the user's
+// session on another device); 'global' = every device, as Logout always did.
+async function signOutToLogin(scope: 'local' | 'global'): Promise<string> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  let role: string | null = null
+  if (user) {
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+    role = profile?.role ?? null
+  }
+  const destination = await loginPath(role)
+  await supabase.auth.signOut({ scope })
+  ;(await cookies()).delete(LAST_ACTIVE_COOKIE)
+  return destination
+}
+
+// ---------------------------------------------------------------------------
+// Logout — Story 1.4 Scenario 01. The "Log out of HMM?" confirmation is in
+// the header menu (components/dashboard-client-layout.tsx).
 // ---------------------------------------------------------------------------
 export async function logoutAction() {
-  const supabase = await createClient()
-  await supabase.auth.signOut()
-  redirect('/login')
+  redirect(await signOutToLogin('global'))
+}
+
+// Sent now and then by the idle timer while the user is active. The request
+// passing through middleware.ts is what refreshes the server-side idle clock.
+export async function sessionHeartbeatAction() {
+  return { ok: true }
 }
 
 // "Forgot current password?" / "Didn't get one?" on the Change Password and
@@ -470,7 +509,5 @@ export async function signOutToForgotPasswordAction() {
 
 // Story 1.4 Scenario 04: timeout logout must redirect with session_expired param
 export async function sessionTimeoutLogoutAction() {
-  const supabase = await createClient()
-  await supabase.auth.signOut()
-  redirect('/login?error=session_expired')
+  redirect(`${await signOutToLogin('local')}?error=session_expired`)
 }
