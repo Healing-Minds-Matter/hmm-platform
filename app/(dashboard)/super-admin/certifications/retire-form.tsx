@@ -6,6 +6,9 @@ import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { retireTypeAction } from '@/actions/certification-types'
 import { formatCertDate, type CertificationTypeRow, type RetirementOption } from '@/lib/certification-types'
 import { CANCEL_BTN, DANGER_BTN, FormCard, HINT, INPUT, LABEL, OPTION, PRIMARY_BTN } from '@/components/certifications/cert-ui'
+import { FormErrorsProvider, useFormErrors } from '@/hooks/use-form-errors'
+import { FieldError } from '@/components/field-error'
+import { formLevelError } from '@/lib/form-errors'
 
 // Retire a type, or change a retirement (Story 10.2 Sc01, Sc02, Sc05).
 export function RetireForm({ type, impact, today, inModal = false }: {
@@ -17,6 +20,8 @@ export function RetireForm({ type, impact, today, inModal = false }: {
   const router = useRouter()
   const close = inModal ? () => router.back() : (() => router.push(`/super-admin/certifications/${type.id}`))
   const [state, formAction, isPending] = useActionState(retireTypeAction, null)
+  const fe = useFormErrors(state)
+  const { bindForm, onSubmit: checkThen } = fe
   // Submitted without React's automatic reset, so a refused save keeps every choice (radios included).
   const onSubmit = useSubmitWithoutReset(formAction)
   const inEffect = type.status === 'retired'
@@ -40,10 +45,11 @@ export function RetireForm({ type, impact, today, inModal = false }: {
         : 'No one can receive this type after the retirement date, and you choose what happens to existing certificates. Nothing is deleted. This is separate from the programme’s Offered until date, which only stops new certificates.'}
       onClose={close}
     >
-      <form onSubmit={onSubmit} className="flex flex-1 flex-col overflow-hidden">
+      <form ref={bindForm} noValidate onSubmit={checkThen(onSubmit)} className="flex flex-1 flex-col overflow-hidden">
+      <FormErrorsProvider value={fe}>
         <input type="hidden" name="type_id" value={type.id} />
         <div className="flex flex-col gap-4 overflow-y-auto bg-[#F8FAFC] p-6">
-          {state?.error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">{state.error}</div>}
+          {formLevelError(state) && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">{formLevelError(state)}</div>}
           <div className="flex flex-col gap-4 rounded-xl bg-white p-5">
             {inEffect ? (
               <input type="hidden" name="retire_on" value={type.retire_on ?? ''} />
@@ -51,6 +57,7 @@ export function RetireForm({ type, impact, today, inModal = false }: {
               <div className="max-w-[260px]">
                 <label htmlFor="retire_on" className={LABEL}>Retirement date <span className="text-[#DC2626]">*</span></label>
                 <input id="retire_on" name="retire_on" type="date" min={today} required value={on} onChange={e => setOn(e.target.value)} className={INPUT} autoFocus />
+                <FieldError name="retire_on" />
               </div>
             )}
             <fieldset className="flex flex-col gap-2">
@@ -65,6 +72,7 @@ export function RetireForm({ type, impact, today, inModal = false }: {
                 <input type="radio" name="option" value="stop" checked={option === 'stop'} onChange={() => setOption('stop')} className="mt-0.5 accent-[#022C51]" />
                 <span>Stop existing certificates<span className="block text-[12px] font-normal text-[#64748B]">All certificates of this type stop being valid from the retirement date.</span></span>
               </label>
+              <FieldError name="option" />
             </fieldset>
             <div role="status" className={`rounded-xl border p-3.5 text-[13px] ${option === 'stop' && impact.validNow ? 'border-[#FDE68A] bg-[#FFFBEB]' : 'border-[#DBEAFE] bg-[#EFF6FF]'}`}>
               {option === 'stop'
@@ -80,6 +88,7 @@ export function RetireForm({ type, impact, today, inModal = false }: {
             {isPending ? 'Saving…' : existing ? 'Save' : 'Retire type'}
           </button>
         </div>
+      </FormErrorsProvider>
       </form>
     </FormCard>
   )

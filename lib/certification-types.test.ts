@@ -13,6 +13,7 @@ import {
   validateReactivation,
   validateRetirement,
   validateTypeForm,
+  typeErrorField,
   validityLabel,
 } from '@/lib/certification-types'
 
@@ -32,21 +33,21 @@ describe('validateTypeForm', () => {
   })
 
   it('refuses a missing name or code, and codes with other characters or over 12 long', () => {
-    expect(validateTypeForm({ ...base, name: ' ' })).toEqual({ error: 'Enter a name.' })
-    expect(validateTypeForm({ ...base, code: '' })).toEqual({ error: 'Enter a code.' })
-    expect(validateTypeForm({ ...base, code: 'PF A' })).toEqual({ error: 'The code can only use letters, numbers and hyphens.' })
-    expect(validateTypeForm({ ...base, code: 'ABCDEFGHIJKLM' })).toEqual({ error: 'The code can be at most 12 characters.' })
+    expect(validateTypeForm({ ...base, name: ' ' })).toEqual({ error: 'Enter a name.', field: 'name' })
+    expect(validateTypeForm({ ...base, code: '' })).toEqual({ error: 'Enter a code.', field: 'code' })
+    expect(validateTypeForm({ ...base, code: 'PF A' })).toEqual({ error: 'The code can only use letters, numbers and hyphens.', field: 'code' })
+    expect(validateTypeForm({ ...base, code: 'ABCDEFGHIJKLM' })).toEqual({ error: 'The code can be at most 12 characters.', field: 'code' })
   })
 
   it('refuses a fixed validity outside 1–120 or without a unit', () => {
-    expect(validateTypeForm({ ...base, validity_value: '0' })).toMatchObject({ error: expect.stringContaining('between 1 and 120') })
-    expect(validateTypeForm({ ...base, validity_value: '1.5' })).toMatchObject({ error: expect.stringContaining('between 1 and 120') })
-    expect(validateTypeForm({ ...base, validity_unit: 'weeks' })).toEqual({ error: 'Choose months or years.' })
-    expect(validateTypeForm({ ...base, validity_kind: '' })).toEqual({ error: 'Choose a certificate validity period.' })
+    expect(validateTypeForm({ ...base, validity_value: '0' })).toMatchObject({ error: expect.stringContaining('between 1 and 120'), field: 'validity_value' })
+    expect(validateTypeForm({ ...base, validity_value: '1.5' })).toMatchObject({ error: expect.stringContaining('between 1 and 120'), field: 'validity_value' })
+    expect(validateTypeForm({ ...base, validity_unit: 'weeks' })).toEqual({ error: 'Choose months or years.', field: 'validity_unit' })
+    expect(validateTypeForm({ ...base, validity_kind: '' })).toEqual({ error: 'Choose a certificate validity period.', field: 'validity_kind' })
   })
 
   it('needs a real Offered from date', () => {
-    expect(validateTypeForm({ ...base, offered_from: '2025-02-30' })).toEqual({ error: 'Enter the date the programme is offered from.' })
+    expect(validateTypeForm({ ...base, offered_from: '2025-02-30' })).toEqual({ error: 'Enter the date the programme is offered from.', field: 'offered_from' })
   })
 })
 
@@ -58,13 +59,13 @@ describe('programme period', () => {
     expect(validateTypeForm({ ...base, offered_until: '2025-01-01' })).toMatchObject({ fields: { offered_from: '2025-01-01', offered_until: '2025-01-01' } })
   })
   it('Offered until before Offered from is refused', () => {
-    expect(validateTypeForm({ ...base, offered_until: '2024-12-31' })).toEqual({ error: 'Offered until must be on or after Offered from.' })
+    expect(validateTypeForm({ ...base, offered_until: '2024-12-31' })).toEqual({ error: 'Offered until must be on or after Offered from.', field: 'offered_until' })
   })
   it('Offered until can be in the past (it only stops new awards)', () => {
     expect(validateTypeForm({ ...base, offered_until: '2025-06-30' })).toMatchObject({ fields: { offered_until: '2025-06-30' } })
   })
   it('refuses a malformed Offered until', () => {
-    expect(validateTypeForm({ ...base, offered_until: '2026-02-30' })).toMatchObject({ error: expect.stringContaining('real Offered until date') })
+    expect(validateTypeForm({ ...base, offered_until: '2026-02-30' })).toMatchObject({ error: expect.stringContaining('real Offered until date'), field: 'offered_until' })
   })
   it('labels the period for the types list', () => {
     expect(programmePeriodLabel({ offered_from: '2025-01-01', offered_until: null })).toBe('From 1 Jan 2025')
@@ -84,8 +85,8 @@ describe('editing a type that has been issued', () => {
   const current = { code: 'PFA', offered_from: '2025-01-01' }
   const issued = { certificates: 3, people: 2, latestAchievedOn: '2026-05-10' }
   it('Offered from and the code are read-only', () => {
-    expect(validateTypeForm({ ...base, offered_from: '2025-02-01' }, { current, issued })).toEqual({ error: 'Offered from can’t be changed because certificates have already been issued.' })
-    expect(validateTypeForm({ ...base, code: 'PFA2' }, { current, issued })).toMatchObject({ error: expect.stringContaining('The code can’t be changed because certificates have already been issued') })
+    expect(validateTypeForm({ ...base, offered_from: '2025-02-01' }, { current, issued })).toEqual({ error: 'Offered from can’t be changed because certificates have already been issued.', field: 'offered_from' })
+    expect(validateTypeForm({ ...base, code: 'PFA2' }, { current, issued })).toMatchObject({ error: expect.stringContaining('The code can’t be changed because certificates have already been issued'), field: 'code' })
     expect(validateTypeForm(base, { current, issued })).toMatchObject({ fields: { code: 'PFA', offered_from: '2025-01-01' } })
   })
   it('a removed certificate still counts as issued', () => {
@@ -93,7 +94,7 @@ describe('editing a type that has been issued', () => {
     expect(validateTypeForm({ ...base, offered_from: '2025-02-01' }, { current, issued: onlyRemoved })).toMatchObject({ error: expect.stringContaining('Offered from can’t be changed') })
   })
   it('Offered until can’t be earlier than the latest date achieved', () => {
-    expect(validateTypeForm({ ...base, offered_until: '2026-05-09' }, { current, issued })).toEqual({ error: 'Offered until can’t be earlier than 10 May 2026, the latest date achieved on a certificate of this type.' })
+    expect(validateTypeForm({ ...base, offered_until: '2026-05-09' }, { current, issued })).toEqual({ error: 'Offered until can’t be earlier than 10 May 2026, the latest date achieved on a certificate of this type.', field: 'offered_until' })
     expect(validateTypeForm({ ...base, offered_until: '2026-05-10' }, { current, issued })).toMatchObject({ fields: { offered_until: '2026-05-10' } })
   })
   it('validity can still change (it applies to new certificates only)', () => {
@@ -165,6 +166,17 @@ describe('describeTypeError', () => {
     expect(describeTypeError({ code: '23514', message: 'Offered from can’t be changed because certificates have already been issued.' })).toBe('Offered from can’t be changed because certificates have already been issued.')
     expect(describeTypeError({ code: '42P01', message: 'relation does not exist' })).toBe('Something went wrong. Please try again.')
     expect(describeTypeError({ message: 'new row violates row-level security policy for table "x"' })).toBe('You don’t have permission to do that.')
+  })
+})
+
+// Sheet row 32: which field a database refusal is about.
+describe('typeErrorField', () => {
+  it('maps already-used codes and names to their field, and nothing else', () => {
+    expect(typeErrorField({ code: '23505', message: '… "certification_types_code_key"' })).toBe('code')
+    expect(typeErrorField({ code: '23505', message: '… "certification_types_name_key"' })).toBe('name')
+    expect(typeErrorField({ code: '23505', message: '… "certification_type_retirements_one_open"' })).toBeNull()
+    expect(typeErrorField({ code: '23514', message: 'x' })).toBeNull()
+    expect(typeErrorField(null)).toBeNull()
   })
 })
 

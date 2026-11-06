@@ -99,6 +99,10 @@ export function isRealDate(value: string): boolean {
 
 const clean = (v: string | null | undefined) => (v ?? '').trim()
 
+// `field` names the form input an error belongs to (sheet row 32).
+export type TypeFormField =
+  'name' | 'code' | 'validity_kind' | 'validity_value' | 'validity_unit' | 'offered_from' | 'offered_until'
+
 // Validates the New / Edit certification type form.
 // When editing a type that has certificates (`issued.certificates > 0`), its code and
 // Offered from must stay as they are (`current`), and Offered until can't be earlier
@@ -106,44 +110,44 @@ const clean = (v: string | null | undefined) => (v ?? '').trim()
 export function validateTypeForm(
   input: TypeFormInput,
   opts: { current?: Pick<CertificationTypeRow, 'code' | 'offered_from'>; issued?: IssuedFacts } = {}
-): { fields: TypeFields } | { error: string } {
+): { fields: TypeFields } | { error: string; field: TypeFormField } {
   const name = clean(input.name)
   const code = clean(input.code).toUpperCase()
-  if (!name) return { error: 'Enter a name.' }
-  if (name.length > 120) return { error: 'The name can be at most 120 characters.' }
-  if (!code) return { error: 'Enter a code.' }
-  if (!/^[A-Z0-9-]+$/.test(code)) return { error: 'The code can only use letters, numbers and hyphens.' }
-  if (code.length > 12) return { error: 'The code can be at most 12 characters.' }
+  if (!name) return { error: 'Enter a name.', field: 'name' }
+  if (name.length > 120) return { error: 'The name can be at most 120 characters.', field: 'name' }
+  if (!code) return { error: 'Enter a code.', field: 'code' }
+  if (!/^[A-Z0-9-]+$/.test(code)) return { error: 'The code can only use letters, numbers and hyphens.', field: 'code' }
+  if (code.length > 12) return { error: 'The code can be at most 12 characters.', field: 'code' }
 
   let validity_value: number | null = null
   let validity_unit: ValidityUnit | null = null
   if (clean(input.validity_kind) === 'fixed') {
     const n = Number(clean(input.validity_value))
-    if (!Number.isInteger(n) || n < 1 || n > 120) return { error: 'Enter a validity between 1 and 120.' }
+    if (!Number.isInteger(n) || n < 1 || n > 120) return { error: 'Enter a validity between 1 and 120.', field: 'validity_value' }
     const unit = clean(input.validity_unit)
-    if (unit !== 'months' && unit !== 'years') return { error: 'Choose months or years.' }
+    if (unit !== 'months' && unit !== 'years') return { error: 'Choose months or years.', field: 'validity_unit' }
     validity_value = n
     validity_unit = unit
   } else if (clean(input.validity_kind) !== 'lifetime') {
-    return { error: 'Choose a certificate validity period.' }
+    return { error: 'Choose a certificate validity period.', field: 'validity_kind' }
   }
 
   const offered_from = clean(input.offered_from)
-  if (!isRealDate(offered_from)) return { error: 'Enter the date the programme is offered from.' }
+  if (!isRealDate(offered_from)) return { error: 'Enter the date the programme is offered from.', field: 'offered_from' }
 
   const offered_until = clean(input.offered_until) || null
   if (offered_until) {
-    if (!isRealDate(offered_until)) return { error: 'Enter a real Offered until date, or leave it blank for no end date.' }
-    if (offered_until < offered_from) return { error: 'Offered until must be on or after Offered from.' }
+    if (!isRealDate(offered_until)) return { error: 'Enter a real Offered until date, or leave it blank for no end date.', field: 'offered_until' }
+    if (offered_until < offered_from) return { error: 'Offered until must be on or after Offered from.', field: 'offered_until' }
   }
 
   const issued = opts.issued && opts.issued.certificates > 0 ? opts.issued : null
   if (issued && opts.current) {
-    if (code !== opts.current.code) return { error: 'The code can’t be changed because certificates have already been issued. It’s part of every certificate number.' }
-    if (offered_from !== opts.current.offered_from) return { error: `Offered from can’t be changed because certificates have already been issued.` }
+    if (code !== opts.current.code) return { error: 'The code can’t be changed because certificates have already been issued. It’s part of every certificate number.', field: 'code' }
+    if (offered_from !== opts.current.offered_from) return { error: `Offered from can’t be changed because certificates have already been issued.`, field: 'offered_from' }
   }
   if (issued?.latestAchievedOn && offered_until && offered_until < issued.latestAchievedOn) {
-    return { error: `Offered until can’t be earlier than ${formatCertDate(issued.latestAchievedOn)}, the latest date achieved on a certificate of this type.` }
+    return { error: `Offered until can’t be earlier than ${formatCertDate(issued.latestAchievedOn)}, the latest date achieved on a certificate of this type.`, field: 'offered_until' }
   }
 
   return {
@@ -205,6 +209,15 @@ export function retirementEffect(option: RetirementOption, lifetime: boolean): s
 }
 
 // ── Errors from the database ─────────────────────────────────────────────────
+/** Which form field a database error is about (a name or code that's already used), if any. */
+export function typeErrorField(error: { code?: string; message?: string } | null): 'name' | 'code' | null {
+  if (error?.code !== '23505') return null
+  const msg = error.message ?? ''
+  if (msg.includes('certification_types_code_key')) return 'code'
+  if (msg.includes('certification_types_name_key')) return 'name'
+  return null
+}
+
 export function describeTypeError(error: { code?: string; message?: string } | null, fields?: Pick<TypeFields, 'name' | 'code'>): string {
   if (!error) return 'Something went wrong. Please try again.'
   if (error.code === '23505') {
