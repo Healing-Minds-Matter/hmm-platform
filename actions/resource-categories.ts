@@ -13,7 +13,7 @@ import type { FieldErrors } from '@/lib/form-errors'
 
 export type CategoryActionState = { error?: string; fieldErrors?: FieldErrors; success?: boolean } | null
 
-export const MANAGE_CATEGORIES_PERMISSION = 'manage_resource_categories'
+const MANAGE_CATEGORIES_PERMISSION = 'manage_resource_categories'
 
 type ServerClient = Awaited<ReturnType<typeof createClient>>
 
