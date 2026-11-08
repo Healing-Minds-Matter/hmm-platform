@@ -4,6 +4,9 @@ import { useActionState, useEffect } from 'react'
 import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { useRouter } from 'next/navigation'
 import { updateGatekeeperAction } from '@/actions/gatekeepers'
+import { FormErrorsProvider, useFormErrors } from '@/hooks/use-form-errors'
+import { FieldError } from '@/components/field-error'
+import { formLevelError } from '@/lib/form-errors'
 
 interface Gatekeeper {
   id: string
@@ -33,6 +36,8 @@ export function GatekeeperEditForm({
   const router = useRouter()
   const close = onClose ?? (() => router.push(`/champion/gatekeepers/${gatekeeper.id}`))
   const [state, formAction, isPending] = useActionState(updateGatekeeperAction, null)
+  const fe = useFormErrors(state)
+  const { bindForm, onSubmit: checkThen } = fe
   const submit = useSubmitWithoutReset(formAction)
 
   useEffect(() => {
@@ -60,7 +65,8 @@ export function GatekeeperEditForm({
         </button>
       </div>
 
-      <form onSubmit={submit} className="flex flex-1 flex-col overflow-hidden">
+      <form ref={bindForm} noValidate onSubmit={checkThen(submit)} className="flex flex-1 flex-col overflow-hidden">
+      <FormErrorsProvider value={fe}>
         <input type="hidden" name="gatekeeper_id" value={gatekeeper.id} />
         <input type="hidden" name="version" value={gatekeeper.version} />
         <input type="hidden" name="club_id" value={gatekeeper.club_id} />
@@ -73,8 +79,8 @@ export function GatekeeperEditForm({
               and reapply your changes.
             </div>
           )}
-          {state?.error && (
-            <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">{state.error}</div>
+          {formLevelError(state) && (
+            <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">{formLevelError(state)}</div>
           )}
 
           <div className="flex flex-col gap-4 rounded-xl bg-white p-5">
@@ -89,6 +95,7 @@ export function GatekeeperEditForm({
                 id="full_name" name="full_name" type="text" required defaultValue={gatekeeper.full_name}
                 className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
               />
+              <FieldError name="full_name" />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -99,6 +106,7 @@ export function GatekeeperEditForm({
                   id="email" name="email" type="email" required defaultValue={gatekeeper.email}
                   className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                 />
+                <FieldError name="email" />
               </div>
               <div>
                 <label htmlFor="phone" className="mb-1.5 block text-[13px] font-medium text-[#0F172A]">
@@ -108,6 +116,7 @@ export function GatekeeperEditForm({
                   id="phone" name="phone" type="tel" required defaultValue={gatekeeper.phone ?? ''}
                   className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                 />
+                <FieldError name="phone" />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -116,6 +125,7 @@ export function GatekeeperEditForm({
                 <div className="flex h-10 items-center rounded-lg border border-[#E2E8F0] bg-[#EFF4FF] px-3.5 text-sm font-semibold text-[#0F172A]">
                   {clubName}
                 </div>
+                <FieldError name="club_id" />
               </div>
               <div>
                 <label htmlFor="preferred_language" className="mb-1.5 block text-[13px] font-medium text-[#0F172A]">
@@ -151,6 +161,7 @@ export function GatekeeperEditForm({
             {isPending ? 'Saving…' : 'Save Changes'}
           </button>
         </div>
+      </FormErrorsProvider>
       </form>
     </div>
   )

@@ -84,7 +84,9 @@ export default async function ClubsPage({
   let query = supabase
     .from('clubs')
     .select('id, club_code, name, location, is_active, created_at')
-    .order('name')
+    // Sheet row 16: newest first, id breaks ties so paging is stable.
+    .order('created_at', { ascending: false })
+    .order('id')
 
   if (q) query = query.ilike('name', `%${q}%`)
   if (status === 'active')   query = query.eq('is_active', true)

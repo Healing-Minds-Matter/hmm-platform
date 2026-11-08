@@ -395,7 +395,10 @@ export default async function ClubDetailPage({
                 <tbody className="divide-y divide-[#F1F5F9]">
                   {gkPage.map(g => (
                     <tr key={g.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 text-sm font-medium text-[#0F172A]">{g.full_name}</td>
+                      {/* Sheet row 19: Super Admins can open every Gatekeeper's profile. */}
+                      <td className="px-6 py-4 text-sm font-medium text-[#0F172A]">
+                        <Link href={`/super-admin/gatekeepers/${g.id}`} className="rounded hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[#265BA2]">{g.full_name}</Link>
+                      </td>
                       <td className="px-6 py-4 text-sm text-[#475569]">{g.email}</td>
                       <td className="px-6 py-4">
                         <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${

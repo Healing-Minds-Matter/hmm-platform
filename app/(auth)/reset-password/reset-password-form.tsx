@@ -3,7 +3,11 @@
 import { useActionState, useState } from 'react'
 import Link from 'next/link'
 import { resetPasswordAction } from '@/actions/auth'
+import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { checkPasswordRules } from '@/lib/password-validation'
+import { FormErrorsProvider, useFormErrors } from '@/hooks/use-form-errors'
+import { FieldError } from '@/components/field-error'
+import { formLevelError } from '@/lib/form-errors'
 
 type RuleKey = 'minLength' | 'case' | 'hasNumber' | 'hasSpecial'
 
@@ -34,6 +38,10 @@ function strengthLevel(checks: Record<RuleKey, boolean>): { segs: number; label:
 
 export function ResetPasswordForm({ email, loginPath }: { email: string; loginPath: string }) {
   const [state, formAction, isPending] = useActionState(resetPasswordAction, null)
+  const fe = useFormErrors(state)
+  const { bindForm, onSubmit: checkThen } = fe
+  // Submitted without React's automatic reset, so a refused save keeps what was typed.
+  const submit = useSubmitWithoutReset(formAction)
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
@@ -53,13 +61,14 @@ export function ResetPasswordForm({ email, loginPath }: { email: string; loginPa
         Resetting password for <span className="font-semibold text-[#1B2B4A]">{email}</span>
       </p>
 
-      {state?.error && (
+      {formLevelError(state) && (
         <div className="mb-5 rounded-xl bg-red-50 p-3 text-sm text-red-700 whitespace-pre-line" role="alert">
-          {state.error}
+          {formLevelError(state)}
         </div>
       )}
 
-      <form action={formAction} className="space-y-5">
+      <form ref={bindForm} noValidate onSubmit={checkThen(submit)} className="space-y-5">
+      <FormErrorsProvider value={fe}>
         {/* New password */}
         <div>
           <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-gray-700">
@@ -87,6 +96,7 @@ export function ResetPasswordForm({ email, loginPath }: { email: string; loginPa
               <img src={showPassword ? '/icons/pw-eye-off.svg' : '/icons/pw-eye.svg'} alt="" className="h-4 w-4" />
             </button>
           </div>
+          <FieldError name="password" className="whitespace-pre-line" />
 
           {/* Strength bar */}
           {password.length > 0 && (
@@ -133,6 +143,7 @@ export function ResetPasswordForm({ email, loginPath }: { email: string; loginPa
               <img src={showConfirm ? '/icons/pw-eye-off.svg' : '/icons/pw-eye.svg'} alt="" className="h-4 w-4" />
             </button>
           </div>
+          <FieldError name="confirm" />
         </div>
 
         {/* 2×2 requirements grid */}
@@ -164,6 +175,7 @@ export function ResetPasswordForm({ email, loginPath }: { email: string; loginPa
         >
           {isPending ? 'Saving…' : 'Update password'}
         </button>
+      </FormErrorsProvider>
       </form>
 
       <p className="mt-5 text-center text-sm text-gray-400">

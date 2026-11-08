@@ -4,6 +4,9 @@ import { useActionState, useEffect } from 'react'
 import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { useRouter } from 'next/navigation'
 import { createDelegationAction } from '@/actions/permissions'
+import { FormErrorsProvider, useFormErrors } from '@/hooks/use-form-errors'
+import { FieldError } from '@/components/field-error'
+import { formLevelError } from '@/lib/form-errors'
 
 interface UserOption {
   id: string
@@ -15,6 +18,8 @@ export function NewDelegationForm({ users, onClose }: { users: UserOption[]; onC
   const router = useRouter()
   const close = onClose ?? (() => router.push('/super-admin/permissions/delegations'))
   const [state, formAction, isPending] = useActionState(createDelegationAction, null)
+  const fe = useFormErrors(state)
+  const { bindForm, onSubmit: checkThen } = fe
   const submit = useSubmitWithoutReset(formAction)
 
   useEffect(() => {
@@ -37,11 +42,12 @@ export function NewDelegationForm({ users, onClose }: { users: UserOption[]; onC
         </button>
       </div>
 
-      <form onSubmit={submit}>
+      <form ref={bindForm} noValidate onSubmit={checkThen(submit)}>
+      <FormErrorsProvider value={fe}>
         <div className="flex flex-col gap-5 bg-[#F8FAFC] p-6">
-          {state?.error && (
+          {formLevelError(state) && (
             <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">
-              {state.error}
+              {formLevelError(state)}
             </div>
           )}
 
@@ -60,6 +66,7 @@ export function NewDelegationForm({ users, onClose }: { users: UserOption[]; onC
                 <option key={u.id} value={u.id}>{u.full_name} ({u.role})</option>
               ))}
             </select>
+            <FieldError name="delegator_id" />
           </div>
 
           <div>
@@ -77,6 +84,7 @@ export function NewDelegationForm({ users, onClose }: { users: UserOption[]; onC
                 <option key={u.id} value={u.id}>{u.full_name} ({u.role})</option>
               ))}
             </select>
+            <FieldError name="delegate_id" />
             <p className="mt-1.5 text-[11px] text-[#94A3B8]">
               The delegate keeps their own access and additionally gains the delegator&apos;s full
               effective permission set for the period below.
@@ -95,6 +103,7 @@ export function NewDelegationForm({ users, onClose }: { users: UserOption[]; onC
                 required
                 className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-white px-3.5 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
               />
+              <FieldError name="starts_at" />
             </div>
             <div>
               <label htmlFor="ends_at" className="mb-1.5 block text-[13px] font-medium text-[#0F172A]">
@@ -107,6 +116,7 @@ export function NewDelegationForm({ users, onClose }: { users: UserOption[]; onC
                 required
                 className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-white px-3.5 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
               />
+              <FieldError name="ends_at" />
             </div>
           </div>
         </div>
@@ -127,6 +137,7 @@ export function NewDelegationForm({ users, onClose }: { users: UserOption[]; onC
             Cancel
           </button>
         </div>
+      </FormErrorsProvider>
       </form>
     </div>
   )

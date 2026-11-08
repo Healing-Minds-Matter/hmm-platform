@@ -12,6 +12,9 @@ import { BulkCsvUpload } from '@/components/bulk-csv-upload'
 import { GATEKEEPER_CSV_COLUMNS, gatekeeperCsvHeaderError } from '@/lib/gatekeeper-csv'
 import { BULK_BATCH_SIZE } from '@/lib/bulk-upload'
 import { BulkTabLabel, ModeTabs } from '@/components/mode-tabs'
+import { FormErrorsProvider, useFormErrors } from '@/hooks/use-form-errors'
+import { FieldError } from '@/components/field-error'
+import { formLevelError } from '@/lib/form-errors'
 
 interface Club { id: string; name: string; club_code: string | null }
 interface Champion { id: string; full_name: string; club_id: string | null }
@@ -55,6 +58,8 @@ export function CreateGatekeeperForm({
   const [mode, setMode] = useState<'single' | 'bulk'>('single')
 
   const [singleState, singleAction, singlePending] = useActionState(createGatekeeperAction, null)
+  const fe = useFormErrors(singleState)
+  const { bindForm, onSubmit: checkThen } = fe
   const submitSingle = useSubmitWithoutReset(singleAction)
 
   const [email, setEmail] = useState('')
@@ -141,10 +146,11 @@ export function CreateGatekeeperForm({
           </div>
         </div>
       ) : mode === 'single' ? (
-        <form onSubmit={submitSingle} className="flex flex-1 flex-col overflow-hidden">
+        <form ref={bindForm} noValidate onSubmit={checkThen(submitSingle)} className="flex flex-1 flex-col overflow-hidden">
+        <FormErrorsProvider value={fe}>
           <div className="flex flex-1 flex-col gap-4 overflow-y-auto bg-[#F8FAFC] p-6">
-            {singleState?.error && (
-              <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">{singleState.error}</div>
+            {formLevelError(singleState) && (
+              <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">{formLevelError(singleState)}</div>
             )}
 
             <div className="flex flex-col gap-4 rounded-xl bg-white p-5">
@@ -161,6 +167,7 @@ export function CreateGatekeeperForm({
                     placeholder="e.g. Maya Lin"
                     className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                   />
+                  <FieldError name="full_name" />
                 </div>
                 <div>
                   <label htmlFor="email" className="mb-1.5 block text-[13px] font-medium text-[#0F172A]">
@@ -172,6 +179,7 @@ export function CreateGatekeeperForm({
                     value={email} onChange={e => setEmail(e.target.value)}
                     className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                   />
+                  <FieldError name="email" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -184,6 +192,7 @@ export function CreateGatekeeperForm({
                     placeholder="+1 (555) 234-5678"
                     className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                   />
+                  <FieldError name="phone" />
                 </div>
                 <div>
                   <label htmlFor="preferred_language" className="mb-1.5 block text-[13px] font-medium text-[#0F172A]">
@@ -230,6 +239,7 @@ export function CreateGatekeeperForm({
                           <img src="/icons/chevron-down.svg" alt="" className="pointer-events-none absolute right-3.5 top-1/2 h-[6px] w-[9px] -translate-y-1/2" />
                         </div>
                       )}
+                      <FieldError name="club_id" />
                     </div>
                     <div>
                       <label className="mb-1.5 block text-[13px] font-medium text-[#0F172A]">Linked Club Lead Champion</label>
@@ -255,6 +265,7 @@ export function CreateGatekeeperForm({
                     <span className="text-[13px] font-semibold text-[#0F172A]">{scope.clubName}</span>
                     <span className="ml-auto text-[11px] text-[#64748B]">Your club</span>
                   </div>
+                  <FieldError name="club_id" />
                 </>
               )}
 
@@ -317,6 +328,9 @@ export function CreateGatekeeperForm({
                       </div>
                     )
                   })}
+                  {/* The certification inputs repeat per row, so their messages show once here. */}
+                  <FieldError name="cert_type_id" />
+                  <FieldError name="cert_achieved_on" />
                   <button
                     type="button"
                     onClick={() => setCertRows(rows => [...rows, { key: Date.now(), typeId: '', date: '' }])}
@@ -351,6 +365,7 @@ export function CreateGatekeeperForm({
               {singlePending ? 'Registering…' : 'Register Gatekeeper'}
             </button>
           </div>
+        </FormErrorsProvider>
         </form>
       ) : (
         <BulkGatekeeperUpload scope={scope} onClose={close} />

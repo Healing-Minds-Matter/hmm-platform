@@ -3,6 +3,9 @@
 import { useActionState, useState } from 'react'
 import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { updateProfileAction } from '@/actions/profile'
+import { FormErrorsProvider, useFormErrors } from '@/hooks/use-form-errors'
+import { FieldError } from '@/components/field-error'
+import { formLevelError } from '@/lib/form-errors'
 
 const LANGUAGE_OPTIONS = [
   { value: 'en', label: 'English (Primary)' },
@@ -26,6 +29,8 @@ export function ProfileForm({
   email: string
 }) {
   const [state, formAction, isPending] = useActionState(updateProfileAction, null)
+  const fe = useFormErrors(state)
+  const { bindForm, onSubmit: checkThen } = fe
   const submit = useSubmitWithoutReset(formAction)
   const [copied, setCopied] = useState(false)
 
@@ -41,10 +46,11 @@ export function ProfileForm({
   }
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-4">
-      {state?.error && (
+    <form ref={bindForm} noValidate onSubmit={checkThen(submit)} className="flex flex-col gap-4">
+    <FormErrorsProvider value={fe}>
+      {formLevelError(state) && (
         <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
-          {state.error}
+          {formLevelError(state)}
         </div>
       )}
       {state?.success && (
@@ -70,6 +76,7 @@ export function ProfileForm({
             className="h-10 w-full rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] pl-9 pr-3.5 text-[13px] text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
           />
         </div>
+        <FieldError name="full_name" />
       </div>
 
       <div className="flex flex-col gap-1.5">
@@ -89,6 +96,7 @@ export function ProfileForm({
             className="h-10 w-full rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] pl-9 pr-3.5 text-[13px] text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
           />
         </div>
+        <FieldError name="title" />
       </div>
 
       <div className="flex flex-col gap-1.5">
@@ -137,6 +145,7 @@ export function ProfileForm({
               className="h-10 w-full rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] pl-9 pr-3.5 text-[13px] text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
             />
           </div>
+          <FieldError name="phone" />
         </div>
         <div className="flex flex-col gap-1.5">
           <label htmlFor="preferred_language" className="text-[12px] font-semibold tracking-[0.24px] text-[#0F172A]">
@@ -176,6 +185,7 @@ export function ProfileForm({
             className="h-10 w-full rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] pl-9 pr-3.5 text-[13px] text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
           />
         </div>
+        <FieldError name="office_location" />
       </div>
 
       <div className="flex items-center justify-end gap-2 pt-1">
@@ -195,6 +205,7 @@ export function ProfileForm({
           {isPending ? 'Saving…' : 'Save Changes'}
         </button>
       </div>
+    </FormErrorsProvider>
     </form>
   )
 }

@@ -3,7 +3,11 @@
 import { useActionState, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { requestEmailChangeAction } from '@/actions/auth'
+import { FormErrorsProvider, useFormErrors } from '@/hooks/use-form-errors'
+import { FieldError } from '@/components/field-error'
+import { formLevelError } from '@/lib/form-errors'
 
 // Same shell/typography as ChangePasswordForm, so the two Security & Sign-in
 // popups look like a pair.
@@ -20,6 +24,10 @@ export function ChangeEmailForm({
 }) {
   const router = useRouter()
   const [state, formAction, isPending] = useActionState(requestEmailChangeAction, null)
+  const fe = useFormErrors(state)
+  const { bindForm, onSubmit: checkThen } = fe
+  // Submitted without React's automatic reset, so a refused save keeps what was typed.
+  const submit = useSubmitWithoutReset(formAction)
   const [showPassword, setShowPassword] = useState(false)
 
   // Refresh the profile underneath so its Sign-in Email row shows "pending".
@@ -85,10 +93,11 @@ export function ChangeEmailForm({
           </div>
         </>
       ) : (
-        <form action={formAction} className="flex flex-1 flex-col overflow-hidden">
+        <form ref={bindForm} noValidate onSubmit={checkThen(submit)} className="flex flex-1 flex-col overflow-hidden">
+        <FormErrorsProvider value={fe}>
           <div className="flex flex-1 flex-col gap-4 overflow-y-auto bg-[#F8FAFC] p-6">
-            {state?.error && (
-              <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">{state.error}</div>
+            {formLevelError(state) && (
+              <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">{formLevelError(state)}</div>
             )}
 
             {pendingEmail && (
@@ -119,6 +128,7 @@ export function ChangeEmailForm({
                   placeholder="you@healingmindsmatter.org"
                   className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-[13px] text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                 />
+                <FieldError name="newEmail" />
               </div>
 
               <div className="flex flex-col gap-1.5">
@@ -144,6 +154,7 @@ export function ChangeEmailForm({
                     <img src={showPassword ? '/icons/pw-eye-off.svg' : '/icons/pw-eye.svg'} alt="" className="h-4 w-4" />
                   </button>
                 </div>
+                <FieldError name="currentPassword" />
                 <p className="text-[11px] text-[#94A3B8]">Required to confirm it&apos;s really you.</p>
               </div>
             </div>
@@ -164,6 +175,7 @@ export function ChangeEmailForm({
               {isPending ? 'Sending…' : 'Send Confirmation Links'}
             </button>
           </div>
+        </FormErrorsProvider>
         </form>
       )}
     </div>

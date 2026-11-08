@@ -50,7 +50,9 @@ export default async function ChampionGatekeepersPage({
     // The Champion is certified like a Gatekeeper, so their own row is listed
     // too; the dashboard's certification figures count them.
     .or(`role.eq.gatekeeper,id.eq.${user.id}`)
-    .order('full_name')
+    // Sheet row 16: newest first, id breaks ties so paging is stable.
+    .order('created_at', { ascending: false })
+    .order('id')
 
   if (q) query = query.or(`full_name.ilike.%${q}%,email.ilike.%${q}%,phone.ilike.%${q}%,gatekeeper_code.ilike.%${q}%`)
 
@@ -140,7 +142,14 @@ export default async function ChampionGatekeepersPage({
                   <tr key={g.id} className="h-[65px] border-t border-[rgba(226,232,240,0.5)] hover:bg-gray-50 transition-colors">
                     <td className="px-[16px] py-3">
                       <div className="flex items-center gap-2 text-[13px] font-semibold text-[#0F172A]">
-                        {g.full_name}
+                        {/* Sheet row 19: the name opens the profile — the Champion's own
+                            row opens their own profile page. */}
+                        <Link
+                          href={g.isSelf ? '/champion/profile' : `/champion/gatekeepers/${g.id}`}
+                          className="rounded hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[#265BA2]"
+                        >
+                          {g.full_name}
+                        </Link>
                         {g.isSelf && <span className="rounded-full bg-[#FEF3C7] px-2 py-0.5 text-[10px] font-semibold text-[#92400E]">You · Champion</span>}
                       </div>
                       <div className="text-[13px] text-[#64748B]">{g.email}{g.phone ? ` • ${g.phone}` : ''}</div>

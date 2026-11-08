@@ -30,22 +30,25 @@ export type ExistingClub = { name: string; club_code: string | null }
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-export function validateClubFields(input: ClubInput): { club: ClubFields } | { error: string } {
+// `field` names the form input the error belongs to (sheet row 32).
+export type ClubField = 'club_code' | 'name' | 'location' | 'contact_email' | 'contact_phone'
+
+export function validateClubFields(input: ClubInput): { club: ClubFields } | { error: string; field: ClubField } {
   const code = input.code?.trim()
   const name = input.name?.trim()
   const address = input.address?.trim()
   const contactEmail = input.contactEmail?.trim() || null
   const description = input.description?.trim() || null
 
-  if (!code) return { error: 'Club code is required.' }
-  if (!name) return { error: 'Club name is required.' }
-  if (!address) return { error: 'Address is required.' }
+  if (!code) return { error: 'Club code is required.', field: 'club_code' }
+  if (!name) return { error: 'Club name is required.', field: 'name' }
+  if (!address) return { error: 'Address is required.', field: 'location' }
   if (contactEmail && !EMAIL_PATTERN.test(contactEmail)) {
-    return { error: 'Enter a valid contact email, e.g. club@example.com.' }
+    return { error: 'Enter a valid contact email, e.g. club@example.com.', field: 'contact_email' }
   }
   // Same normalising as user phone numbers: local numbers are Sri Lankan.
   const phone = parsePhone(input.contactPhone)
-  if (!phone.ok) return { error: phone.error }
+  if (!phone.ok) return { error: phone.error, field: 'contact_phone' }
 
   return {
     club: {
@@ -169,4 +172,11 @@ export async function createClubsFromCsv(
   }
 
   return { results }
+}
+
+/** Which form field a uniqueness message from findClubConflict/describeClubInsertError is about. */
+export function clubConflictField(message: string): ClubField | null {
+  if (message.startsWith('Club code')) return 'club_code'
+  if (message.startsWith('A club with that name')) return 'name'
+  return null
 }

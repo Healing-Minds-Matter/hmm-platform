@@ -18,6 +18,7 @@ import {
 import { validatePassword } from '@/lib/password-validation'
 import { isPasswordReused, recordPasswordHash } from '@/lib/password-history.server'
 import { writeAuditLog } from '@/lib/audit'
+import { invalid, type FieldErrors } from '@/lib/form-errors'
 
 // ---------------------------------------------------------------------------
 // Login — Story 1.1
@@ -155,15 +156,17 @@ function escapeLikePattern(value: string): string {
 // ---------------------------------------------------------------------------
 // Reset Password (from email link) — Story 1.2
 // ---------------------------------------------------------------------------
+// fieldErrors: errors tied to a form field, shown next to it (sheet row 32).
+// Login and Forgot Password deliberately keep their generic, form-level errors.
 export async function resetPasswordAction(
-  _prev: { error?: string } | null,
+  _prev: { error?: string; fieldErrors?: FieldErrors } | null,
   formData: FormData
-) {
+): Promise<{ error?: string; fieldErrors?: FieldErrors }> {
   const password = formData.get('password') as string
   const confirm  = formData.get('confirm')  as string
 
   // Scenario 06: passwords must match
-  if (password !== confirm) return { error: 'Passwords do not match.' }
+  if (password !== confirm) return invalid('confirm', 'Passwords do not match.')
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -186,11 +189,11 @@ export async function resetPasswordAction(
     name:  profile?.full_name,
     email: profile?.email ?? user.email,
   })
-  if (!valid) return { error: errors.join('\n') }
+  if (!valid) return invalid('password', errors.join('\n'))
 
   // Scenario 07: password reuse prevention (last 5)
   if (await isPasswordReused(user.id, password)) {
-    return { error: 'You cannot reuse one of your last 5 passwords. Please choose a different one.' }
+    return invalid('password', 'You cannot reuse one of your last 5 passwords. Please choose a different one.')
   }
 
   const { error: updateError } = await supabase.auth.updateUser({ password })
@@ -230,19 +233,19 @@ export async function resetPasswordAction(
 // Change Password (authenticated) — Story 1.3
 // ---------------------------------------------------------------------------
 export async function changePasswordAction(
-  _prev: { error?: string; success?: boolean } | null,
+  _prev: { error?: string; fieldErrors?: FieldErrors; success?: boolean } | null,
   formData: FormData
-) {
+): Promise<{ error?: string; fieldErrors?: FieldErrors; success?: boolean }> {
   const currentPassword = formData.get('currentPassword') as string
   const newPassword     = formData.get('newPassword')     as string
   const confirm         = formData.get('confirm')         as string
 
   // Scenario 03: passwords must match
-  if (newPassword !== confirm) return { error: 'New passwords do not match.' }
+  if (newPassword !== confirm) return invalid('confirm', 'New passwords do not match.')
 
   // Scenario 04: new password must differ from current
   if (newPassword === currentPassword) {
-    return { error: 'New password must be different from your current password.' }
+    return invalid('newPassword', 'New password must be different from your current password.')
   }
 
   const supabase = await createClient()
@@ -260,7 +263,7 @@ export async function changePasswordAction(
     name:  profile?.full_name,
     email: profile?.email ?? user.email,
   })
-  if (!valid) return { error: errors.join('\n') }
+  if (!valid) return invalid('newPassword', errors.join('\n'))
 
   // Scenario 01: verify current password — generic error per story
   const { error: verifyError } = await supabase.auth.signInWithPassword({
@@ -279,12 +282,12 @@ export async function changePasswordAction(
       code: (verifyError as { code?: string }).code,
       message: verifyError.message,
     })
-    return { error: 'Password change failed. Please check your current password and try again.' }
+    return invalid('currentPassword', 'Password change failed. Please check your current password and try again.')
   }
 
   // Scenario 05: reuse prevention (last 5)
   if (await isPasswordReused(user.id, newPassword)) {
-    return { error: 'You cannot reuse one of your last 5 passwords. Please choose a different one.' }
+    return invalid('newPassword', 'You cannot reuse one of your last 5 passwords. Please choose a different one.')
   }
 
   const { error: updateError } = await supabase.auth.updateUser({ password: newPassword })
@@ -327,14 +330,15 @@ export async function changePasswordAction(
 // and nothing changes until both are clicked. profiles.email follows via
 // syncProfileEmail() once Supabase applies the change.
 export async function requestEmailChangeAction(
-  _prev: { error?: string; success?: boolean; newEmail?: string } | null,
+  _prev: { error?: string; fieldErrors?: FieldErrors; success?: boolean; newEmail?: string } | null,
   formData: FormData
-) {
+): Promise<{ error?: string; fieldErrors?: FieldErrors; success?: boolean; newEmail?: string }> {
   const newEmail = ((formData.get('newEmail') as string) ?? '').trim().toLowerCase()
   const password = (formData.get('currentPassword') as string) ?? ''
 
-  if (!newEmail || !password) return { error: 'New email and current password are required.' }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) return { error: 'Please enter a valid email address.' }
+  if (!newEmail) return invalid('newEmail', 'New email is required.')
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) return invalid('newEmail', 'Please enter a valid email address.')
+  if (!password) return invalid('currentPassword', 'Current password is required.')
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -348,7 +352,7 @@ export async function requestEmailChangeAction(
   if (profile?.role !== 'super_admin') return { error: 'Only Super Admins can change their sign-in email here.' }
 
   if (newEmail === user.email.toLowerCase()) {
-    return { error: 'That is already your sign-in email.' }
+    return invalid('newEmail', 'That is already your sign-in email.')
   }
 
   // Verify the current password with a throwaway client, so the user's real
@@ -360,7 +364,7 @@ export async function requestEmailChangeAction(
     { auth: { persistSession: false, autoRefreshToken: false } }
   )
   const { error: verifyError } = await verifier.auth.signInWithPassword({ email: user.email, password })
-  if (verifyError) return { error: 'Incorrect password. Please try again.' }
+  if (verifyError) return invalid('currentPassword', 'Incorrect password. Please try again.')
   await verifier.auth.signOut({ scope: 'local' })
 
   // Unused address only — profiles.email is UNIQUE, and a clash would
@@ -372,7 +376,7 @@ export async function requestEmailChangeAction(
     .ilike('email', escapeLikePattern(newEmail))
     .neq('id', user.id)
     .limit(1)
-  if (clash && clash.length > 0) return { error: 'That email is already used by another account.' }
+  if (clash && clash.length > 0) return invalid('newEmail', 'That email is already used by another account.')
 
   // The "Change Email Address" email template builds its link from this
   // ({{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=email_change), so it
@@ -386,7 +390,7 @@ export async function requestEmailChangeAction(
   if (updateError) {
     console.error('[requestEmailChangeAction] updateUser failed:', updateError.message)
     const code = (updateError as { code?: string }).code
-    if (code === 'email_exists') return { error: 'That email is already used by another account.' }
+    if (code === 'email_exists') return invalid('newEmail', 'That email is already used by another account.')
     if (code === 'over_email_send_rate_limit' || updateError.status === 429) {
       return { error: 'Too many requests. Please wait a minute and try again.' }
     }
