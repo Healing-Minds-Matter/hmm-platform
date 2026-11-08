@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { loginPath } from '@/lib/login-redirect.server'
 import { writeAuditLog } from '@/lib/audit'
 import { readClubChoice } from '@/lib/event-clubs'
@@ -236,10 +237,18 @@ export async function countAnnouncementRecipientsAction(input: {
 export async function listCohortPeopleAction(clubIds: string[]): Promise<{ id: string; full_name: string; role: string; club_id: string }[]> {
   if (!clubIds.length) return []
   const supabase = await createClient()
-  const { data } = await supabase
+  const caller = await getCaller(supabase)
+  if (caller.role !== 'super_admin' && caller.role !== 'champion') return []
+  // A Champion's access rules hide the club's other Champions, but they may
+  // pick them (sheet row 38) — so for a Champion the list is read on the
+  // server, always limited to their own club, names and roles only.
+  const scopeIds = caller.role === 'champion' ? (caller.club_id ? [caller.club_id] : []) : clubIds.slice(0, 200)
+  if (!scopeIds.length) return []
+  const db = caller.role === 'champion' ? createAdminClient() : supabase
+  const { data } = await db
     .from('profiles')
     .select('id, full_name, role, club_id')
-    .in('club_id', clubIds.slice(0, 200))
+    .in('club_id', scopeIds)
     .in('role', ['champion', 'gatekeeper'])
     .eq('is_active', true)
     .order('full_name')

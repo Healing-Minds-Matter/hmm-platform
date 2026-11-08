@@ -1,4 +1,5 @@
 // Database-rule (RLS) tests for event clubs by role — migrations
+// 2026-11-08: events use type 'workshop' — an 'other' event now needs a description (migration 20261110000002).
 // 20261030000000 and 20261030000001. Not part of `npm test`: there is no
 // local database, so this runs against the Supabase project in .env.local,
 // as real signed-in test users calling Supabase directly (no app code).
@@ -46,7 +47,7 @@ async function mkUser(tag, role, clubId) {
 }
 
 const fields = (title) => ({
-  p_title: `ZZ RLS ${title}`, p_type: 'other', p_starts_at: new Date(Date.now() + 864e5).toISOString(), p_ends_at: null,
+  p_title: `ZZ RLS ${title}`, p_type: 'workshop', p_starts_at: new Date(Date.now() + 864e5).toISOString(), p_ends_at: null,
   p_venue: 'Test', p_description: null, p_max_participants: null, p_facilitator: 'Test', p_virtual_link: null,
 })
 const save = (who, title, allClubs, clubIds, eventId = null) =>
@@ -84,7 +85,7 @@ async function main() {
   check('SA edits several clubs → all clubs', !r7.error && (await linksOf(eMulti)).length === 0, r7.error?.message)
   const r8 = await save(sa, 'SA several', false, [A, B], eMulti)
   check('SA edits all clubs → selected clubs', !r8.error && (await linksOf(eMulti)).length === 2, r8.error?.message)
-  const rawInsert = await sa.db.from('events').insert({ title: 'ZZ RLS raw', type: 'other', starts_at: new Date().toISOString(), venue: 'x', created_by: sa.id })
+  const rawInsert = await sa.db.from('events').insert({ title: 'ZZ RLS raw', type: 'workshop', starts_at: new Date().toISOString(), venue: 'x', created_by: sa.id })
   check('An event with neither all clubs nor a club is refused (direct insert)', !!rawInsert.error, 'saved')
 
   // ── Champion ──
@@ -94,7 +95,7 @@ async function main() {
   check('Champion: another club is refused', !!(await save(chA, 'Champ other', false, [B])).error)
   check('Champion: several clubs are refused', !!(await save(chA, 'Champ multi', false, [A, B])).error)
   check('Champion: all clubs is refused', !!(await save(chA, 'Champ all', true, [])).error)
-  const dIns = await chA.db.from('events').insert({ title: 'ZZ RLS champ raw all', type: 'other', starts_at: new Date().toISOString(), venue: 'x', created_by: chA.id, is_all_clubs: true })
+  const dIns = await chA.db.from('events').insert({ title: 'ZZ RLS champ raw all', type: 'workshop', starts_at: new Date().toISOString(), venue: 'x', created_by: chA.id, is_all_clubs: true })
   check('Champion: direct insert of an all-clubs event is refused', !!dIns.error)
   const link = await chA.db.from('event_clubs').insert({ event_id: eChampOwn, club_id: B })
   check('Champion: direct link of another club to own event is refused', !!link.error)
@@ -128,7 +129,8 @@ async function main() {
   check('Gatekeeper A sees a several-clubs event including A', await sees(gkA, eMulti))
   check('Gatekeeper A does NOT see an event for club B only', !(await sees(gkA, eBOnly)))
   check('Gatekeeper B does NOT see an event for club A only', !(await sees(gkB, eAOnly)))
-  check('Champion B does NOT see an event for club A only', !(await sees(chB, eAOnly)))
+  // Sheet row 57 (migration 20261110000002): Champions can view every club's events, read-only.
+  check('Champion B can view (read-only) an event for club A only', await sees(chB, eAOnly))
   check('Champion B sees an event for club B', await sees(chB, eBOnly))
   check('Super Admin sees every event', (await sees(sa, eBOnly)) && (await sees(sa, eAOnly)))
   const hiddenLinks = await gkA.db.from('event_clubs').select('club_id').eq('event_id', eBOnly)
@@ -141,7 +143,7 @@ async function main() {
   check('Gatekeeper A can\'t register for a B-only event', !!reg.error)
 
   // ── Migration / old-style events ──
-  const { data: legacy, error: lErr } = await admin.from('events').insert({ title: 'ZZ RLS legacy', type: 'other', starts_at: new Date(Date.now() + 864e5).toISOString(), venue: 'x', club_id: A, created_by: chA.id }).select('id').single()
+  const { data: legacy, error: lErr } = await admin.from('events').insert({ title: 'ZZ RLS legacy', type: 'workshop', starts_at: new Date(Date.now() + 864e5).toISOString(), venue: 'x', club_id: A, created_by: chA.id }).select('id').single()
   check('Old-style single-club save is linked to its club', !lErr && JSON.stringify(await linksOf(legacy.id)) === JSON.stringify([A]), lErr?.message)
   check('Old-style single-club event shows for its club (Gatekeeper A)', await sees(gkA, legacy.id))
   check('Old-style single-club event is hidden from other clubs (Gatekeeper B)', !(await sees(gkB, legacy.id)))

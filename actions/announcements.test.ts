@@ -31,6 +31,12 @@ vi.mock('@/lib/supabase/server', () => ({
   }),
 }))
 vi.mock('@/lib/audit', () => ({ writeAuditLog: vi.fn() }))
+const adminDb = vi.hoisted(() => ({ clubFilter: [] as string[] }))
+vi.mock('@/lib/supabase/admin', () => ({
+  createAdminClient: () => ({
+    from: () => ({ select: () => ({ in: (_c: string, ids: string[]) => { adminDb.clubFilter = ids; return { in: () => ({ eq: () => ({ order: async () => ({ data: [] }) }) }) } } }) }),
+  }),
+}))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 vi.mock('next/navigation', () => ({ redirect: vi.fn(() => { throw new Error('redirect') }) }))
 
@@ -171,5 +177,22 @@ describe('schedule', () => {
     db.rpcError = { code: '23514', message: 'The expiry date and time must be after the publication date and time.' }
     expect((await createAnnouncementAction(null, later('2099-01-02', '10:00')))?.fieldErrors)
       .toEqual({ expiry_date: 'The expiry date and time must be after the publication date and time.' })
+  })
+})
+
+// Sheet row 38: the people picker. A Champion sees every Champion and
+// Gatekeeper in their own club (read on the server), never another club's.
+describe('listCohortPeopleAction', () => {
+  it('limits a Champion to their own club, whatever clubs are asked for', async () => {
+    db.caller = { role: 'champion', club_id: 'own-club' }
+    adminDb.clubFilter = []
+    const { listCohortPeopleAction } = await import('@/actions/announcements')
+    await listCohortPeopleAction(['club-a', 'club-b'])
+    expect(adminDb.clubFilter).toEqual(['own-club'])
+  })
+  it('gives a Gatekeeper nothing', async () => {
+    db.caller = { role: 'gatekeeper', club_id: 'own-club' }
+    const { listCohortPeopleAction } = await import('@/actions/announcements')
+    expect(await listCohortPeopleAction(['own-club'])).toEqual([])
   })
 })
