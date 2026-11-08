@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { byHolder, certChipText, certificationFigures, certifiedFigures, matchesCertFilter, personCertStatus, type CurrentCert } from '@/lib/cert-summary'
+import { byHolder, certChipText, certificationFigures, certifiedFigures, certifiedThisMonth, matchesCertFilter, personCertStatus, type CurrentCert } from '@/lib/cert-summary'
 
 const c = (holder: string, type: string, status: CurrentCert['status'], expires: string | null = '2027-01-01'): CurrentCert =>
   ({ id: `${holder}-${type}`, holder_id: holder, type_id: type, status, achieved_on: '2024-01-01', expires_on: expires })
@@ -60,5 +60,29 @@ describe('certChipText', () => {
     expect(certChipText(c('a', 'q', 'valid', null))).toBe('Lifetime')
     expect(certChipText(c('a', 'q', 'stopped'))).toBe('Stopped')
     expect(certChipText(c('a', 'q', 'expiring_soon', '2026-11-04'), '2026-11-04')).toBe('Expires today')
+  })
+})
+
+// Sheet rows 59/78: "People with a current certification" and "+N this month",
+// the same rules as club_certified_people() for the mobile Home tile.
+describe('people with a current certification', () => {
+  const c = (holder: string, status: CurrentCert['status'], achieved: string, type = 't1'): CurrentCert =>
+    ({ id: `${holder}-${type}-${achieved}`, holder_id: holder, type_id: type, status, achieved_on: achieved, expires_on: null })
+  const rows = [
+    c('a', 'valid', '2026-11-02'),                                  // newly certified this month
+    c('b', 'valid', '2025-03-01'), c('b', 'valid', '2026-11-03', 't2'), // already certified before: not new
+    c('d', 'expiring_soon', '2024-01-10'),                          // counts, not new
+    c('e', 'expired', '2026-11-04'),                                // expired: not certified
+    c('f', 'expired', '2023-01-01'), c('f', 'valid', '2026-11-05', 't2'), // lapsed, certified again this month
+    c('x', 'valid', '2026-11-01'),                                  // not one of the club's people
+  ]
+  const people = ['a', 'b', 'd', 'e', 'f', 'g']
+  const map = byHolder(rows)
+
+  it('counts each person once, any type, valid or expiring soon', () => {
+    expect(certifiedFigures(map, people)).toEqual({ certified: 4, expiringSoon: 1, total: 6 })
+  })
+  it('"+N this month" = people who became certified this month', () => {
+    expect(certifiedThisMonth(map, people, '2026-11-01')).toBe(2) // a and f
   })
 })

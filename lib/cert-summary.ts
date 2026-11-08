@@ -101,3 +101,16 @@ export function certifiedFigures(byHolderMap: Map<string, CurrentCert[]>, people
   }
   return { certified, expiringSoon, total: people.length }
 }
+
+// "People with a current certification" (sheet rows 59, 78): of the certified
+// people (see certifiedFigures), those who became certified this month — none of
+// their current valid/expiring certificates was achieved before `monthStart`
+// (YYYY-MM-DD, Sri Lanka). Matches club_certified_people() used by the mobile app.
+export function certifiedThisMonth(byHolderMap: Map<string, CurrentCert[]>, people: string[], monthStart: string): number {
+  let n = 0
+  for (const p of people) {
+    const current = (byHolderMap.get(p) ?? []).filter(c => c.status === 'valid' || c.status === 'expiring_soon')
+    if (current.length && current.every(c => c.achieved_on >= monthStart)) n++
+  }
+  return n
+}
