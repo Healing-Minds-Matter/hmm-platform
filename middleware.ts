@@ -63,6 +63,14 @@ export async function middleware(request: NextRequest) {
     const lastActive = Number.isFinite(raw) && raw > 0 && (signedInAt === null || raw >= signedInAt) ? raw : null
     if (sessionEnded(now, lastActive, signedInAt)) {
       await supabase.auth.signOut({ scope: 'local' })
+      // A server action (including the browser's own idle sign-out, which
+      // fires at the same moment) can't follow a redirect — it would show an
+      // error screen. Let it through signed out: the action finds no user and
+      // redirects to the login page itself.
+      if (request.method === 'POST' && request.headers.has('next-action')) {
+        supabaseResponse.cookies.delete(LAST_ACTIVE_COOKIE)
+        return supabaseResponse
+      }
       const res = NextResponse.redirect(loginUrl('?error=session_expired'))
       // Carry over the cleared Supabase auth cookies.
       supabaseResponse.cookies.getAll().forEach(c => res.cookies.set(c))

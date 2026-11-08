@@ -21,7 +21,7 @@ describe('invalid / formLevelError (sheet row 32)', () => {
 describe('validityMessage', () => {
   it('names the field in plain English', () => {
     expect(validityMessage({ type: 'text', validity: bad('valueMissing') }, 'Club Name')).toBe('Club Name is required.')
-    expect(validityMessage({ type: 'select-one', validity: bad('valueMissing') }, 'Club')).toBe('Please choose club.')
+    expect(validityMessage({ type: 'select-one', validity: bad('valueMissing') }, 'Club')).toBe('Club is required.')
     expect(validityMessage({ type: 'email', validity: bad('typeMismatch') }, 'Email')).toBe('Enter a valid email address, e.g. name@example.com.')
     expect(validityMessage({ type: 'url', validity: bad('typeMismatch') }, 'Link')).toBe('Enter a full web address, starting with https://.')
     expect(validityMessage({ type: 'date', min: '2026-11-06', validity: bad('rangeUnderflow') }, 'Publish date')).toBe("Publish date can't be before 2026-11-06.")
