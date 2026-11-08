@@ -20,8 +20,8 @@ export type AnnouncementActionState = { error?: string; fieldErrors?: FieldError
 
 // Permission keys (Permissions screen) a Champion needs (sheet row 61).
 // Super Admins always may.
-export const PUBLISH_PERMISSION = 'publish_club_announcements'
-export const DELETE_PERMISSION = 'delete_announcements'
+const PUBLISH_PERMISSION = 'publish_club_announcements'
+const DELETE_PERMISSION = 'delete_announcements'
 
 const PRIORITIES = ['standard', 'mandatory', 'urgent']
 const AUDIENCES = ['all', 'champions', 'gatekeepers', 'specific_clubs']
