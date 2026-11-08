@@ -14,7 +14,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { LAST_ACTIVITY_STORAGE_KEY, idleState, secondsUntilIdleSignOut } from '@/lib/session-policy'
 
-const ACTIVITY_EVENTS = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'] as const
+// Capture phase, so scrolling inside a panel (the portal scrolls its main area,
+// not the window) and the mouse wheel count as activity too.
+const ACTIVITY_EVENTS = ['mousemove', 'mousedown', 'pointerdown', 'keydown', 'touchstart', 'touchmove', 'wheel', 'scroll', 'click'] as const
+const LISTEN = { passive: true, capture: true } as const
 const WRITE_EVERY_MS = 5_000
 const HEARTBEAT_EVERY_MS = 5 * 60 * 1000
 
@@ -81,7 +84,7 @@ export function useSessionTimeout({ signedInAt, onTimeout, onHeartbeat }: Option
 
     // Once the warning shows, only "Stay signed in" keeps the session going.
     const handleActivity = () => { if (!warning.current) markActive(false) }
-    ACTIVITY_EVENTS.forEach(e => window.addEventListener(e, handleActivity, { passive: true }))
+    ACTIVITY_EVENTS.forEach(e => window.addEventListener(e, handleActivity, LISTEN))
 
     const tick = () => {
       if (ended.current) return
@@ -106,7 +109,7 @@ export function useSessionTimeout({ signedInAt, onTimeout, onHeartbeat }: Option
 
     return () => {
       window.clearInterval(interval)
-      ACTIVITY_EVENTS.forEach(e => window.removeEventListener(e, handleActivity))
+      ACTIVITY_EVENTS.forEach(e => window.removeEventListener(e, handleActivity, LISTEN))
     }
   }, [markActive, signedInAt])
 
