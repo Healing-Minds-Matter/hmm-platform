@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { writeAuditLog } from '@/lib/audit'
 import { invalid, type FieldErrors } from '@/lib/form-errors'
+import { describeGrantPlan, planExceptionGrant } from '@/lib/exception-grant'
 
 export type PermissionActionState = { error?: string } | null
 
@@ -55,44 +56,80 @@ export async function updateRoleDefaultAction(formData: FormData) {
 
 // ── Story 9.2: Individual Permission Exception ─────────────────────────────
 
-export type ExceptionActionState = { error?: string; success?: boolean } | null
+export type ExceptionActionState = {
+  error?: string
+  fieldErrors?: FieldErrors
+  success?: boolean
+  /** Sheet row 60: what happened to each chosen permission, in plain English. */
+  summary?: string[]
+  /** True when everything chosen was saved (nothing skipped or refused). */
+  allSaved?: boolean
+} | null
 
+// Sheet row 60: one or more permissions for one person. Skips permissions the
+// person already has (or already doesn't, for Deny) and reports them, refuses
+// Super-Admin-only keys (the database refuses them too), and writes one audit
+// entry per permission saved.
 export async function grantIndividualExceptionAction(
   _prev: ExceptionActionState,
   formData: FormData
 ): Promise<ExceptionActionState> {
   const userId = formData.get('user_id') as string
-  const permission = (formData.get('permission') as string | null)?.trim()
+  const keys = formData.getAll('permissions').map(v => String(v))
+  // Older form (single text field) still works.
+  const single = (formData.get('permission') as string | null)?.trim()
+  if (single) keys.push(single)
   const isEnabled = formData.get('is_enabled') === 'true'
 
-  if (!userId) return { error: 'Select a user.' }
-  if (!permission) return { error: 'Permission key is required.' }
+  if (!userId) return invalid('user_id', 'Select a user.')
+  if (!keys.some(k => k.trim())) return invalid('permissions', 'Choose at least one permission.')
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect(await loginPath())
 
-  const { data: saved, error } = await supabase
-    .from('role_overrides')
-    .upsert(
-      { user_id: userId, permission, is_enabled: isEnabled, updated_by: user.id },
-      { onConflict: 'user_id,permission' }
-    )
-    .select('id')
-    .single()
+  const { data: caller } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  if (caller?.role !== 'super_admin') return { error: 'Only Super Admins can grant exceptions.' }
 
-  if (error) return { error: error.message }
+  const [{ data: target }, { data: catalog }, { data: effective }] = await Promise.all([
+    supabase.from('profiles').select('id, role, is_active').eq('id', userId).maybeSingle(),
+    supabase.from('permission_catalog').select('key, label, restricted_to'),
+    supabase.rpc('list_effective_permissions', { p_user_id: userId }),
+  ])
+  if (!target || !target.is_active || !['champion', 'gatekeeper'].includes(target.role)) {
+    return invalid('user_id', 'Choose an active Champion or Gatekeeper.')
+  }
 
-  await writeAuditLog({
-    actorId: user.id,
-    action: 'permission.individual_exception_granted',
-    entityType: 'role_override',
-    entityId: saved.id,
-    details: { user_id: userId, permission, is_enabled: isEnabled },
-  })
+  const plan = planExceptionGrant(keys, isEnabled, catalog ?? [], (effective ?? []) as { permission: string; is_enabled: boolean }[])
+  const failed: string[] = []
+  for (const item of plan.toSave) {
+    const { data: saved, error } = await supabase
+      .from('role_overrides')
+      .upsert(
+        { user_id: userId, permission: item.key, is_enabled: isEnabled, updated_by: user.id },
+        { onConflict: 'user_id,permission' }
+      )
+      .select('id')
+      .single()
+    if (error || !saved) { failed.push(`“${item.label}” (${error?.message ?? 'not saved'})`); continue }
+    await writeAuditLog({
+      actorId: user.id,
+      action: 'permission.individual_exception_granted',
+      entityType: 'role_override',
+      entityId: saved.id,
+      details: { user_id: userId, permission: item.key, is_enabled: isEnabled },
+    })
+  }
 
   revalidatePath('/super-admin/permissions/exceptions')
-  return { success: true }
+  revalidatePath('/super-admin/permissions')
+  const saved = { ...plan, toSave: plan.toSave.filter(t => !failed.some(f => f.startsWith(`“${t.label}”`))) }
+  const summary = describeGrantPlan(saved, isEnabled)
+  if (failed.length) summary.push(`Couldn’t save: ${failed.join(', ')}.`)
+  if (!saved.toSave.length && (plan.skipped.length || plan.refused.length || failed.length)) {
+    return { error: 'Nothing was changed.', summary }
+  }
+  return { success: true, summary, allSaved: !plan.skipped.length && !plan.refused.length && !failed.length }
 }
 
 export async function revokeIndividualExceptionAction(formData: FormData) {

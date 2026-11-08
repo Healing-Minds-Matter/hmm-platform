@@ -1,4 +1,5 @@
 import { RoleDefaultToggle } from './role-default-toggle'
+import { CATEGORY_DISPLAY_TITLES, EVENTS_CATEGORY } from '@/lib/access-list'
 
 export type ModuleItem = {
   key: string
@@ -10,9 +11,8 @@ export type ModuleItem = {
   grantedOverrideCount: number
 }
 
-// The stored category text for event permissions. It still names QPR because the
-// live site matches on it; this screen shows CATEGORY_META's title instead.
-export const EVENTS_CATEGORY = 'Events & QPR Training Sessions'
+// Stored event-permission category; shown with its display title (lib/access-list.ts).
+export { EVENTS_CATEGORY }
 
 const CATEGORY_META: Record<string, { icon: string; blurb: string; title?: string }> = {
   'Community & Gatekeeper Management': {
@@ -20,7 +20,7 @@ const CATEGORY_META: Record<string, { icon: string; blurb: string; title?: strin
     blurb: 'Controls who can onboard and organize youth gatekeeper members.',
   },
   [EVENTS_CATEGORY]: {
-    title: 'Events & Certification Programmes',
+    title: CATEGORY_DISPLAY_TITLES[EVENTS_CATEGORY],
     icon: '/icons/permissions/module-events.svg',
     blurb: 'Scheduling resilience workshops and recording participant attendance.',
   },

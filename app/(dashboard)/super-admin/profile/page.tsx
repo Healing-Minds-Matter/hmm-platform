@@ -4,6 +4,8 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { syncProfileEmail } from '@/lib/email-sync.server'
 import { ProfileForm } from './profile-form'
+import { groupAccessList, type AccessRow } from '@/lib/access-list'
+import { RoleAccessList } from '@/components/role-access-list'
 
 export const metadata = { title: 'My Profile — HMM Super Admin' }
 
@@ -64,6 +66,9 @@ export default async function ProfilePage() {
   if (profile.role !== 'super_admin') redirect(profile.role === 'champion' ? '/champion' : '/login')
 
   const clubCount = (activeClubs ?? []).length
+  // Sheet row 62: the Super Admin's effective permissions, with catalog labels.
+  const { data: accessRows } = await supabase.rpc('my_access_list')
+  const accessGroups = groupAccessList((accessRows ?? []) as AccessRow[])
 
   const lastPasswordChange = pwHistory?.[0]?.created_at ?? null
   const daysSincePasswordChange = lastPasswordChange ? daysSince(lastPasswordChange) : null
@@ -263,21 +268,9 @@ export default async function ProfilePage() {
                 </span>
               </div>
 
-              <div className="flex flex-col gap-2 pt-3">
-                {[
-                  `Full Club Lifecycle & Deactivation Control across all ${clubCount} Club${clubCount !== 1 ? 's' : ''}`,
-                  'Champion Assignment & Single-Club Governance',
-                  'Global Learning Resource Publishing & Archival Authority',
-                  'Platform-Wide Urgent Announcements & Priority Alerts',
-                ].map(line => (
-                  <div key={line} className="flex items-center gap-2.5">
-                    <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-[rgba(22,163,74,0.15)]">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src="/icons/c4-checkmark.svg" alt="" className="h-[7px] w-[9.5px]" />
-                    </span>
-                    <span className="text-[13px] text-[#0F172A]">{line}</span>
-                  </div>
-                ))}
+              {/* Sheet row 62: generated from the effective permissions, not hard-coded. */}
+              <div className="pt-3">
+                <RoleAccessList groups={accessGroups} />
               </div>
 
               <div className="mt-3 flex items-center justify-between rounded-xl bg-[#F8FAFC] p-[13px] ring-1 ring-[#E5E7EB]">

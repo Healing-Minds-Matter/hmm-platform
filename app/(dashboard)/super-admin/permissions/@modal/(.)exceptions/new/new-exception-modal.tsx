@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { ModalOverlay } from '@/components/modal-overlay'
-import { NewExceptionForm } from '../../../exceptions/new/new-exception-form'
+import { NewExceptionForm, type PermissionOption } from '../../../exceptions/new/new-exception-form'
 
 interface UserOption {
   id: string
@@ -10,13 +10,13 @@ interface UserOption {
   role: string
 }
 
-export function NewExceptionModal({ users }: { users: UserOption[] }) {
+export function NewExceptionModal({ users, permissions }: { users: UserOption[]; permissions: PermissionOption[] }) {
   const router = useRouter()
   const close = () => router.back()
 
   return (
     <ModalOverlay onClose={close}>
-      <NewExceptionForm users={users} onClose={close} />
+      <NewExceptionForm users={users} permissions={permissions} onClose={close} />
     </ModalOverlay>
   )
 }
