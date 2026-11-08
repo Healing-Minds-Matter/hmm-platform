@@ -1,3 +1,4 @@
+import { formatOrgDate, formatOrgTime } from '@/lib/org-date'
 import Link from 'next/link'
 import { AnnouncementDeleteButton } from './announcement-delete-button'
 import { computeStatus, AUDIENCE_LABEL, PRIORITY_BADGE } from './announcement-status'
@@ -16,17 +17,21 @@ export type AnnouncementCardData = {
 }
 
 function formatDate(value: string) {
-  return new Date(value).toLocaleDateString('en-AU', { dateStyle: 'medium' })
+  // Sri Lanka time; announcements now carry a time as well as a date.
+  return `${formatOrgDate(value, { dateStyle: 'medium' })}, ${formatOrgTime(value, { hour: 'numeric', minute: '2-digit' })}`
 }
 
 export function AnnouncementCard({
   announcement: a,
   basePath = '/super-admin/announcements',
   canManage = true,
+  canDelete = true,
 }: {
   announcement: AnnouncementCardData
   basePath?: string
   canManage?: boolean
+  /** Champions need the delete_announcements permission (sheet row 61). */
+  canDelete?: boolean
 }) {
   const status = computeStatus(a.status, a.publish_date, a.expiry_date)
   const priorityBadge = PRIORITY_BADGE[a.priority]
@@ -81,7 +86,7 @@ export function AnnouncementCard({
               <img src="/icons/pencil.svg" alt="" width={12} height={12} />
               Edit
             </Link>
-            <AnnouncementDeleteButton announcementId={a.id} />
+            {canDelete && <AnnouncementDeleteButton announcementId={a.id} />}
           </div>
         </div>
       )}

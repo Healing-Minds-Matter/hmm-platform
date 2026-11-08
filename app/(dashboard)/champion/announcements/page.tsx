@@ -26,7 +26,12 @@ export default async function ChampionAnnouncementsPage() {
 
   // Champions may only read their own club (RLS), but an announcement can be
   // for several clubs — names only, read with the admin client.
-  const { data: clubs } = await createAdminClient().from('clubs').select('id, name')
+  const [{ data: clubs }, { data: canPublish }, { data: canDelete }] = await Promise.all([
+    createAdminClient().from('clubs').select('id, name'),
+    // Sheet row 61: what this Champion's permissions allow.
+    supabase.rpc('cert_can', { p_permission: 'publish_club_announcements' }),
+    supabase.rpc('cert_can', { p_permission: 'delete_announcements' }),
+  ])
   const clubNameById = Object.fromEntries((clubs ?? []).map(c => [c.id, c.name]))
 
   const cards: (AnnouncementCardData & { canManage: boolean })[] = (announcements ?? []).map(a => ({
@@ -45,7 +50,7 @@ export default async function ChampionAnnouncementsPage() {
     // RLS exactly, so a second Champion sharing the same club sees this
     // one read-only, and platform-wide Super-Admin-authored ones are
     // always read-only here too.
-    canManage: a.created_by === user.id,
+    canManage: a.created_by === user.id && canPublish === true,
   }))
 
   return (
@@ -57,14 +62,16 @@ export default async function ChampionAnnouncementsPage() {
             Platform-wide updates plus announcements for your club.
           </p>
         </div>
-        <Link
-          href="/champion/announcements/new"
-          className="flex flex-shrink-0 items-center gap-2 rounded-lg bg-[#F4AC1E] px-6 py-2.5 text-[12px] font-semibold tracking-[0.24px] text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F]"
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/icons/plus-small.svg" alt="" width={10.5} height={10.5} />
-          Add New Announcement
-        </Link>
+        {canPublish === true && (
+          <Link
+            href="/champion/announcements/new"
+            className="flex flex-shrink-0 items-center gap-2 rounded-lg bg-[#F4AC1E] px-6 py-2.5 text-[12px] font-semibold tracking-[0.24px] text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F]"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/icons/plus-small.svg" alt="" width={10.5} height={10.5} />
+            Add New Announcement
+          </Link>
+        )}
       </div>
 
       {cards.length === 0 ? (
@@ -77,7 +84,7 @@ export default async function ChampionAnnouncementsPage() {
       ) : (
         <div className="flex flex-col gap-4">
           {cards.map(a => (
-            <AnnouncementCard key={a.id} announcement={a} basePath="/champion/announcements" canManage={a.canManage} />
+            <AnnouncementCard key={a.id} announcement={a} basePath="/champion/announcements" canManage={a.canManage} canDelete={canDelete === true} />
           ))}
         </div>
       )}

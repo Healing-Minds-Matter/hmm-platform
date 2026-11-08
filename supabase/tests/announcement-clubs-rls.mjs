@@ -46,9 +46,11 @@ async function mkUser(tag, role, clubId) {
 }
 
 const yesterday = new Date(Date.now() - 864e5).toISOString()
+// Saved announcements go live now (a new publication time can't be in the past since migration 20261110000001).
+const liveSince = new Date(Date.now() - 60e3).toISOString()
 const save = (who, title, audience, allClubs, clubIds, { id = null, status = 'published' } = {}) =>
   who.db.rpc('save_announcement', {
-    p_announcement_id: id, p_title: `ZZ RLS ${title}`, p_body: 'Test', p_publish_date: yesterday, p_expiry_date: null,
+    p_announcement_id: id, p_title: `ZZ RLS ${title}`, p_body: 'Test', p_publish_date: liveSince, p_expiry_date: null,
     p_priority: 'standard', p_audience: audience, p_status: status, p_is_pinned: false,
     p_is_all_clubs: allClubs, p_club_ids: clubIds,
   })

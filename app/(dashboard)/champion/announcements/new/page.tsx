@@ -1,28 +1,18 @@
-import { redirect } from 'next/navigation'
-import { loginPath } from '@/lib/login-redirect.server'
-import { createClient } from '@/lib/supabase/server'
-import { CreateAnnouncementForm } from '../create-announcement-form'
+import { CreateAnnouncementForm } from '@/app/(dashboard)/super-admin/announcements/create-announcement-form'
+import { championAnnouncementContext } from '../champion-announcement-context'
+import { NoAnnouncementPermission } from '../no-permission'
 
 export const metadata = { title: 'New Announcement — HMM Champion' }
 
+// The same form as Super Admins (sheet row 61), limited to the Champion's own club.
 export default async function NewChampionAnnouncementPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect(await loginPath())
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('club_id, clubs!profiles_club_id_fkey(name)')
-    .eq('id', user.id)
-    .single()
-  if (!profile?.club_id) redirect('/champion')
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const club = profile.clubs as any
-
+  const ctx = await championAnnouncementContext()
+  if (!ctx) return null
   return (
     <div className="flex justify-center p-8">
-      <CreateAnnouncementForm clubName={club?.name ?? 'Your Club'} />
+      {ctx.canPublish
+        ? <CreateAnnouncementForm clubs={[]} ownClub={ctx.ownClub} backHref="/champion/announcements" />
+        : <NoAnnouncementPermission />}
     </div>
   )
 }
