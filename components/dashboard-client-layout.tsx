@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect, useRef, useTransition } from 'react'
+import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
@@ -237,8 +238,10 @@ function ProfileMenu({ fullName, roleLabel, initials, profileHref }: { fullName:
         </div>
       )}
 
-      {/* Sheet row 8: confirm before signing out. Cancel keeps the user signed in. */}
-      {confirmLogout && (
+      {/* Sheet row 8: confirm before signing out. Cancel keeps the user signed in.
+          Rendered into <body>: the header's backdrop blur would otherwise trap
+          the fixed overlay inside the header. */}
+      {confirmLogout && createPortal(
         <ModalOverlay onClose={() => { if (!isPending) setConfirmLogout(false) }}>
           <div
             role="alertdialog"
@@ -267,7 +270,8 @@ function ProfileMenu({ fullName, roleLabel, initials, profileHref }: { fullName:
               </button>
             </div>
           </div>
-        </ModalOverlay>
+        </ModalOverlay>,
+        document.body,
       )}
     </div>
   )
