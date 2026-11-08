@@ -264,6 +264,24 @@ CREATE POLICY "announcement_recipients: read own" ON public.announcement_recipie
 GRANT SELECT, INSERT, DELETE ON public.announcement_recipients TO authenticated;
 
 -- ── Champion permissions (row 61) ───────────────────────────────────────────
+-- Champions may delete the announcements they created by default (decided
+-- with the user 2026-11-08). The seed from 20260915070000 had it off, but it
+-- was never enforced until now; a Super Admin can still turn it off per role
+-- or per person on the Permissions screen. Only their own: the delete policy
+-- below also requires created_by = auth.uid().
+UPDATE public.permissions SET is_enabled = true
+WHERE role = 'champion' AND permission = 'delete_announcements' AND NOT is_enabled;
+
+UPDATE public.permission_catalog
+SET description = 'Allows Champions to permanently remove announcements they created themselves.'
+WHERE key = 'delete_announcements';
+
+INSERT INTO public.audit_logs (actor_id, action, entity_type, entity_id, details)
+SELECT NULL, 'permission.role_default_updated', 'permission', p.id,
+       jsonb_build_object('role', 'champion', 'permission', 'delete_announcements', 'new_value', true,
+                          'reason', 'Champions delete their own announcements by default (migration 20261110000001)')
+FROM public.permissions p WHERE p.role = 'champion' AND p.permission = 'delete_announcements';
+
 DROP POLICY IF EXISTS "announcements: champion insert" ON public.announcements;
 CREATE POLICY "announcements: champion insert"
   ON public.announcements FOR INSERT TO authenticated
