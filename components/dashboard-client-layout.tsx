@@ -1,16 +1,15 @@
 'use client'
 
 import { useState, useCallback, useEffect, useRef, useTransition } from 'react'
+import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { useSessionTimeout } from '@/hooks/use-session-timeout'
 import { SessionTimeoutModal } from '@/components/session-timeout-modal'
 import { NotificationBell, type BellNotification } from '@/components/notification-bell'
-import { logoutAction, sessionTimeoutLogoutAction } from '@/actions/auth'
-
-const TIMEOUT_MS = 20 * 60 * 1000
-const WARNING_MS =  2 * 60 * 1000
+import { ModalOverlay } from '@/components/modal-overlay'
+import { logoutAction, sessionHeartbeatAction, sessionTimeoutLogoutAction } from '@/actions/auth'
 
 interface Profile {
   full_name: string
@@ -171,7 +170,11 @@ function getInitials(name: string): string {
 function ProfileMenu({ fullName, roleLabel, initials, profileHref }: { fullName: string; roleLabel: string; initials: string; profileHref: string }) {
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
+  const [confirmLogout, setConfirmLogout] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
+  const cancelRef = useRef<HTMLButtonElement>(null)
+  // Focus the safe choice when the confirmation opens.
+  useEffect(() => { if (confirmLogout) cancelRef.current?.focus() }, [confirmLogout])
 
   useEffect(() => {
     if (!open) return
@@ -227,13 +230,48 @@ function ProfileMenu({ fullName, roleLabel, initials, profileHref }: { fullName:
           <button
             type="button"
             role="menuitem"
-            disabled={isPending}
-            onClick={() => startTransition(() => logoutAction())}
-            className="flex w-full items-center px-4 py-2 text-left text-sm font-medium text-[#0F172A] hover:bg-gray-50 disabled:opacity-50"
+            onClick={() => { setOpen(false); setConfirmLogout(true) }}
+            className="flex w-full items-center px-4 py-2 text-left text-sm font-medium text-[#0F172A] hover:bg-gray-50"
           >
-            {isPending ? 'Logging out…' : 'Logout'}
+            Logout
           </button>
         </div>
+      )}
+
+      {/* Sheet row 8: confirm before signing out. Cancel keeps the user signed in.
+          Rendered into <body>: the header's backdrop blur would otherwise trap
+          the fixed overlay inside the header. */}
+      {confirmLogout && createPortal(
+        <ModalOverlay onClose={() => { if (!isPending) setConfirmLogout(false) }}>
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="logout-confirm-title"
+            className="mx-auto w-full max-w-[400px] overflow-hidden rounded-2xl bg-white shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)] font-[family-name:var(--font-inter)]"
+          >
+            <h2 id="logout-confirm-title" className="px-6 pb-4 pt-6 text-[18px] font-bold leading-[24px] text-[#0F172A]">Log out of HMM?</h2>
+            <div className="flex items-center justify-end gap-2.5 border-t border-[#E2E8F0] px-6 py-4">
+              <button
+                ref={cancelRef}
+                type="button"
+                disabled={isPending}
+                onClick={() => setConfirmLogout(false)}
+                className="flex h-10 items-center rounded-lg bg-[#F1F5F9] px-4 text-[13px] font-medium text-[#0F172A] transition-colors hover:bg-[#E2E8F0] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#265BA2] disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isPending}
+                onClick={() => startTransition(() => logoutAction())}
+                className="flex h-10 items-center rounded-lg bg-[#012C51] px-4 text-[13px] font-semibold text-white transition-colors hover:bg-[#022C51]/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#265BA2] focus-visible:ring-offset-2 disabled:opacity-60"
+              >
+                {isPending ? 'Logging out…' : 'Log out'}
+              </button>
+            </div>
+          </div>
+        </ModalOverlay>,
+        document.body,
       )}
     </div>
   )
@@ -245,32 +283,28 @@ export function DashboardClientLayout({
   children,
   profile,
   bell,
+  signedInAt,
 }: {
   children: React.ReactNode
   profile: Profile
   bell: { notifications: BellNotification[]; unread: number }
+  signedInAt: number | null
 }) {
-  const [showWarning, setShowWarning] = useState(false)
   const [, startTransition]  = useTransition()
   const [collapsed, setCollapsed] = useState(false)
 
-  // Story 1.4 Sc04: timeout must redirect to /login?error=session_expired
+  // Story 1.4 Sc04 / sheet row 5: idle (30 min) or maximum (12 h) sign-out
+  // goes to the user's own login page with ?error=session_expired.
   const handleTimeout = useCallback(() => {
     startTransition(() => sessionTimeoutLogoutAction())
   }, [])
+  const handleHeartbeat = useCallback(() => { void sessionHeartbeatAction() }, [])
 
-  const { reset } = useSessionTimeout({
-    timeoutMs:        TIMEOUT_MS,
-    warningMs:        WARNING_MS,
-    onWarning:        () => setShowWarning(true),
-    onDismissWarning: () => setShowWarning(false),
-    onTimeout:        handleTimeout,
+  const { showWarning, secondsLeft, stayActive } = useSessionTimeout({
+    signedInAt,
+    onTimeout:   handleTimeout,
+    onHeartbeat: handleHeartbeat,
   })
-
-  const handleStayActive = useCallback(() => {
-    setShowWarning(false)
-    reset()
-  }, [reset])
 
   const navItems = profile.role === 'super_admin' ? SUPER_ADMIN_NAV : CHAMPION_NAV
 
@@ -354,10 +388,9 @@ export function DashboardClientLayout({
           {/* Right: help + notifications + divider + name/role/avatar */}
           <div className="flex flex-shrink-0 items-center gap-3">
             <div className="flex items-center gap-1">
-              <button type="button" aria-label="Help" className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-gray-50 transition-colors">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/icons/help-circle.svg" alt="" width={15} height={15} />
-              </button>
+              {/* Sheet row 55: the Help (?) icon is hidden until a help / user
+                  manual page exists — it had nowhere to go. Put it back here,
+                  as a link to that page, once there is one. */}
               <NotificationBell notifications={bell.notifications} unread={bell.unread} />
             </div>
             <div className="h-6 w-px bg-[#E2E8F0]" />
@@ -378,9 +411,8 @@ export function DashboardClientLayout({
 
       {showWarning && (
         <SessionTimeoutModal
-          warningMs={WARNING_MS}
-          onStayActive={handleStayActive}
-          onTimeout={handleTimeout}
+          secondsLeft={secondsLeft}
+          onStayActive={stayActive}
         />
       )}
     </div>

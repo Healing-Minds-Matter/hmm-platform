@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { loginPath } from '@/lib/login-redirect.server'
 import { createClient } from '@/lib/supabase/server'
 import { ResourceFilters } from '@/app/(dashboard)/super-admin/resources/resource-filters'
 import { ResourceTypeTabs } from '@/app/(dashboard)/super-admin/resources/resource-type-tabs'
@@ -18,7 +19,7 @@ export default async function ChampionResourcesPage({
   const { q, category, sort, type } = await searchParams
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect(await loginPath())
 
   // RLS ("resources: champion read published") already scopes this to
   // publication_date <= today, platform-wide (not club-scoped — matches

@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { loginPath } from '@/lib/login-redirect.server'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -20,7 +21,7 @@ export async function updateRoleDefaultAction(formData: FormData) {
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect(await loginPath())
 
   const { data: existing } = await supabase
     .from('permissions')
@@ -68,7 +69,7 @@ export async function grantIndividualExceptionAction(
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect(await loginPath())
 
   const { data: saved, error } = await supabase
     .from('role_overrides')
@@ -100,7 +101,7 @@ export async function revokeIndividualExceptionAction(formData: FormData) {
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect(await loginPath())
 
   const { error } = await supabase.from('role_overrides').delete().eq('id', overrideId)
   if (error) return
@@ -131,7 +132,7 @@ export async function createGroupAction(
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect(await loginPath())
 
   const { data: group, error } = await supabase
     .from('permission_groups')
@@ -161,7 +162,7 @@ export async function archiveGroupAction(formData: FormData) {
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect(await loginPath())
 
   await supabase.from('permission_groups').update({ is_active: false }).eq('id', groupId)
 
@@ -183,7 +184,7 @@ export async function addGroupMemberAction(formData: FormData) {
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect(await loginPath())
 
   const { error } = await supabase
     .from('group_members')
@@ -208,7 +209,7 @@ export async function removeGroupMemberAction(formData: FormData) {
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect(await loginPath())
 
   const { error } = await supabase
     .from('group_members')
@@ -237,7 +238,7 @@ export async function setGroupPermissionAction(formData: FormData) {
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect(await loginPath())
 
   const { data: existing } = await supabase
     .from('group_permissions')
@@ -334,7 +335,7 @@ export async function createDelegationAction(
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect(await loginPath())
 
   const { data: delegation, error } = await supabase
     .from('role_delegations')
@@ -361,7 +362,7 @@ export async function endDelegationAction(formData: FormData) {
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect(await loginPath())
 
   const { data: delegation } = await supabase
     .from('role_delegations')

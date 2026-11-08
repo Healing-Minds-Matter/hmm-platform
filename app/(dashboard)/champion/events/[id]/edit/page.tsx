@@ -1,4 +1,5 @@
 import { notFound, redirect } from 'next/navigation'
+import { loginPath } from '@/lib/login-redirect.server'
 import { createClient } from '@/lib/supabase/server'
 import { EditEventForm } from '@/app/(dashboard)/super-admin/events/edit-event-form'
 import { loadEventForEdit } from '@/app/(dashboard)/super-admin/events/load-event-for-edit'
@@ -9,7 +10,7 @@ export default async function EditChampionEventPage({ params }: { params: Promis
   const { id } = await params
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect(await loginPath())
 
   const props = await loadEventForEdit(id, user.id)
   if (!props) notFound()

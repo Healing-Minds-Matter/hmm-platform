@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { loginPath } from '@/lib/login-redirect.server'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { awardableTypes } from '@/lib/certifications.server'
@@ -35,7 +36,7 @@ export default async function ChampionGatekeepersPage({
   const requestedPage = Math.max(1, parseInt(pageParam ?? '1', 10) || 1)
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect(await loginPath())
 
   const { data: profile } = await supabase.from('profiles').select('club_id').eq('id', user.id).single()
   if (!profile?.club_id) redirect('/champion')

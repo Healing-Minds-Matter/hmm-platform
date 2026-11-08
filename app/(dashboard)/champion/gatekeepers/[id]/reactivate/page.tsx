@@ -1,4 +1,5 @@
 import { notFound, redirect } from 'next/navigation'
+import { loginPath } from '@/lib/login-redirect.server'
 import { createClient } from '@/lib/supabase/server'
 import { ReactivateGatekeeperForm } from '@/app/(dashboard)/super-admin/gatekeepers/[id]/reactivate/reactivate-gatekeeper-form'
 
@@ -8,7 +9,7 @@ export default async function ChampionReactivateGatekeeperPage({ params }: { par
   const { id } = await params
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect(await loginPath())
 
   const { data: callerProfile } = await supabase
     .from('profiles')
