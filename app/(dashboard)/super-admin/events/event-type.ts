@@ -20,3 +20,10 @@ export const EVENT_TYPE_OPTIONS: { value: string; label: string }[] =
 export function eventTypeStyle(type: string) {
   return EVENT_TYPE_STYLES[type] ?? EVENT_TYPE_STYLES.other
 }
+
+// The label to show for an event's type: for "Other", the description typed
+// when it was scheduled (sheet row 43); older "Other" events without one say "Other".
+export function eventTypeLabel(type: string, typeDescription?: string | null): string {
+  if (type === 'other' && typeDescription?.trim()) return typeDescription.trim()
+  return eventTypeStyle(type).label
+}

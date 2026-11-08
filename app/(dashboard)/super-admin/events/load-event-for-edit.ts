@@ -27,7 +27,7 @@ export async function loadEventForEdit(id: string, userId: string): Promise<Edit
 
   const { data: event } = await supabase
     .from('events')
-    .select(`id, title, type, starts_at, ends_at, venue, description, max_participants, facilitator, virtual_link, created_by, is_cancelled, ${EVENT_CLUBS_EMBED}`)
+    .select(`id, title, type, type_description, starts_at, ends_at, venue, description, max_participants, facilitator, virtual_link, created_by, is_cancelled, ${EVENT_CLUBS_EMBED}`)
     .eq('id', id)
     .maybeSingle()
   if (!event || event.is_cancelled) return null
@@ -38,6 +38,7 @@ export async function loadEventForEdit(id: string, userId: string): Promise<Edit
     id: event.id,
     title: event.title,
     type: event.type,
+    type_description: event.type_description ?? '',
     event_date: date,
     start_time,
     end_time: event.ends_at ? isoToOrgDateTime(event.ends_at).time : '',

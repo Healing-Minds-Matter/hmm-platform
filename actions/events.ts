@@ -16,7 +16,13 @@ import {
   type EventCaller,
 } from '@/lib/event-clubs'
 
-export type EventActionState = { error?: string; success?: boolean } | null
+export type EventActionState = { error?: string; fieldErrors?: Record<string, string>; success?: boolean } | null
+
+// A failed save tied to the form field it's about (sheet row 32).
+const fieldFail = (field: string, error: string) => ({ error, fieldErrors: { [field]: error } })
+
+// "Other" needs a short description of the type (sheet row 43).
+const TYPE_DESCRIPTION_MAX = 120
 
 function readFields(formData: FormData) {
   const title        = (formData.get('title') as string | null)?.trim()
@@ -29,19 +35,24 @@ function readFields(formData: FormData) {
   const virtualLink  = (formData.get('virtual_link') as string | null)?.trim() || null
   const description  = (formData.get('description') as string | null)?.trim() || null
   const maxParticipants = (formData.get('max_participants') as string | null) || null
+  const typeDescription = (formData.get('type_description') as string | null)?.replace(/\s+/g, ' ').trim() || null
 
-  return { title, type, eventDate, startTime, endTime, facilitator, venue, virtualLink, description, maxParticipants }
+  return { title, type, typeDescription, eventDate, startTime, endTime, facilitator, venue, virtualLink, description, maxParticipants }
 }
 
-function validate(fields: ReturnType<typeof readFields>): string | null {
-  const { title, type, eventDate, startTime, endTime, facilitator, venue } = fields
-  if (!title) return 'Event title is required.'
-  if (!type) return 'Event type is required.'
-  if (!eventDate) return 'Event date is required.'
-  if (!startTime) return 'Start time is required.'
-  if (endTime && endTime <= startTime) return 'End time must be after the start time.'
-  if (!facilitator) return 'Primary facilitator is required.'
-  if (!venue) return 'Venue / location is required.'
+function validate(fields: ReturnType<typeof readFields>): { error: string; fieldErrors: Record<string, string> } | null {
+  const { title, type, typeDescription, eventDate, startTime, endTime, facilitator, venue } = fields
+  if (!title) return fieldFail('title', 'Event title is required.')
+  if (!type) return fieldFail('type', 'Event type is required.')
+  if (type === 'other' && !typeDescription) return fieldFail('type_description', 'Describe the event type.')
+  if (typeDescription && typeDescription.length > TYPE_DESCRIPTION_MAX) {
+    return fieldFail('type_description', `Keep the event type description to ${TYPE_DESCRIPTION_MAX} characters or fewer.`)
+  }
+  if (!eventDate) return fieldFail('event_date', 'Event date is required.')
+  if (!startTime) return fieldFail('start_time', 'Start time is required.')
+  if (endTime && endTime <= startTime) return fieldFail('end_time', 'End time must be after the start time.')
+  if (!facilitator) return fieldFail('facilitator', 'Primary facilitator is required.')
+  if (!venue) return fieldFail('venue', 'Venue / location is required.')
   return null
 }
 
@@ -76,8 +87,14 @@ function describeSaveError(error: { code?: string; message?: string }): string {
   if (error.code === '42501' || message.includes('row-level security')) {
     return message.includes('row-level security') ? "You don't have permission to do that for this event or club." : message
   }
-  if (error.code === '23514') return message
+  if (error.code === '23514') return message // e.g. "Describe the event type."
   return 'The event could not be saved. Please try again.'
+}
+
+// The database refusing a missing type description belongs next to that field.
+function saveFailure(error: { code?: string; message?: string }): EventActionState {
+  const message = describeSaveError(error)
+  return /event type/.test(message) ? fieldFail('type_description', message) : { error: message }
 }
 
 function saveArgs(fields: ReturnType<typeof readFields>, allClubs: boolean, clubIds: string[]) {
@@ -87,6 +104,7 @@ function saveArgs(fields: ReturnType<typeof readFields>, allClubs: boolean, club
   return {
     p_title: fields.title,
     p_type: fields.type,
+    p_type_description: fields.type === 'other' ? fields.typeDescription : null,
     p_starts_at: startsAt,
     p_ends_at: endsAt,
     p_venue: fields.venue,
@@ -115,17 +133,17 @@ export async function createEventAction(
 ): Promise<EventActionState> {
   const fields = readFields(formData)
   const validationError = validate(fields)
-  if (validationError) return { error: validationError }
+  if (validationError) return validationError
 
   const supabase = await createClient()
   const caller = await getCaller(supabase)
   const choice = readClubChoice(formData)
   const clubError = checkClubChoice(caller, choice, await activeClubIds(supabase))
-  if (clubError) return { error: clubError }
+  if (clubError) return fieldFail('club_ids', clubError)
 
   const args = saveArgs(fields, choice.allClubs, choice.clubIds)
   const { data: eventId, error } = await supabase.rpc('save_event', { p_event_id: null, ...args })
-  if (error || !eventId) return { error: describeSaveError(error ?? {}) }
+  if (error || !eventId) return saveFailure(error ?? {})
 
   await writeAuditLog({
     actorId: caller.id,
@@ -148,7 +166,7 @@ export async function updateEventAction(
   const eventId = formData.get('event_id') as string
   const fields = readFields(formData)
   const validationError = validate(fields)
-  if (validationError) return { error: validationError }
+  if (validationError) return validationError
 
   const supabase = await createClient()
   const caller = await getCaller(supabase)
@@ -158,11 +176,11 @@ export async function updateEventAction(
 
   const choice = readClubChoice(formData)
   const clubError = checkClubChoice(caller, choice, await activeClubIds(supabase), eventClubIds(event))
-  if (clubError) return { error: clubError }
+  if (clubError) return fieldFail('club_ids', clubError)
 
   const args = saveArgs(fields, choice.allClubs, choice.clubIds)
   const { error } = await supabase.rpc('save_event', { p_event_id: eventId, ...args })
-  if (error) return { error: describeSaveError(error) }
+  if (error) return saveFailure(error)
 
   await writeAuditLog({
     actorId: caller.id,

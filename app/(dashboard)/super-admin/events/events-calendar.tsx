@@ -3,16 +3,17 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
-import { monthGridRange, weekRange, gridDays, dayKey, MONTH_NAMES, WEEKDAY_LABELS } from './date-grid'
+import { monthGridRange, weekRange, gridDays, dayKey, MONTH_NAMES, WEEKDAY_LABELS, CALENDAR_VIEWS, CALENDAR_VIEW_LABEL, quarterOf, quarterStartMonth, type CalendarView } from './date-grid'
 import { formatOrgDate, formatOrgTime, toOrgWallClock } from '@/lib/org-date'
-import { eventTypeStyle, EVENT_TYPE_STYLES, EVENT_TYPE_OPTIONS } from './event-type'
-import { EventDetailPanel } from './event-detail-panel'
+import { eventTypeLabel, eventTypeStyle, EVENT_TYPE_STYLES, EVENT_TYPE_OPTIONS } from './event-type'
+import { EventDetailPanel, type Registrant } from './event-detail-panel'
 import { UpcomingProgrammesSection } from './upcoming-programmes-section'
 
 interface EventItem {
   id: string
   title: string
   type: string
+  type_description?: string | null // "Other" only (sheet row 43)
   starts_at: string
   ends_at: string | null
   venue: string
@@ -30,7 +31,7 @@ interface ClubOption {
 }
 
 interface Props {
-  view: 'month' | 'week' | 'agenda'
+  view: CalendarView
   year: number
   month: number
   day: number
@@ -43,7 +44,7 @@ interface Props {
   totalCount: number
   // can_manage: decided on the server (lib/event-clubs canManageEvent) —
   // shows Edit / Cancel in the detail view.
-  selectedEvent: (EventItem & { can_manage?: boolean }) | null
+  selectedEvent: (EventItem & { can_manage?: boolean; registrants?: Registrant[]; registrantsScope?: 'all' | 'own_club' }) | null
   generatedAt: string
   upcomingProgrammes: EventItem[]
   upcomingProgrammesTotal: number
@@ -100,7 +101,7 @@ export function EventsCalendar({ view, year, month, day, club, type, q, events, 
       const d = new Date(Date.UTC(year, month - 1, day - 7))
       router.push(hrefWith(ymdOverrides(d)))
     } else {
-      const prev = shiftMonth(year, month, -1)
+      const prev = shiftMonth(year, month, -monthsPerStep(view))
       router.push(hrefWith({ year: String(prev.year), month: String(prev.month) }))
     }
   }
@@ -110,7 +111,7 @@ export function EventsCalendar({ view, year, month, day, club, type, q, events, 
       const d = new Date(Date.UTC(year, month - 1, day + 7))
       router.push(hrefWith(ymdOverrides(d)))
     } else {
-      const next = shiftMonth(year, month, 1)
+      const next = shiftMonth(year, month, monthsPerStep(view))
       router.push(hrefWith({ year: String(next.year), month: String(next.month) }))
     }
   }
@@ -209,6 +210,8 @@ export function EventsCalendar({ view, year, month, day, club, type, q, events, 
                   <span className="min-w-[130px] px-1.5 text-center text-[15px] font-bold text-[#0F172A] font-[family-name:var(--font-jakarta)]">
                     {view === 'week'
                       ? weekLabel(year, month, day)
+                      : view === 'year' ? String(year)
+                      : view === 'quarter' ? quarterLabel(year, month)
                       : `${MONTH_NAMES[month - 1]} ${year}`}
                   </span>
                   <button onClick={goNext} aria-label="Next" className="flex h-6 w-6 items-center justify-center rounded-[4px] hover:bg-white">
@@ -219,7 +222,7 @@ export function EventsCalendar({ view, year, month, day, club, type, q, events, 
               {view === 'agenda' && <h2 className="text-[15px] font-bold text-[#0F172A] font-[family-name:var(--font-jakarta)]">All Events</h2>}
 
               <div className="flex h-[34px] items-center gap-1 rounded-lg bg-[#F1F5F9] p-0.5">
-                {(['month', 'week', 'agenda'] as const).map(v => (
+                {CALENDAR_VIEWS.map(v => (
                   <Link
                     key={v}
                     href={hrefWith({ view: v })}
@@ -228,7 +231,7 @@ export function EventsCalendar({ view, year, month, day, club, type, q, events, 
                       view === v ? 'bg-[#022C51] text-white shadow-sm' : 'text-[#475569] hover:text-[#0F172A]'
                     }`}
                   >
-                    {v === 'month' ? 'Month' : v === 'week' ? 'Week' : 'Agenda'}
+                    {CALENDAR_VIEW_LABEL[v]}
                   </Link>
                 ))}
               </div>
@@ -249,6 +252,8 @@ export function EventsCalendar({ view, year, month, day, club, type, q, events, 
           </div>
         </div>
 
+        {view === 'year' && <YearView year={year} events={events} hrefWith={hrefWith} />}
+        {view === 'quarter' && <QuarterView year={year} month={month} events={events} hrefWith={hrefWith} />}
         {view === 'month' && <MonthGrid year={year} month={month} events={events} hrefWith={hrefWith} todayYmd={todayYmd} />}
         {view === 'week' && <WeekGrid year={year} month={month} day={day} events={events} hrefWith={hrefWith} todayYmd={todayYmd} />}
         {view === 'agenda' && <AgendaView events={events} hrefWith={hrefWith} />}
@@ -263,6 +268,98 @@ export function EventsCalendar({ view, year, month, day, club, type, q, events, 
           editHref={selectedEvent.can_manage ? `${basePath}/${selectedEvent.id}/edit` : undefined}
         />
       )}
+    </div>
+  )
+}
+
+// Prev/Next move by one year, one quarter or one month.
+function monthsPerStep(view: CalendarView): number {
+  return view === 'year' ? 12 : view === 'quarter' ? 3 : 1
+}
+
+function quarterLabel(year: number, month: number) {
+  const first = quarterStartMonth(month)
+  return `Q${quarterOf(month)} ${year} (${MONTH_NAMES[first - 1].slice(0, 3)} – ${MONTH_NAMES[first + 1].slice(0, 3)})`
+}
+
+// Events grouped by Sri Lanka month (0–11) of their start.
+function eventsByMonth(events: EventItem[]): Record<number, EventItem[]> {
+  const out: Record<number, EventItem[]> = {}
+  for (const ev of events) {
+    const m = toOrgWallClock(ev.starts_at).getUTCMonth()
+    ;(out[m] ??= []).push(ev)
+  }
+  return out
+}
+
+// Sheet row 45: the whole year, one card per month.
+function YearView({ year, events, hrefWith }: {
+  year: number
+  events: EventItem[]
+  hrefWith: (o: Partial<{ view: string; year: string; month: string; event: string }>) => string
+}) {
+  const byMonth = eventsByMonth(events)
+  return (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {MONTH_NAMES.map((name, m) => {
+        const list = byMonth[m] ?? []
+        return (
+          <section key={name} aria-labelledby={`year-month-${m}`} className="flex flex-col gap-1.5 rounded-lg bg-[#F8FAFC] p-3">
+            <div className="flex items-center justify-between">
+              <h3 id={`year-month-${m}`} className="text-[13px] font-bold text-[#0F172A]">
+                <Link href={hrefWith({ view: 'month', year: String(year), month: String(m + 1) })} scroll={false} className="rounded hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[#265BA2]">
+                  {name}
+                </Link>
+              </h3>
+              <span className="text-[11px] text-[#64748B]">{list.length} {list.length === 1 ? 'event' : 'events'}</span>
+            </div>
+            {list.slice(0, 3).map(ev => <EventPill key={ev.id} event={ev} href={hrefWith({ event: ev.id })} compact />)}
+            {list.length > 3 && (
+              <Link href={hrefWith({ view: 'month', year: String(year), month: String(m + 1) })} scroll={false} className="text-[11px] font-semibold text-[#003495] hover:underline">
+                +{list.length - 3} more in {name}
+              </Link>
+            )}
+          </section>
+        )
+      })}
+    </div>
+  )
+}
+
+// Sheet row 45: three months side by side, every event listed by date.
+function QuarterView({ year, month, events, hrefWith }: {
+  year: number
+  month: number
+  events: EventItem[]
+  hrefWith: (o: Partial<{ view: string; year: string; month: string; event: string }>) => string
+}) {
+  const byMonth = eventsByMonth(events)
+  const first = quarterStartMonth(month) - 1
+  return (
+    <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+      {[first, first + 1, first + 2].map(m => {
+        const list = byMonth[m] ?? []
+        return (
+          <section key={m} aria-labelledby={`quarter-month-${m}`} className="flex flex-col gap-1.5 rounded-lg bg-[#F8FAFC] p-3">
+            <h3 id={`quarter-month-${m}`} className="text-[13px] font-bold text-[#0F172A]">
+              <Link href={hrefWith({ view: 'month', year: String(year), month: String(m + 1) })} scroll={false} className="rounded hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[#265BA2]">
+                {MONTH_NAMES[m]}
+              </Link>
+            </h3>
+            {list.length === 0 && <p className="text-[12px] text-[#64748B]">No events.</p>}
+            <ul className="flex flex-col gap-1.5">
+              {list.map(ev => (
+                <li key={ev.id} className="flex items-center gap-2">
+                  <span className="w-12 flex-shrink-0 text-[11px] font-semibold text-[#475569]">
+                    {formatOrgDate(ev.starts_at, { weekday: 'short', day: 'numeric' })}
+                  </span>
+                  <div className="min-w-0 flex-1"><EventPill event={ev} href={hrefWith({ event: ev.id })} compact /></div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )
+      })}
     </div>
   )
 }
@@ -533,7 +630,7 @@ function AgendaView({
                 </span>
                 <span className="flex-1 truncate text-sm font-medium text-[#0F172A]">{ev.title}</span>
                 <span className={`inline-flex flex-shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${style.badge}`}>
-                  {style.label}
+                  {eventTypeLabel(ev.type, ev.type_description)}
                 </span>
                 <span className="flex-shrink-0 text-sm text-[#64748B]">{ev.club_name}</span>
               </Link>

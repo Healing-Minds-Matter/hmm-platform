@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { EventsCalendar } from './events-calendar'
 import { CERTIFICATION_PROGRAMME_EVENT } from './event-type'
-import { monthGridRange, weekRange } from './date-grid'
+import { parseCalendarView, viewRange } from './date-grid'
 import { fromOrgWallClock, toOrgWallClock } from '@/lib/org-date'
 import { EVENT_CLUBS_EMBED, eventClubsLabel, isEventForClub } from '@/lib/event-clubs'
 
@@ -11,7 +11,7 @@ export default async function EventsPage({
   searchParams: Promise<{ view?: string; year?: string; month?: string; day?: string; club?: string; type?: string; q?: string; event?: string }>
 }) {
   const sp = await searchParams
-  const view: 'month' | 'week' | 'agenda' = sp.view === 'week' ? 'week' : sp.view === 'agenda' ? 'agenda' : 'month'
+  const view = parseCalendarView(sp.view)
   const now = new Date()
   // The calendar works in Sri Lanka dates ("wall-clock" Dates, see lib/org-date.ts).
   const todayWall = toOrgWallClock(now)
@@ -28,7 +28,7 @@ export default async function EventsPage({
   const { data: clubs } = await supabase.from('clubs').select('id, name').order('name')
   const clubNameById = Object.fromEntries((clubs ?? []).map(c => [c.id, c.name]))
 
-  const EVENT_COLUMNS = `id, title, type, starts_at, ends_at, venue, description, max_participants, created_by, facilitator, virtual_link, ${EVENT_CLUBS_EMBED}`
+  const EVENT_COLUMNS = `id, title, type, type_description, starts_at, ends_at, venue, description, max_participants, created_by, facilitator, virtual_link, ${EVENT_CLUBS_EMBED}`
 
   let eventsQuery = supabase
     .from('events')
@@ -36,17 +36,11 @@ export default async function EventsPage({
     .eq('is_cancelled', false)
     .order('starts_at', { ascending: true })
 
-  if (view === 'month') {
-    const { gridStart, gridEnd } = monthGridRange(year, month)
-    const gridEndExclusive = new Date(gridEnd)
-    gridEndExclusive.setUTCDate(gridEndExclusive.getUTCDate() + 1)
-    // Grid days are Sri Lanka days: convert their wall-clock midnights to real moments.
-    eventsQuery = eventsQuery.gte('starts_at', fromOrgWallClock(gridStart).toISOString()).lt('starts_at', fromOrgWallClock(gridEndExclusive).toISOString())
-  } else if (view === 'week') {
-    const { start, end } = weekRange(new Date(Date.UTC(year, month - 1, day)))
-    const endExclusive = new Date(end)
-    endExclusive.setUTCDate(endExclusive.getUTCDate() + 1)
-    eventsQuery = eventsQuery.gte('starts_at', fromOrgWallClock(start).toISOString()).lt('starts_at', fromOrgWallClock(endExclusive).toISOString())
+  // The days the chosen view covers (Year, Quarter, Month, Week); Agenda has no limit.
+  // Grid days are Sri Lanka days: convert their wall-clock midnights to real moments.
+  const range = viewRange(view, year, month, day)
+  if (range) {
+    eventsQuery = eventsQuery.gte('starts_at', fromOrgWallClock(range.start).toISOString()).lt('starts_at', fromOrgWallClock(range.endExclusive).toISOString())
   }
   if (typeFilter) eventsQuery = eventsQuery.eq('type', typeFilter)
   if (q) eventsQuery = eventsQuery.or(`title.ilike.%${q}%,venue.ilike.%${q}%`)
@@ -82,7 +76,11 @@ export default async function EventsPage({
       .eq('id', selectedEventId)
       .maybeSingle()
     // Super Admins may edit and cancel any event.
-    if (data) selectedEvent = { ...data, club_name: eventClubsLabel(data, clubNameById), can_manage: true }
+    if (data) {
+      // Sheet row 66: everyone who registered (Super Admins see all).
+      const { data: registrants } = await supabase.rpc('event_registrants', { p_event_id: data.id })
+      selectedEvent = { ...data, club_name: eventClubsLabel(data, clubNameById), can_manage: true, registrants: registrants ?? [], registrantsScope: 'all' as const }
+    }
   }
 
   return (

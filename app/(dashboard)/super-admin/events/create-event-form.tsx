@@ -1,6 +1,10 @@
 'use client'
 
 import { useActionState, useEffect, useState } from 'react'
+import { FormErrorsProvider, useFormErrors } from '@/hooks/use-form-errors'
+import { FieldError } from '@/components/field-error'
+import { formLevelError } from '@/lib/form-errors'
+import { TypeDescriptionField } from './type-description-field'
 import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { useRouter } from 'next/navigation'
 import { createEventAction } from '@/actions/events'
@@ -34,6 +38,8 @@ export function CreateEventForm({
   const router = useRouter()
   const close = onClose ?? (() => router.push(fallbackPath))
   const [state, formAction, isPending] = useActionState(createEventAction, null)
+  const fe = useFormErrors(state)
+  const { bindForm, onSubmit: checkThen } = fe
   const submit = useSubmitWithoutReset(formAction)
   const [type, setType] = useState(CERTIFICATION_PROGRAMME_EVENT)
 
@@ -63,13 +69,14 @@ export function CreateEventForm({
         </button>
       </div>
 
-      <form onSubmit={submit} className="flex flex-1 flex-col overflow-hidden">
+      <form ref={bindForm} noValidate onSubmit={checkThen(submit)} className="flex flex-1 flex-col overflow-hidden">
+      <FormErrorsProvider value={fe}>
         <input type="hidden" name="type" value={type} />
 
         <div className="flex flex-1 flex-col gap-4 overflow-y-auto bg-[#F8FAFC] p-6">
-          {state?.error && (
+          {formLevelError(state) && (
             <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">
-              {state.error}
+              {formLevelError(state)}
             </div>
           )}
 
@@ -87,6 +94,7 @@ export function CreateEventForm({
                 placeholder="e.g., Gatekeeper Certification — Cohort #5"
                 className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
               />
+              <FieldError name="title" />
             </div>
 
             <div className="flex flex-col gap-2">
@@ -97,6 +105,7 @@ export function CreateEventForm({
                     key={opt.value}
                     type="button"
                     onClick={() => setType(opt.value)}
+                    aria-pressed={type === opt.value}
                     className={`flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition-colors ${
                       type === opt.value ? 'border-[#6586C2] bg-[rgba(0,52,149,0.05)]' : 'border-[#E2E8F0] bg-[rgba(248,250,252,0.5)] hover:bg-slate-50'
                     }`}
@@ -109,6 +118,8 @@ export function CreateEventForm({
                   </button>
                 ))}
               </div>
+              <FieldError name="type" />
+              {type === 'other' && <TypeDescriptionField />}
             </div>
 
             <div className="grid grid-cols-3 gap-4">
@@ -124,6 +135,7 @@ export function CreateEventForm({
                   defaultValue={todayInputValue()}
                   className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                 />
+                <FieldError name="event_date" />
               </div>
               <div>
                 <label htmlFor="start_time" className="mb-1.5 block text-[13px] font-medium tracking-[0.24px] text-[#0F172A]">
@@ -136,6 +148,7 @@ export function CreateEventForm({
                   required
                   className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                 />
+                <FieldError name="start_time" />
               </div>
               <div>
                 <label htmlFor="end_time" className="mb-1.5 block text-[13px] font-medium tracking-[0.24px] text-[#0F172A]">
@@ -147,6 +160,7 @@ export function CreateEventForm({
                   type="time"
                   className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                 />
+                <FieldError name="end_time" />
               </div>
             </div>
 
@@ -163,6 +177,7 @@ export function CreateEventForm({
                 placeholder="e.g., Dr. Elena Vance"
                 className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
               />
+              <FieldError name="facilitator" />
             </div>
 
             <EventClubsField clubs={clubs} ownClub={ownClub} />
@@ -180,6 +195,7 @@ export function CreateEventForm({
                 placeholder="e.g., North Ridge Annex Rm 204"
                 className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
               />
+              <FieldError name="venue" />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -195,6 +211,7 @@ export function CreateEventForm({
                   placeholder="e.g., Zoom #842-109"
                   className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                 />
+                <FieldError name="virtual_link" />
               </div>
               <div>
                 <label htmlFor="max_participants" className="mb-1.5 block text-[13px] font-medium tracking-[0.24px] text-[#0F172A]">
@@ -209,6 +226,7 @@ export function CreateEventForm({
                   placeholder="Optional"
                   className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                 />
+                <FieldError name="max_participants" />
               </div>
             </div>
 
@@ -223,6 +241,7 @@ export function CreateEventForm({
                 placeholder="Evidence-based suicide prevention gatekeeper training covering question, persuade, and refer techniques…"
                 className="w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 py-2.5 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
               />
+              <FieldError name="description" />
             </div>
           </div>
         </div>
@@ -246,6 +265,7 @@ export function CreateEventForm({
             {isPending ? 'Scheduling…' : 'Schedule Event'}
           </button>
         </div>
+      </FormErrorsProvider>
       </form>
     </div>
   )
