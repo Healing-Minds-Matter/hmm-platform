@@ -1839,6 +1839,32 @@ displays shall read the person's current QPR certificate"). Branch
 - Migration `20261109000000_remove_hardcoded_qpr.sql` (user runs it).
 - `lib/no-hardcoded-qpr.test.ts` fails if QPR is named again in web code.
 
+## "HMM Testing" sheet fixes — 2026-11-06/08 (not merged yet)
+
+One branch per section (sections C–G stacked on C, which includes B):
+`fix/login-session-header` (B: rows 5, 8, 55, 58), `fix/lists-navigation-form-errors`
+(C: 16, 19, 32), `feature/resources-fixes` (D: 26, 36, 63), `feature/announcements-fixes`
+(E: 38, 61, 71, 72), `feature/events-fixes` (F: 43, 45, 57, 66), `feature/permissions-fixes`
+(G: 60, 62), `fix/dashboards-certified-tiles` (H: 51, 59, 78). `integration/sheet-fixes-check`
+merges them all (tsc, 299 tests, lint 0 errors, `next build` pass) — merge order B, C, D–G, H.
+Migrations (user runs, in order): 20261110000000 resource categories, …0001 announcement
+targeting/schedule/Champion permissions/realtime, …0002 events type description +
+registrants + Champions read all events, …0003 my_access_list(), …0004 club_certified_people().
+DB rule scripts: `supabase/tests/{resource-categories,announcement-targeting,events-type-registrants,access-list}-rls.mjs`,
+`club-certified-people.mjs` (shared `_rls-helpers.mjs`) — run after the migrations.
+Things worth knowing:
+- Session limits live in `lib/session-policy.ts` (30 min idle, 2 min warning, 12 h max);
+  enforced in the browser (shared across tabs) and in `middleware.ts` (`hmm_last_active`
+  cookie + JWT `amr` sign-in time). Login redirects go to the user's own portal
+  (`loginPathFor`, `hmm_portal` cookie).
+- Field-level form errors: `hooks/use-form-errors.tsx` + `components/field-error.tsx`;
+  actions return `fieldErrors`. React Compiler lint: destructure `{ bindForm, onSubmit }`
+  — never `fe.bindForm` in JSX.
+- `'use server'` files may only export async functions (the build fails otherwise).
+- Champions' `publish_club_announcements` / `delete_announcements` are now enforced
+  (delete is OFF by default, so Champions lose Delete until a Super Admin enables it).
+- `announcement_reaches_me()` now honours the audience (Champions/Gatekeepers only).
+
 ### Not started yet
 - Everything on the Gatekeeper mobile app — BLOCKED until Gatekeeper user
   stories exist, and until the web app's core features are further along.
