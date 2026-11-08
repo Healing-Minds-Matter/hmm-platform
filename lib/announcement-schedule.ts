@@ -51,7 +51,12 @@ export function resolveSchedule(input: ScheduleInput, now: Date = new Date()): S
     const isToday = date === today
     if (isToday && !time) return { ok: false, field: 'publish_time', error: 'The publication date is today, so choose a time later than now.' }
     publishIso = orgDateTimeToIso(date, time || '00:00')
-    const unchanged = !!input.existingPublishIso && new Date(input.existingPublishIso).getTime() === new Date(publishIso).getTime()
+    // The form shows hours and minutes only, so an untouched time comes back
+    // without the stored seconds. Same minute = unchanged: keep the exact
+    // stored value (the database then also sees no change).
+    const minute = (iso: string) => Math.floor(new Date(iso).getTime() / 60000)
+    const unchanged = !!input.existingPublishIso && minute(input.existingPublishIso) === minute(publishIso)
+    if (unchanged) publishIso = input.existingPublishIso!
     if (!unchanged) {
       if (date < today) return { ok: false, field: 'publish_date', error: "The publication date can't be in the past." }
       if (new Date(publishIso).getTime() <= now.getTime()) {

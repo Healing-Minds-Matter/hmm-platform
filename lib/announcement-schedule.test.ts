@@ -38,7 +38,7 @@ describe('publication time (row 71)', () => {
   it('refuses a past date, but keeps an unchanged one on edit', () => {
     expect(resolveSchedule({ ...base, publishDate: '2026-11-01', publishTime: '09:00' }, NOW)).toMatchObject({ ok: false, field: 'publish_date' })
     expect(resolveSchedule({ ...base, publishDate: '2026-11-01', publishTime: '09:00', existingPublishIso: '2026-11-01T03:30:00Z' }, NOW))
-      .toEqual({ ok: true, publishIso: '2026-11-01T03:30:00.000Z', expiryIso: null })
+      .toEqual({ ok: true, publishIso: '2026-11-01T03:30:00Z', expiryIso: null })
   })
 })
 
@@ -57,5 +57,20 @@ describe('expiry (row 72)', () => {
   })
   it('a time without a date is refused', () => {
     expect(resolveSchedule({ ...base, mode: 'now', expiryTime: '10:00' }, NOW)).toMatchObject({ ok: false, field: 'expiry_date' })
+  })
+})
+
+// Found in browser testing: editing a "Publish now" announcement without
+// touching the time was refused, because the form drops the stored seconds.
+describe('editing keeps an untouched publication time', () => {
+  it('same minute as the stored time = unchanged, and the exact stored value is kept', () => {
+    const stored = '2026-11-06T04:25:37.123456+00:00' // 09:55:37 in Sri Lanka, "Publish now"
+    const r = resolveSchedule({ ...base, publishDate: '2026-11-06', publishTime: '09:55', existingPublishIso: stored }, new Date('2026-11-06T06:00:00Z'))
+    expect(r).toEqual({ ok: true, publishIso: stored, expiryIso: null })
+  })
+  it('a different minute in the past is still refused', () => {
+    const stored = '2026-11-06T04:25:37Z'
+    expect(resolveSchedule({ ...base, publishDate: '2026-11-06', publishTime: '09:54', existingPublishIso: stored }, new Date('2026-11-06T06:00:00Z')))
+      .toMatchObject({ ok: false, field: 'publish_time' })
   })
 })
