@@ -109,6 +109,18 @@ export function ResourceRow({
       </div>
 
       <div className="flex flex-shrink-0 flex-col items-center justify-end gap-1.5">
+        {/* Sheet rows 36/63: the whole article, read-only (Edit stays separate). */}
+        {resource.type === 'article' && (
+          <Link
+            href={`${basePath}/${resource.id}`}
+            aria-label={`View ${resource.title}`}
+            className="flex items-center gap-1 rounded-lg bg-[#F1F5F9] px-3 py-1.5 text-[12px] font-semibold tracking-[0.24px] text-[#003495] hover:bg-slate-200 transition-colors"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/icons/eye.svg" alt="" className="h-3 w-3" />
+            View
+          </Link>
+        )}
         {resource.link && (
           <a
             href={resource.link}

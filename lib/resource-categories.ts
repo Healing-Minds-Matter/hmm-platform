@@ -1,36 +1,46 @@
-// The fixed list of resource categories, shown as a drop-down on Create and
-// Edit Resource. A fixed list (rather than free text) keeps the "filter by
-// category" feature clean for Champions (web) and Gatekeepers (mobile) — free
-// text split one category into "Training" / "training" / "Trainings".
+// Resource categories are managed data (sheet row 26): Super Admins create,
+// rename and deactivate them under Resources > Categories. The list lives in
+// public.resource_categories (migration 20261110000000), not in code.
 //
 // Categories describe the topic, not the format: the resource *type*
 // (Video/Article/Document/Other) is chosen separately.
-//
-// To add, rename or remove a category, change this list. Renaming one also
-// needs the existing resources' `category` values updated to match, or
-// they'll show up as an older category (see isAllowedCategory below).
-export const RESOURCE_CATEGORIES = [
-  'Certification Training',
-  'Warning Signs & Risk Awareness',
-  'Crisis Support & Referral',
-  'Guides & Protocols',
-  'Facilitator Kits',
-  'Awareness Programmes',
-  'Self-Care & Wellbeing',
-  'Mental Health Basics',
-  'Club & Programme Admin',
-  'Other',
-] as const
 
-export type ResourceCategory = (typeof RESOURCE_CATEGORIES)[number]
+export type ResourceCategory = { id: string; name: string; is_active: boolean }
 
-export function isResourceCategory(value: string | null | undefined): value is ResourceCategory {
-  return !!value && (RESOURCE_CATEGORIES as readonly string[]).includes(value)
+export const CATEGORY_NAME_MAX = 80
+
+/** The options for a resource's category drop-down: active categories, plus the
+ *  resource's current one if it has since been deactivated (so editing other
+ *  fields doesn't silently drop it). */
+export function categoryOptions(all: ResourceCategory[], currentId?: string | null): ResourceCategory[] {
+  return all.filter(c => c.is_active || c.id === currentId)
 }
 
-// A resource saved before this list existed may still carry an older
-// category (e.g. "Training"). It may keep that value as long as it's left
-// unchanged on edit; any new or changed category must come from the list.
-export function isAllowedCategory(value: string | null, previous: string | null): boolean {
-  return isResourceCategory(value) || (!!value && value === previous)
+/**
+ * Checks a category chosen on Create/Edit Resource. A new or changed choice
+ * must be an active category; an unchanged one may stay even if it has been
+ * deactivated since. The database enforces the same rule.
+ */
+export function checkCategoryChoice(
+  chosenId: string | null,
+  all: ResourceCategory[],
+  previousId: string | null = null,
+): { ok: true } | { ok: false; error: string } {
+  if (!chosenId) return { ok: false, error: 'Choose a category.' }
+  const cat = all.find(c => c.id === chosenId)
+  if (!cat) return { ok: false, error: 'Choose a category from the list.' }
+  if (!cat.is_active && chosenId !== previousId) {
+    return { ok: false, error: `The category "${cat.name}" has been deactivated. Choose an active category.` }
+  }
+  return { ok: true }
+}
+
+/** Validates a category name for create/rename. */
+export function checkCategoryName(raw: string | null | undefined, all: ResourceCategory[], selfId?: string): { ok: true; name: string } | { ok: false; error: string } {
+  const name = (raw ?? '').replace(/\s+/g, ' ').trim()
+  if (!name) return { ok: false, error: 'Category name is required.' }
+  if (name.length > CATEGORY_NAME_MAX) return { ok: false, error: `Category name must be ${CATEGORY_NAME_MAX} characters or fewer.` }
+  const clash = all.find(c => c.id !== selfId && c.name.trim().toLowerCase() === name.toLowerCase())
+  if (clash) return { ok: false, error: `A category called "${clash.name}" already exists.` }
+  return { ok: true, name }
 }
