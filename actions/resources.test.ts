@@ -42,7 +42,7 @@ function articleForm(fields: Record<string, string>) {
   f.set('type', 'article')
   f.set('title', 'How to listen')
   f.set('content_text', 'Full text')
-  f.set('publication_date', '2026-11-06')
+  f.set('publication_date', '2099-01-01') // far future: these tests aren't about dates
   for (const [k, v] of Object.entries(fields)) f.set(k, v)
   return f
 }
@@ -74,13 +74,13 @@ describe('create resource', () => {
 
 describe('edit resource', () => {
   it('lets a resource keep its own deactivated category', async () => {
-    const f = articleForm({ category_id: 'retired', resource_id: 'r1', intent: 'publish' })
+    const f = articleForm({ category_id: 'retired', resource_id: 'r1', intent: 'publish', publication_date: '2026-01-01' }) // unchanged date: not a date test
     expect(await updateResourceAction(null, f)).toEqual({ success: true })
     expect(db.updates[0]).toMatchObject({ category_id: 'retired' })
   })
   it("won't move a resource to a deactivated category", async () => {
     db.existing = { ...db.existing, category_id: 'active' }
-    const f = articleForm({ category_id: 'retired', resource_id: 'r1', intent: 'publish' })
+    const f = articleForm({ category_id: 'retired', resource_id: 'r1', intent: 'publish', publication_date: '2026-01-01' }) // unchanged date: not a date test
     expect((await updateResourceAction(null, f))?.fieldErrors).toEqual({
       category_id: 'The category "Training" has been deactivated. Choose an active category.',
     })
