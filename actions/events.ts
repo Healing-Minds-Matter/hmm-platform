@@ -22,7 +22,7 @@ export type EventActionState = { error?: string; fieldErrors?: Record<string, st
 const fieldFail = (field: string, error: string) => ({ error, fieldErrors: { [field]: error } })
 
 // "Other" needs a short description of the type (sheet row 43).
-export const TYPE_DESCRIPTION_MAX = 120
+const TYPE_DESCRIPTION_MAX = 120
 
 function readFields(formData: FormData) {
   const title        = (formData.get('title') as string | null)?.trim()
