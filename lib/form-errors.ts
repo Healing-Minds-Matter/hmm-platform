@@ -40,7 +40,7 @@ export function validityMessage(field: FieldLike, label: string): string | null 
   const name = label || 'This field'
   if (v.valueMissing) {
     if (field.type === 'checkbox') return `Please tick ${name.toLowerCase()}.`
-    if (field.type === 'radio' || field.type.startsWith('select')) return `Please choose ${name.toLowerCase()}.`
+    if (field.type === 'radio' || field.type.startsWith('select')) return `${name} is required.`
     if (field.type === 'file') return `Please choose a file for ${name.toLowerCase()}.`
     return `${name} is required.`
   }
