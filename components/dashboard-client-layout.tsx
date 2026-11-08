@@ -5,6 +5,9 @@ import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
+import { helpHrefFor } from '@/lib/help/topics'
+import { SUPER_ADMIN_MANUAL } from '@/lib/help/manual-super-admin'
+import { CHAMPION_MANUAL } from '@/lib/help/manual-champion'
 import { useSessionTimeout } from '@/hooks/use-session-timeout'
 import { SessionTimeoutModal } from '@/components/session-timeout-modal'
 import { NotificationBell, type BellNotification } from '@/components/notification-bell'
@@ -307,6 +310,8 @@ export function DashboardClientLayout({
   })
 
   const navItems = profile.role === 'super_admin' ? SUPER_ADMIN_NAV : CHAMPION_NAV
+  const pathname = usePathname()
+  const helpHref = helpHrefFor(profile.role === 'super_admin' ? SUPER_ADMIN_MANUAL : CHAMPION_MANUAL, pathname)
 
   const roleLabel = profile.role === 'super_admin' ? 'Super Admin' : 'Champion'
   const initials  = getInitials(profile.full_name)
@@ -388,9 +393,17 @@ export function DashboardClientLayout({
           {/* Right: help + notifications + divider + name/role/avatar */}
           <div className="flex flex-shrink-0 items-center gap-3">
             <div className="flex items-center gap-1">
-              {/* Sheet row 55: the Help (?) icon is hidden until a help / user
-                  manual page exists — it had nowhere to go. Put it back here,
-                  as a link to that page, once there is one. */}
+              {/* Sheet row 55: Help opens the user manual for this role, at the
+                  section about the current page. */}
+              <Link
+                href={helpHref}
+                aria-label="Help for this page"
+                title="Help"
+                className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#265BA2]"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/icons/help-circle.svg" alt="" width={15} height={15} />
+              </Link>
               <NotificationBell notifications={bell.notifications} unread={bell.unread} />
             </div>
             <div className="h-6 w-px bg-[#E2E8F0]" />
