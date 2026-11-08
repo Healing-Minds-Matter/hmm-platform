@@ -3,18 +3,36 @@
 // plus how many people have no certifications. Super Admins see active
 // Champions and Gatekeepers in active clubs (the people the dashboards
 // count); a Champion sees their club's active Gatekeepers and Champions.
+//
+// A Champion's own access rules only show them themselves and their club's
+// Gatekeepers, not the club's other Champions. So for a Champion's own club the
+// people and their certificates are read on the server, limited to that one
+// club (checked against the signed-in user), and only counts are shown. This
+// keeps the figures the same as club_certified_people() on the mobile app
+// (sheet rows 59/78).
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { loadCertSummary } from '@/lib/cert-summary.server'
-import { certificationFigures, certifiedFigures, certifiedThisMonth } from '@/lib/cert-summary'
+import { byHolder, certificationFigures, certifiedFigures, certifiedThisMonth, CURRENT_CERT_COLUMNS, type CurrentCert } from '@/lib/cert-summary'
 import { todayDateString } from '@/lib/org-date'
 
 export async function CertificationFiguresCard({ scope }: { scope: { kind: 'all' } | { kind: 'club'; clubId: string } }) {
   const supabase = await createClient()
   let people: string[]
+  let clubCerts: Map<string, CurrentCert[]> | null = null
   if (scope.kind === 'club') {
-    const { data } = await supabase.from('profiles').select('id').in('role', ['champion', 'gatekeeper']).eq('club_id', scope.clubId).eq('is_active', true)
+    // Only the signed-in user's own club (or any club for a Super Admin).
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data: me } = user ? await supabase.from('profiles').select('role, club_id').eq('id', user.id).single() : { data: null }
+    if (!me || (me.role !== 'super_admin' && me.club_id !== scope.clubId)) return null
+    const admin = createAdminClient()
+    const { data } = await admin.from('profiles').select('id').in('role', ['champion', 'gatekeeper']).eq('club_id', scope.clubId).eq('is_active', true)
     people = (data ?? []).map(p => p.id)
+    const { data: certRows } = people.length
+      ? await admin.from('certificate_statuses').select(CURRENT_CERT_COLUMNS).eq('is_current', true).is('removed_at', null).in('holder_id', people)
+      : { data: [] }
+    clubCerts = byHolder((certRows as CurrentCert[] | null) ?? [])
   } else {
     const { data: clubs } = await supabase.from('clubs').select('id').eq('is_active', true)
     const clubIds = (clubs ?? []).map(c => c.id)
@@ -23,7 +41,8 @@ export async function CertificationFiguresCard({ scope }: { scope: { kind: 'all'
       : { data: [] }
     people = (data ?? []).map(p => p.id)
   }
-  const summary = await loadCertSummary(supabase)
+  const loaded = await loadCertSummary(supabase)
+  const summary = clubCerts ? { ...loaded, byHolder: clubCerts } : loaded
   const rows = [...summary.byHolder.values()].flat()
   const { perType, withoutCertifications } = certificationFigures(rows, people)
   // Sheet rows 59/78: people with at least one current (valid or expiring soon)
