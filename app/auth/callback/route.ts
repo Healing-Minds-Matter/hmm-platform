@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse, type NextRequest } from 'next/server'
 import { FORGOT_PASSWORD_PATH, LOGIN_PATH, parsePortal } from '@/lib/portals'
+import { safeNextPath } from '@/lib/auth/safe-next'
 import {
   RESET_GRANT_COOKIE,
   RESET_GRANT_MAX_AGE_SECONDS,
@@ -13,7 +14,8 @@ import {
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const code = searchParams.get('code')
-  const next = searchParams.get('next') ?? LOGIN_PATH[parsePortal((await cookies()).get(RESET_PORTAL_COOKIE)?.value)]
+  // Exact allowlist only (Security Finding 9): never redirect off-site.
+  const next = safeNextPath(searchParams.get('next'), LOGIN_PATH[parsePortal((await cookies()).get(RESET_PORTAL_COOKIE)?.value)])
 
   const cookieStore = await cookies()
   // Set by forgotPasswordAction — which portal's Forgot Password page sent

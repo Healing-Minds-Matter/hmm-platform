@@ -4,7 +4,9 @@ import { PORTAL_HINT_COOKIE, loginPathFor } from '@/lib/portals'
 import { LAST_ACTIVE_COOKIE, SESSION_MAX_AGE_MS, sessionEnded, signedInAtFromAccessToken } from '@/lib/session-policy'
 import { fetchAccountStatus, inactiveLoginError, isAllowedIn, type AccountStatus } from '@/lib/auth/account-status'
 
-const PUBLIC_PREFIXES = ['/login', '/champion/login', '/forgot-password', '/champion/forgot-password', '/reset-password', '/auth/']
+// '/.well-known/' (app-link files) and '/mobile/' (the reset-link fallback page)
+// must be reachable signed out — Security Finding 9.
+const PUBLIC_PREFIXES = ['/login', '/champion/login', '/forgot-password', '/champion/forgot-password', '/reset-password', '/auth/', '/.well-known/', '/mobile/']
 
 // Sign-in pages an already-authenticated user gets bounced away from.
 const AUTH_PAGES = ['/login', '/champion/login', '/forgot-password', '/champion/forgot-password']

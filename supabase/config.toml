@@ -160,7 +160,14 @@ site_url = "http://127.0.0.1:3000"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["https://127.0.0.1:3000"]
+# Security Finding 9: exact entries only, no wildcards. Production (dashboard → Auth →
+# URL Configuration) should list the same paths on the live site, plus hmm://reset-password
+# (and https://<HMM domain>/mobile/reset-password once verified links are on).
+additional_redirect_urls = [
+  "http://127.0.0.1:3000/auth/callback?next=/reset-password",
+  "http://127.0.0.1:3000/auth/confirm-email-change",
+  "hmm://reset-password",
+]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.
@@ -231,7 +238,8 @@ max_frequency = "1s"
 # Number of characters used in the email OTP.
 otp_length = 6
 # Number of seconds before the email OTP expires (defaults to 1 hour).
-otp_expiry = 3600
+# Security Finding 9: reset links expire after 15 minutes (set the same in the dashboard).
+otp_expiry = 900
 
 # Use a production-ready SMTP server
 # [auth.email.smtp]
