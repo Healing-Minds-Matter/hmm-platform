@@ -263,15 +263,13 @@ export async function deleteAnnouncementAction(formData: FormData) {
   // Champions need delete_announcements (row 61); the database checks it too.
   if (!(await mayUse(supabase, caller.role, DELETE_PERMISSION))) return
 
-  const { error } = await supabase.from('announcements').delete().eq('id', announcementId)
-  if (error) return
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(announcementId ?? '')) return
 
-  await writeAuditLog({
-    actorId: caller.id,
-    action: 'announcement.deleted',
-    entityType: 'announcement',
-    entityId: announcementId,
-  })
+  // Soft delete (decision 3, after Security Finding 6): the database function
+  // re-checks who may delete it, hides it from everyone, records the real
+  // caller and writes the audit entry.
+  const { error } = await supabase.rpc('soft_delete_announcement', { p_id: announcementId })
+  if (error) return
 
   revalidateAnnouncements()
 }

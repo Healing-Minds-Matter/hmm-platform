@@ -10,6 +10,7 @@ import { checkCategoryChoice, type ResourceCategory } from '@/lib/resource-categ
 import type { FieldErrors } from '@/lib/form-errors'
 import { todayDateString } from '@/lib/org-date'
 import { checkResourceFile } from '@/lib/resource-file-types'
+import { requireRole } from '@/lib/auth/guards.server'
 
 const BUCKET = 'resources'
 // No separate "Other" type (Story 4.1): other file formats are Documents —
@@ -56,17 +57,24 @@ function isExternalUrl(value: string) {
 
 const UPLOADED_PATH_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(\.[A-Za-z0-9]{1,10})?$/
 
+// Resources are managed by Super Admins only (RLS "resources: super_admin all"
+// is the second lock). Checked before anything else — in particular before
+// any file handling with the service-role key.
+async function guardResourceAdmin(message: string) {
+  const guard = await requireRole(['super_admin'], message)
+  if (!guard.ok && guard.reason === 'unauthenticated') redirect(await loginPath())
+  return guard
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 export async function createResourceUploadAction(input: {
   fileName: string
   fileSize: number
   resourceType: string
 }): Promise<{ path: string; token: string } | { error: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Your session has expired. Please sign in again.' }
-
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  if (profile?.role !== 'super_admin') return { error: 'Only Super Admins can upload resources.' }
+  const guard = await requireRole(['super_admin'], 'Only Super Admins can upload resources.')
+  if (!guard.ok) return { error: guard.reason === 'unauthenticated' ? 'Your session has expired. Please sign in again.' : guard.message }
 
   if (!Number.isFinite(input.fileSize) || input.fileSize <= 0) return { error: 'The selected file is empty.' }
   if (input.fileSize > MAX_FILE_SIZE_BYTES) {
@@ -160,6 +168,12 @@ export async function createResourceAction(
   _prev: ResourceActionState,
   formData: FormData
 ): Promise<ResourceActionState> {
+  const guard = await guardResourceAdmin('Only Super Admins can create resources.')
+  if (!guard.ok) return { error: guard.message }
+  const { caller } = guard
+  const supabase = caller.supabase
+  const user = { id: caller.id }
+
   const fields = readCommonFields(formData)
   // The Create New Resource modal (Figma node 54:17908) has no publication-date
   // field — default to today, same as the real moment of creation/publication.
@@ -173,10 +187,6 @@ export async function createResourceAction(
 
   const validationError = validate(fields)
   if (validationError) return fail(validationError.error, validationError.field)
-
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect(await loginPath())
 
   const categoryCheck = checkCategoryChoice(fields.categoryId, await loadCategories(supabase))
   if (!categoryCheck.ok) return fail(categoryCheck.error, 'category_id')
@@ -258,14 +268,33 @@ export async function updateResourceAction(
   _prev: ResourceActionState,
   formData: FormData
 ): Promise<ResourceActionState> {
+  const guard = await guardResourceAdmin('Only Super Admins can edit resources.')
+  if (!guard.ok) return { error: guard.message }
+  const { caller } = guard
+  const supabase = caller.supabase
+  const user = { id: caller.id }
+
   const resourceId = formData.get('resource_id') as string
-  const previousContentUrl = (formData.get('previous_content_url') as string | null) || null
   const fields = readCommonFields(formData)
   const hasFile = !!fields.uploadedPath
   const fail = async (error: string, field?: string): Promise<ResourceActionState> => {
     await discardUpload(fields.uploadedPath)
     return failState(error, field)
   }
+  if (!UUID_RE.test(resourceId ?? '')) return fail('Resource not found.')
+
+  // Stored values are read from the database, not the form: the current file
+  // (Security Finding 6 — the old path used to come from the form, and was
+  // then deleted with the service-role key), the category (so only a
+  // genuinely unchanged older category is let through) and the status/date
+  // (for the publishing rules below).
+  const { data: existing } = await supabase
+    .from('resources')
+    .select('category_id, status, publication_date, content_url')
+    .eq('id', resourceId)
+    .single()
+  if (!existing) return fail('Resource not found.')
+  const previousContentUrl: string | null = existing.content_url ?? null
 
   // The External URL field is intentionally left blank in the edit form when the
   // resource's existing content is a stored file (it only pre-fills for http(s) URLs).
@@ -280,20 +309,6 @@ export async function updateResourceAction(
   ) {
     fields.contentUrl = previousContentUrl
   }
-
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect(await loginPath())
-
-  // Stored values are read from the database, not the form: the category (so
-  // only a genuinely unchanged older category is let through) and the
-  // status/date (for the publishing rules below).
-  const { data: existing } = await supabase
-    .from('resources')
-    .select('category_id, status, publication_date')
-    .eq('id', resourceId)
-    .single()
-  if (!existing) return fail('Resource not found.')
 
   // Draft vs. published comes from the footer button used: a draft has
   // "Save as Draft" (intent=draft) and "Publish" (intent=publish); a
@@ -401,27 +416,26 @@ function resolvePublicationDate(
   return null
 }
 
-export async function deleteResourceAction(formData: FormData) {
-  const resourceId = formData.get('resource_id') as string
-  const contentUrl = (formData.get('content_url') as string | null) || null
+// Security Finding 6: takes only the resource id. The resource is looked up
+// on the server and soft-deleted (deleted_at); its file is kept and is no
+// longer reachable by anyone (storage read rules look the resource up). The
+// database writes the audit entry with the real caller.
+export async function deleteResourceAction(formData: FormData): Promise<{ error?: string } | void> {
+  const guard = await guardResourceAdmin('Only Super Admins can delete resources.')
+  if (!guard.ok) return { error: guard.message }
+  const supabase = guard.caller.supabase
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect(await loginPath())
+  const resourceId = formData.get('resource_id')
+  if (typeof resourceId !== 'string' || !UUID_RE.test(resourceId)) return { error: 'Resource not found.' }
 
-  const { error } = await supabase.from('resources').delete().eq('id', resourceId)
-  if (error) return
+  const { data: resource } = await supabase.from('resources').select('id').eq('id', resourceId).maybeSingle()
+  if (!resource) return { error: 'Resource not found.' }
 
-  if (contentUrl && !isExternalUrl(contentUrl)) {
-    await deleteResourceFile(contentUrl)
-  }
-
-  await writeAuditLog({
-    actorId: user.id,
-    action: 'resource.deleted',
-    entityType: 'resource',
-    entityId: resourceId,
-  })
+  // The database function re-checks the caller (lock 2), sets deleted_at /
+  // deleted_by itself and writes the audit entry.
+  const { data: deleted, error } = await supabase.rpc('soft_delete_resource', { p_id: resourceId })
+  if (error || deleted !== true) return { error: 'The resource could not be deleted. Please try again.' }
 
   revalidatePath('/super-admin/resources')
+  revalidatePath('/champion/resources')
 }

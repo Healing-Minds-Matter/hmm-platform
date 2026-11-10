@@ -1,0 +1,8 @@
+import { appleAppSiteAssociation } from '@/lib/app-links'
+
+// iOS Universal Links (Security Finding 9). 404 until APP_LINK_IOS_APP_IDS is set — see lib/app-links.ts.
+export function GET() {
+  const body = appleAppSiteAssociation()
+  if (!body) return new Response('Not configured', { status: 404 })
+  return Response.json(body, { headers: { 'Cache-Control': 'public, max-age=3600' } })
+}

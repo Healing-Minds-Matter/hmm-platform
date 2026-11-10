@@ -7,7 +7,9 @@ import { deleteResourceAction } from '@/actions/resources'
 // per row) — kept as a third stacked action so delete stays available;
 // dropping real functionality to match a design that simply didn't depict
 // it would be a regression, not a fidelity improvement.
-export function ResourceDeleteButton({ resourceId, contentUrl }: { resourceId: string; contentUrl: string | null }) {
+// Sends only the resource id (Security Finding 6): the server looks the
+// resource up and soft-deletes it; it never takes a file path from the browser.
+export function ResourceDeleteButton({ resourceId }: { resourceId: string }) {
   const [confirm, setConfirm] = useState(false)
   const [isPending, startTransition] = useTransition()
 
@@ -25,11 +27,10 @@ export function ResourceDeleteButton({ resourceId, contentUrl }: { resourceId: s
 
   return (
     <form
-      action={(fd) => startTransition(() => deleteResourceAction(fd))}
+      action={(fd) => startTransition(async () => { await deleteResourceAction(fd) })}
       className="flex items-center gap-1.5 rounded-lg border border-[#FECACA] bg-[#FEF2F2] px-2 py-1"
     >
       <input type="hidden" name="resource_id" value={resourceId} />
-      <input type="hidden" name="content_url" value={contentUrl ?? ''} />
       <span className="text-[11px] text-[#475569]">Sure?</span>
       <button type="submit" disabled={isPending} className="text-[11px] font-semibold text-[#DC2626] disabled:opacity-50">
         {isPending ? '…' : 'Yes'}

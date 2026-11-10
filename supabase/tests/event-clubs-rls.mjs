@@ -10,6 +10,7 @@
 import { createRequire } from 'module'
 import fs from 'fs'
 import crypto from 'crypto'
+import { retireClubs, retireUsers } from './_rls-helpers.mjs'
 const require = createRequire(`${process.cwd()}/package.json`)
 const { createClient } = require('@supabase/supabase-js')
 const env = Object.fromEntries(fs.readFileSync(`${process.cwd()}/.env.local`, 'utf8').split(/\r?\n/).filter(l => /^[A-Z_]+=/.test(l)).map(l => { const i = l.indexOf('='); return [l.slice(0, i), l.slice(i + 1).trim()] }))
@@ -156,14 +157,12 @@ async function cleanup() {
   const { data: evs } = await admin.from('events').select('id').ilike('title', 'ZZ RLS%')
   const evIds = (evs ?? []).map(e => e.id)
   const ids = [...created.users]
-  if (evIds.length) { await admin.from('audit_logs').delete().in('entity_id', evIds); await admin.from('events').delete().in('id', evIds) }
+  if (evIds.length) { await admin.from('events').delete().in('id', evIds) }
   if (ids.length) {
-    await admin.from('audit_logs').delete().in('actor_id', ids)
     await admin.from('password_history').delete().in('user_id', ids)
-    for (const id of ids) await admin.auth.admin.deleteUser(id)
-    await admin.from('profiles').delete().in('id', ids)
+    await retireUsers(ids) // audit log is permanent: referenced users are retired
   }
-  if (created.clubs.length) await admin.from('clubs').delete().in('id', created.clubs)
+  await retireClubs(created.clubs)
   const { count: u } = await admin.from('profiles').select('id', { count: 'exact', head: true }).ilike('email', `${PREFIX}%`)
   const { count: c } = await admin.from('clubs').select('id', { count: 'exact', head: true }).ilike('name', 'ZZ RLS %')
   const { count: e } = await admin.from('events').select('id', { count: 'exact', head: true }).ilike('title', 'ZZ RLS%')

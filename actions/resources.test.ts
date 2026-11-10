@@ -14,11 +14,14 @@ const db = vi.hoisted(() => ({
   updates: [] as Record<string, unknown>[],
 }))
 
+vi.mock('server-only', () => ({}))
 vi.mock('@/lib/supabase/server', () => ({
   createClient: async () => ({
     auth: { getUser: async () => ({ data: { user: { id: 'u1' } } }) },
     from: (table: string) => {
       if (table === 'resource_categories') return { select: async () => ({ data: db.categories }) }
+      // The caller (read by the shared guard): an active Super Admin.
+      if (table === 'profiles') return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { role: 'super_admin', club_id: null, is_active: true } }) }) }) }
       return {
         select: () => ({ eq: () => ({ single: async () => ({ data: db.existing }) }) }),
         insert: (row: Record<string, unknown>) => {
@@ -74,13 +77,13 @@ describe('create resource', () => {
 
 describe('edit resource', () => {
   it('lets a resource keep its own deactivated category', async () => {
-    const f = articleForm({ category_id: 'retired', resource_id: 'r1', intent: 'publish', publication_date: '2026-01-01' }) // unchanged date: not a date test
+    const f = articleForm({ category_id: 'retired', resource_id: '44444444-4444-4444-8444-444444444444', intent: 'publish', publication_date: '2026-01-01' }) // unchanged date: not a date test
     expect(await updateResourceAction(null, f)).toEqual({ success: true })
     expect(db.updates[0]).toMatchObject({ category_id: 'retired' })
   })
   it("won't move a resource to a deactivated category", async () => {
     db.existing = { ...db.existing, category_id: 'active' }
-    const f = articleForm({ category_id: 'retired', resource_id: 'r1', intent: 'publish', publication_date: '2026-01-01' }) // unchanged date: not a date test
+    const f = articleForm({ category_id: 'retired', resource_id: '44444444-4444-4444-8444-444444444444', intent: 'publish', publication_date: '2026-01-01' }) // unchanged date: not a date test
     expect((await updateResourceAction(null, f))?.fieldErrors).toEqual({
       category_id: 'The category "Training" has been deactivated. Choose an active category.',
     })

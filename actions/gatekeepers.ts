@@ -16,6 +16,8 @@ import { gatekeeperCsvHeaderError } from '@/lib/gatekeeper-csv'
 import { todayDateString } from '@/lib/org-date'
 import { TYPE_COLUMNS, type CertificationTypeRow } from '@/lib/certification-types'
 import { describeCertError, validateAward } from '@/lib/certificates'
+import { requireClubScope, requireRole, type Caller } from '@/lib/auth/guards.server'
+import { isEmailAvailable, requestAccountEmailChange } from '@/lib/email-change.server'
 
 export type GatekeeperActionState = {
   error?: string
@@ -29,6 +31,8 @@ export type GatekeeperActionState = {
   tempPassword?: string
   // Set when the Gatekeeper was registered but a certification couldn't be added.
   warning?: string
+  /** Set when a new sign-in email is waiting for the new address to confirm (Security Finding 3). */
+  emailPending?: string
 } | null
 
 type NewGatekeeper = {
@@ -462,16 +466,20 @@ export async function updateGatekeeperAction(
   const preferredLanguage = (formData.get('preferred_language') as string | null) || 'en'
   const clubId   = formData.get('club_id') as string | null
 
+  const target = await guardGatekeeperTarget(gatekeeperId, 'edit')
+  if ('error' in target) return { error: target.error }
+  const { caller } = target
+  const supabase = caller.supabase
+
   if (!fullName) return invalid('full_name', 'Full name is required.')
   if (!email)    return invalid('email', 'Email is required.')
+  if (!EMAIL_RE.test(email)) return invalid('email', 'Enter a valid email address.')
   if (!parsedPhone.ok) return invalid('phone', parsedPhone.error)
   if (!parsedPhone.value) return invalid('phone', 'Phone number is required.')
   const phone = parsedPhone.value
+  if (!['en', 'si', 'ta'].includes(preferredLanguage)) return invalid('preferred_language', 'Select a valid language.')
   if (!clubId)   return invalid('club_id', 'Assigned club is required.')
-
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect(await loginPath())
+  if (!UUID_RE.test(clubId)) return invalid('club_id', 'Select a valid club.')
 
   const { data: current } = await supabase
     .from('profiles')
@@ -482,6 +490,20 @@ export async function updateGatekeeperAction(
   if (!current) return { error: 'Gatekeeper not found.' }
   if (current.version !== knownVersion) return { conflict: true }
 
+  // Moving to another club: a Champion can't (own club only); a Super Admin
+  // only into an active club.
+  if (clubId !== current.club_id) {
+    if (!requireClubScope(caller, clubId).ok) return invalid('club_id', 'You can only assign Gatekeepers to your own club.')
+    const { data: club } = await supabase.from('clubs').select('name, is_active').eq('id', clubId).maybeSingle()
+    if (!club) return invalid('club_id', 'Club not found.')
+    if (!club.is_active) return invalid('club_id', `Club "${club.name}" is currently inactive. Reactivate the club first or assign an active club.`)
+  }
+
+  const emailChanged = email !== current.email.toLowerCase()
+  if (emailChanged && !(await isEmailAvailable(email, gatekeeperId))) {
+    return invalid('email', 'That email is already used by another account.')
+  }
+
   if (phoneChanged(current.phone, phone)) {
     const phoneError = await checkPhoneAvailable(phone, { excludeUserId: gatekeeperId })
     if (phoneError) return invalid('phone', phoneError)
@@ -491,9 +513,10 @@ export async function updateGatekeeperAction(
   // Certifications section (Epic 10), which keeps the older certification dates in step.
   const { data: updated, error: updateError } = await supabase
     .from('profiles')
+    // Email is never written here: a new sign-in email only applies once the
+    // new address confirms (Security Finding 3; see below).
     .update({
       full_name: fullName,
-      email,
       phone,
       preferred_language: preferredLanguage,
       club_id: clubId,
@@ -506,27 +529,61 @@ export async function updateGatekeeperAction(
     // Phone first — a phone clash is also a 23505, and isn't an email problem.
     const phoneDbError = describePhoneDbError(updateError)
     if (phoneDbError) return invalid('phone', phoneDbError)
-    if (updateError.code === '23505') return invalid('email', 'That email is already used by another account.')
     return { error: updateError.message }
   }
   if (!updated || updated.length === 0) return { conflict: true }
 
-  const admin = createAdminClient()
-  if (email !== current.email) {
-    await admin.auth.admin.updateUserById(gatekeeperId, { email })
-  }
-
   await writeAuditLog({
-    actorId: user.id,
+    actorId: caller.id,
     action: 'gatekeeper.updated',
     entityType: 'gatekeeper',
     entityId: gatekeeperId,
-    details: { full_name: fullName, email, club_id: clubId, club_changed: clubId !== current.club_id },
+    details: { full_name: fullName, club_id: clubId, club_changed: clubId !== current.club_id },
   })
 
+  let emailPending: string | undefined
+  if (emailChanged) {
+    const started = await requestAccountEmailChange({
+      userId: gatekeeperId, currentEmail: current.email, newEmail: email, fullName, requestedBy: caller.id,
+    })
+    if ('error' in started) {
+      revalidateGatekeeper(gatekeeperId)
+      return started.field ? invalid('email', started.error) : { error: `Other changes were saved. ${started.error}` }
+    }
+    emailPending = email
+  }
+
+  revalidateGatekeeper(gatekeeperId)
+  return { success: true, emailPending }
+}
+
+function revalidateGatekeeper(gatekeeperId: string) {
   revalidatePath(`/super-admin/gatekeepers/${gatekeeperId}`)
   revalidatePath('/super-admin/gatekeepers')
-  return { success: true }
+  revalidatePath(`/champion/gatekeepers/${gatekeeperId}`)
+  revalidatePath('/champion/gatekeepers')
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+// Shared check for actions on an existing Gatekeeper: an active Super Admin,
+// or an active Champion of that Gatekeeper's club. The Gatekeeper and their
+// club are looked up here, never taken from the form.
+async function guardGatekeeperTarget(gatekeeperId: string, verb: string):
+  Promise<{ caller: Caller; clubId: string | null } | { error: string }> {
+  const guard = await requireRole(['super_admin', 'champion'], `Only Super Admins and Champions can ${verb} Gatekeepers.`)
+  if (!guard.ok) {
+    if (guard.reason === 'unauthenticated') redirect(await loginPath())
+    return { error: guard.message }
+  }
+  if (!UUID_RE.test(gatekeeperId ?? '')) return { error: 'Gatekeeper not found.' }
+  const { data: target } = await guard.caller.supabase
+    .from('profiles').select('role, club_id').eq('id', gatekeeperId).maybeSingle()
+  if (!target || target.role !== 'gatekeeper') return { error: 'Gatekeeper not found.' }
+  const scope = requireClubScope(guard.caller, target.club_id)
+  if (!scope.ok) return { error: scope.message }
+  return { caller: guard.caller, clubId: target.club_id }
 }
 
 export async function deactivateGatekeeperAction(
@@ -535,25 +592,26 @@ export async function deactivateGatekeeperAction(
 ): Promise<GatekeeperActionState> {
   const gatekeeperId = formData.get('gatekeeper_id') as string
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect(await loginPath())
+  const target = await guardGatekeeperTarget(gatekeeperId, 'deactivate')
+  if ('error' in target) return { error: target.error }
+  const { caller } = target
 
-  await supabase
+  const { data: changed, error: updateError } = await caller.supabase
     .from('profiles')
     .update({ is_active: false, deactivation_reason: 'manual' })
     .eq('id', gatekeeperId)
+    .select('id')
+  if (updateError || !changed?.length) return { error: 'The Gatekeeper could not be deactivated. Please try again.' }
 
   await writeAuditLog({
-    actorId: user.id,
+    actorId: caller.id,
     action: 'gatekeeper.deactivated',
     entityType: 'gatekeeper',
     entityId: gatekeeperId,
     details: { deactivation_reason: 'manual' },
   })
 
-  revalidatePath(`/super-admin/gatekeepers/${gatekeeperId}`)
-  revalidatePath('/super-admin/gatekeepers')
+  revalidateGatekeeper(gatekeeperId)
   return { success: true }
 }
 
@@ -564,11 +622,14 @@ export async function reactivateGatekeeperAction(
   const gatekeeperId    = formData.get('gatekeeper_id') as string
   const confirmedClubId = formData.get('club_id') as string | null
 
-  if (!confirmedClubId) return invalid('club_id', 'Club assignment is required.')
+  const target = await guardGatekeeperTarget(gatekeeperId, 'reactivate')
+  if ('error' in target) return { error: target.error }
+  const { caller } = target
+  const supabase = caller.supabase
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect(await loginPath())
+  if (!confirmedClubId) return invalid('club_id', 'Club assignment is required.')
+  if (!UUID_RE.test(confirmedClubId)) return invalid('club_id', 'Select a valid club.')
+  if (!requireClubScope(caller, confirmedClubId).ok) return invalid('club_id', 'You can only assign Gatekeepers to your own club.')
 
   const { data: club } = await supabase
     .from('clubs')
@@ -581,7 +642,7 @@ export async function reactivateGatekeeperAction(
     return invalid('club_id', `Club "${club.name}" is currently inactive. Reactivate the club first or assign an active club.`)
   }
 
-  await supabase
+  const { data: changed, error: updateError } = await supabase
     .from('profiles')
     .update({
       is_active: true,
@@ -590,17 +651,18 @@ export async function reactivateGatekeeperAction(
       club_id: confirmedClubId,
     })
     .eq('id', gatekeeperId)
+    .select('id')
+  if (updateError || !changed?.length) return { error: 'The Gatekeeper could not be reactivated. Please try again.' }
 
   await writeAuditLog({
-    actorId: user.id,
+    actorId: caller.id,
     action: 'gatekeeper.reactivated',
     entityType: 'gatekeeper',
     entityId: gatekeeperId,
     details: { confirmed_club_id: confirmedClubId, club_name: club.name },
   })
 
-  revalidatePath(`/super-admin/gatekeepers/${gatekeeperId}`)
-  revalidatePath('/super-admin/gatekeepers')
+  revalidateGatekeeper(gatekeeperId)
   return { success: true }
 }
 

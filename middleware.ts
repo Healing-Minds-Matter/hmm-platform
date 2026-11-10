@@ -2,8 +2,12 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { PORTAL_HINT_COOKIE, loginPathFor } from '@/lib/portals'
 import { LAST_ACTIVE_COOKIE, SESSION_MAX_AGE_MS, sessionEnded, signedInAtFromAccessToken } from '@/lib/session-policy'
+import { fetchAccountStatus, inactiveLoginError, isAllowedIn, type AccountStatus } from '@/lib/auth/account-status'
 
-const PUBLIC_PREFIXES = ['/login', '/champion/login', '/forgot-password', '/champion/forgot-password', '/reset-password', '/auth/']
+// '/.well-known/' (app-link files) and '/mobile/' (the reset-link fallback page)
+// must be reachable signed out — Security Finding 9. /api/cron/ routes check
+// their own secret (CRON_SECRET) instead of a session.
+const PUBLIC_PREFIXES = ['/login', '/champion/login', '/forgot-password', '/champion/forgot-password', '/reset-password', '/auth/', '/.well-known/', '/mobile/', '/api/cron/']
 
 // Sign-in pages an already-authenticated user gets bounced away from.
 const AUTH_PAGES = ['/login', '/champion/login', '/forgot-password', '/champion/forgot-password']
@@ -86,6 +90,36 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  // Security Finding 2: account status is checked on every request, not only
+  // at login, so a user deactivated mid-session loses access on their next
+  // click (server actions included — they are requests too). Skipped on the
+  // public reset-password / auth-callback pages, which read no data.
+  let profile: AccountStatus | null = null
+  if (user && (!isPublic || AUTH_PAGES.includes(pathname))) {
+    const result = await fetchAccountStatus(supabase)
+    if (result.ok && !isAllowedIn(result.status)) {
+      await supabase.auth.signOut({ scope: 'local' })
+      // Already on a sign-in page, or a server action (can't follow a
+      // redirect): continue signed out — the page shows the login form, the
+      // action's own guard finds no user.
+      if (isPublic || (request.method === 'POST' && request.headers.has('next-action'))) {
+        supabaseResponse.cookies.delete(LAST_ACTIVE_COOKIE)
+        return supabaseResponse
+      }
+      const res = NextResponse.redirect(loginUrl(`?error=${inactiveLoginError(result.status)}`))
+      supabaseResponse.cookies.getAll().forEach(c => res.cookies.set(c))
+      res.cookies.delete(LAST_ACTIVE_COOKIE)
+      return res
+    }
+    // On a database error the request continues; the database rules
+    // (is_active_user) still refuse a deactivated account.
+    if (result.ok) profile = result.status
+    else {
+      const { data } = await supabase.from('profiles').select('role, is_active, deactivation_reason, must_change_password').eq('id', user.id).maybeSingle()
+      profile = (data as AccountStatus | null) ?? null
+    }
+  }
+
   const needsRole =
     user &&
     (AUTH_PAGES.includes(pathname) ||
@@ -93,12 +127,6 @@ export async function middleware(request: NextRequest) {
      pathname === '/set-password')
 
   if (needsRole) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role, must_change_password')
-      .eq('id', user.id)
-      .single()
-
     const destination = profile?.role === 'champion' ? '/champion' : '/super-admin'
     const mustSetPassword = profile?.must_change_password === true
 

@@ -7,6 +7,7 @@ import { updateChampionAction } from '@/actions/champions'
 import { FormErrorsProvider, useFormErrors } from '@/hooks/use-form-errors'
 import { FieldError } from '@/components/field-error'
 import { formLevelError } from '@/lib/form-errors'
+import { EMAIL_CHANGE_HINT, EmailPendingNotice } from '@/components/email-pending-notice'
 
 interface Champion {
   id: string
@@ -36,7 +37,8 @@ export function ChampionEditForm({
   const submit = useSubmitWithoutReset(formAction)
 
   useEffect(() => {
-    if (state?.success) close()
+    // An email change waits for the new address to confirm: keep the form open to say so.
+    if (state?.success && !state.emailPending) close()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state])
 
@@ -75,6 +77,7 @@ export function ChampionEditForm({
               and reapply your changes.
             </div>
           )}
+          {state?.emailPending && <EmailPendingNotice email={state.emailPending} onDone={close} />}
           {formLevelError(state) && (
             <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">
               {formLevelError(state)}
@@ -126,6 +129,7 @@ export function ChampionEditForm({
                   />
                 </div>
                 <FieldError name="email" />
+                <p className="mt-1.5 text-[11px] text-[#94A3B8]">{EMAIL_CHANGE_HINT}</p>
               </div>
               <div>
                 <label htmlFor="phone" className="mb-1.5 block text-[13px] font-medium text-[#0F172A]">

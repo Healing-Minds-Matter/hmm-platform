@@ -8,6 +8,7 @@
 import { createRequire } from 'module'
 import fs from 'fs'
 import crypto from 'crypto'
+import { retireClubs, retireUsers } from './_rls-helpers.mjs'
 const require = createRequire(`${process.cwd()}/package.json`)
 const { createClient } = require('@supabase/supabase-js')
 const env = Object.fromEntries(fs.readFileSync(`${process.cwd()}/.env.local`, 'utf8').split(/\r?\n/).filter(l => /^[A-Z_]+=/.test(l)).map(l => { const i = l.indexOf('='); return [l.slice(0, i), l.slice(i + 1).trim()] }))
@@ -135,10 +136,14 @@ async function main() {
   check('When a Super Admin removes, the club’s Champion is notified', (await notes(chA, 'certificate_removed')).length === 1)
 
   // ── Old QPR form ↔ certificates (Story 10.17 Sc04) ──
-  const up1 = await chA.db.from('profiles').update({ qpr_certification_date: '2025-03-01' }).eq('id', gkA2.id).select('id')
+  // Since Security Finding 3 only a Super Admin (or the certificate sync) may
+  // write the old QPR fields directly; Champions award QPR as a certificate.
+  const chQpr = await chA.db.from('profiles').update({ qpr_certification_date: '2025-03-01' }).eq('id', gkA2.id).select('id')
+  check('Old form: a Champion can no longer write the QPR date directly', !!chQpr.error)
+  const up1 = await sa.db.from('profiles').update({ qpr_certification_date: '2025-03-01' }).eq('id', gkA2.id).select('id')
   const q1 = (await admin.from('certificates').select('id, achieved_on, expires_on, removed_at').eq('holder_id', gkA2.id).eq('type_id', qpr.id)).data
   check('Old form: setting a QPR date creates a QPR certificate', !up1.error && q1?.length === 1 && q1[0].achieved_on === '2025-03-01' && q1[0].expires_on === '2028-03-01', up1.error?.message ?? JSON.stringify(q1))
-  await chA.db.from('profiles').update({ qpr_certification_date: '2025-04-01' }).eq('id', gkA2.id)
+  await sa.db.from('profiles').update({ qpr_certification_date: '2025-04-01' }).eq('id', gkA2.id)
   const q2 = (await admin.from('certificates').select('achieved_on').eq('id', q1[0].id).single()).data
   check('Old form: changing the date corrects that certificate', q2?.achieved_on === '2025-04-01')
   const nq = await chA.db.from('certificates').insert({ holder_id: gkA2.id, type_id: qpr.id, achieved_on: today }).select('id').single()
@@ -147,7 +152,7 @@ async function main() {
   await chA.db.rpc('remove_certificate', { p_id: nq.data.id, p_category: 'Added by mistake', p_reason: 'Testing removal sync.' })
   const p3 = (await admin.from('profiles').select('qpr_certification_date').eq('id', gkA2.id).single()).data
   check('Removing it puts the old fields back to the previous QPR certificate', p3.qpr_certification_date === '2025-04-01')
-  await chA.db.from('profiles').update({ qpr_certification_date: null }).eq('id', gkA2.id)
+  await sa.db.from('profiles').update({ qpr_certification_date: null }).eq('id', gkA2.id)
   const q3 = (await admin.from('certificates').select('removed_at').eq('id', q1[0].id).single()).data
   check('Old form: clearing the date removes that certificate', !!q3?.removed_at)
 
@@ -230,20 +235,13 @@ async function cleanup() {
     await admin.from('certificate_number_counters').delete().in('type_id', created.types)
   }
   if (users.length) {
-    const { data: certs } = await admin.from('certificates').select('id').in('holder_id', users)
-    const certIds = (certs ?? []).map(c => c.id)
-    const { data: selfs } = await admin.from('self_reported_certificates').select('id').in('holder_id', users)
-    const entityIds = [...created.types, ...certIds, ...(selfs ?? []).map(s => s.id), ...users]
-    if (entityIds.length) await admin.from('audit_logs').delete().in('entity_id', entityIds)
-    await admin.from('audit_logs').delete().in('actor_id', users)
     await admin.from('role_delegations').delete().in('delegator_id', users)
     await admin.from('password_history').delete().in('user_id', users)
   }
   if (created.groups.length) await admin.from('permission_groups').delete().in('id', created.groups)
-  if (created.types.length) { await admin.from('audit_logs').delete().in('entity_id', created.types); await admin.from('certification_types').delete().in('id', created.types) }
-  for (const id of users) await admin.auth.admin.deleteUser(id)
-  if (users.length) await admin.from('profiles').delete().in('id', users)        // cascades certificates, self-reported, notifications
-  if (created.clubs.length) await admin.from('clubs').delete().in('id', created.clubs)
+  if (created.types.length) { await admin.from('certification_types').delete().in('id', created.types) }
+  await retireUsers(users) // audit log is permanent: referenced users are retired
+  await retireClubs(created.clubs)
   const { count: u } = await admin.from('profiles').select('id', { count: 'exact', head: true }).ilike('email', `${PREFIX}%`)
   const { count: c } = await admin.from('clubs').select('id', { count: 'exact', head: true }).ilike('name', 'ZZ RLS %')
   const { count: t } = await admin.from('certification_types').select('id', { count: 'exact', head: true }).ilike('name', 'ZZ RLS%')

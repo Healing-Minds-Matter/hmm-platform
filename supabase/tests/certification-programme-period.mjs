@@ -9,6 +9,7 @@
 import { createRequire } from 'module'
 import fs from 'fs'
 import crypto from 'crypto'
+import { retireClubs, retireUsers } from './_rls-helpers.mjs'
 const require = createRequire(`${process.cwd()}/package.json`)
 const { createClient } = require('@supabase/supabase-js')
 const env = Object.fromEntries(fs.readFileSync(`${process.cwd()}/.env.local`, 'utf8').split(/\r?\n/).filter(l => /^[A-Z_]+=/.test(l)).map(l => { const i = l.indexOf('='); return [l.slice(0, i), l.slice(i + 1).trim()] }))
@@ -149,16 +150,11 @@ async function cleanup() {
     await admin.from('certificate_number_counters').delete().in('type_id', created.types)
   }
   if (users.length) {
-    const { data: certs } = await admin.from('certificates').select('id').in('holder_id', users)
-    const entityIds = [...created.types, ...(certs ?? []).map(c => c.id), ...users]
-    await admin.from('audit_logs').delete().in('entity_id', entityIds)
-    await admin.from('audit_logs').delete().in('actor_id', users)
     await admin.from('password_history').delete().in('user_id', users)
   }
-  if (created.types.length) { await admin.from('audit_logs').delete().in('entity_id', created.types); await admin.from('certification_types').delete().in('id', created.types) }
-  for (const id of users) await admin.auth.admin.deleteUser(id)
-  if (users.length) await admin.from('profiles').delete().in('id', users)
-  if (created.clubs.length) await admin.from('clubs').delete().in('id', created.clubs)
+  if (created.types.length) { await admin.from('certification_types').delete().in('id', created.types) }
+  await retireUsers(users) // audit log is permanent: referenced users are retired
+  await retireClubs(created.clubs)
   const { count: u } = await admin.from('profiles').select('id', { count: 'exact', head: true }).ilike('email', `${PREFIX}%`)
   const { count: t } = await admin.from('certification_types').select('id', { count: 'exact', head: true }).ilike('name', 'ZZ PP%')
   const { count: c } = await admin.from('clubs').select('id', { count: 'exact', head: true }).ilike('name', 'ZZ PP %')

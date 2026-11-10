@@ -103,9 +103,12 @@ export async function deleteCategoryAction(_prev: CategoryActionState, formData:
   if ((count ?? 0) > 0) {
     return { error: `This category is used by ${count} resource${count === 1 ? '' : 's'}, so it can't be deleted. Deactivate it instead.` }
   }
-  const { data, error } = await auth.supabase.from('resource_categories').delete().eq('id', id).select('id')
+  // Soft delete (decision 3, after Security Finding 6): the database function
+  // re-checks the permission and the in-use rule, hides the category,
+  // records the real caller and writes the audit entry.
+  const { data: deleted, error } = await auth.supabase.rpc('soft_delete_resource_category', { p_id: id })
   if (error) return { error: error.message }
-  if (!data?.length) return { error: 'Category not found.' }
+  if (deleted !== true) return { error: 'Category not found.' }
   refresh()
   return { success: true }
 }
