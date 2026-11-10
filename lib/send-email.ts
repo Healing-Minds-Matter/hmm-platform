@@ -164,6 +164,42 @@ We'd recommend changing this password after you sign in (Profile > Change Passwo
   })
 }
 
+// Security Finding 3: an email change started by a Super Admin or Champion
+// for someone else only applies once the new address confirms this link.
+export async function sendEmailChangeConfirmation(params: {
+  to: string
+  fullName: string
+  confirmUrl: string
+  expiresInHours: number
+}): Promise<{ error?: string }> {
+  const name = escapeHtml(params.fullName)
+  const html = `<p>Hi ${name},</p>
+<p>Your Healing Minds Matter administrator asked to change the sign-in email of your account to this address.</p>
+<p><a href="${escapeHtml(params.confirmUrl)}">Confirm this email address</a></p>
+<p>The link works once and expires in ${params.expiresInHours} hours. If you weren't expecting this, ignore this email — nothing will change.</p>`
+  const text = `Hi ${params.fullName},
+
+Your Healing Minds Matter administrator asked to change the sign-in email of your account to this address.
+
+Confirm it here: ${params.confirmUrl}
+
+The link works once and expires in ${params.expiresInHours} hours. If you weren't expecting this, ignore this email — nothing will change.`
+  return sendEmail({ to: params.to, subject: 'Confirm your new Healing Minds Matter sign-in email', html, text })
+}
+
+/** Tells the current address that a change was requested, so it can't happen unnoticed. */
+export async function sendEmailChangeNotice(params: { to: string; fullName: string; newEmail: string }): Promise<{ error?: string }> {
+  const html = `<p>Hi ${escapeHtml(params.fullName)},</p>
+<p>A request was made to change the sign-in email of your Healing Minds Matter account to <strong>${escapeHtml(params.newEmail)}</strong>. It will only change once that address confirms.</p>
+<p>If you didn't expect this, contact your Club Champion or administrator. Until then you can keep signing in with this address.</p>`
+  const text = `Hi ${params.fullName},
+
+A request was made to change the sign-in email of your Healing Minds Matter account to ${params.newEmail}. It will only change once that address confirms.
+
+If you didn't expect this, contact your Club Champion or administrator. Until then you can keep signing in with this address.`
+  return sendEmail({ to: params.to, subject: 'Your Healing Minds Matter sign-in email change request', html, text })
+}
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')

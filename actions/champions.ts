@@ -3,7 +3,6 @@
 import { revalidatePath } from 'next/cache'
 import { loginPath } from '@/lib/login-redirect.server'
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { writeAuditLog } from '@/lib/audit'
 import { invalid, type FieldErrors } from '@/lib/form-errors'
@@ -13,7 +12,10 @@ import { parsePhone } from '@/lib/phone'
 import { checkPhoneAvailable, describePhoneDbError, phoneChanged } from '@/lib/phone-uniqueness.server'
 import { requireRole } from '@/lib/auth/guards.server'
 import { parseCreateChampion } from '@/lib/validation/champion'
+import { isEmailAvailable, requestAccountEmailChange } from '@/lib/email-change.server'
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export type ChampionActionState = {
   error?: string
@@ -22,6 +24,8 @@ export type ChampionActionState = {
   conflict?: boolean
   success?: boolean
   soleChampion?: boolean
+  /** Set when a new sign-in email is waiting for the new address to confirm (Security Finding 3). */
+  emailPending?: string
 } | null
 
 const EMAIL_TAKEN = 'An account with this email already exists.'
@@ -135,25 +139,36 @@ export async function updateChampionAction(
   const title        = (formData.get('title')      as string | null)?.trim() || null
   const clubId       = formData.get('club_id')     as string | null
 
+  const guard = await requireRole(['super_admin'], 'Only Super Admins can edit Champion accounts.')
+  if (!guard.ok) {
+    if (guard.reason === 'unauthenticated') redirect(await loginPath())
+    return { error: guard.message }
+  }
+  const { caller } = guard
+  const supabase = caller.supabase
+
+  if (!UUID_RE.test(championId ?? '')) return { error: 'Champion not found.' }
   if (!fullName) return invalid('full_name', 'Full name is required.')
   if (!email)    return invalid('email', 'Email is required.')
+  if (!EMAIL_RE.test(email)) return invalid('email', 'Enter a valid email address.')
   if (!parsedPhone.ok) return invalid('phone', parsedPhone.error)
   const phone = parsedPhone.value
   if (!clubId)   return invalid('club_id', 'Club assignment is required.')
-
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect(await loginPath())
+  if (!UUID_RE.test(clubId)) return invalid('club_id', 'Select a valid club.')
 
   // OCC: fetch current profile to check version and detect changes
   const { data: current } = await supabase
     .from('profiles')
-    .select('version, email, club_id, phone')
+    .select('version, email, club_id, phone, role')
     .eq('id', championId)
     .single()
 
-  if (!current) return { error: 'Champion not found.' }
+  if (!current || current.role !== 'champion') return { error: 'Champion not found.' }
   if (current.version !== knownVersion) return { conflict: true }
+  const emailChanged = email !== current.email.toLowerCase()
+  if (emailChanged && !(await isEmailAvailable(email, championId))) {
+    return invalid('email', 'That email is already used by another account.')
+  }
 
   if (phone && phoneChanged(current.phone, phone)) {
     const phoneError = await checkPhoneAvailable(phone, { excludeUserId: championId })
@@ -162,7 +177,9 @@ export async function updateChampionAction(
 
   const { data: updated, error: updateError } = await supabase
     .from('profiles')
-    .update({ full_name: fullName, email, phone, title, club_id: clubId })
+    // Email is never written here: a new sign-in email only applies once the
+    // new address confirms (Security Finding 3; see below).
+    .update({ full_name: fullName, phone, title, club_id: clubId })
     .eq('id', championId)
     .eq('version', knownVersion)
     .select('id')
@@ -171,34 +188,38 @@ export async function updateChampionAction(
     // Phone first — a phone clash is also a 23505, and isn't an email problem.
     const phoneDbError = describePhoneDbError(updateError)
     if (phoneDbError) return invalid('phone', phoneDbError)
-    if (updateError.code === '23505') return invalid('email', 'That email is already used by another account.')
+    if (updateError.code === '23514') return invalid('club_id', 'This club is inactive. Reactivate the club first or assign an active club.')
     return { error: updateError.message }
   }
   if (!updated || updated.length === 0) return { conflict: true }
 
-  const admin = createAdminClient()
-
-  // Sync email in auth.users if it changed
-  if (email !== current.email) {
-    await admin.auth.admin.updateUserById(championId, { email })
-  }
-
   await writeAuditLog({
-    actorId: user.id,
+    actorId: caller.id,
     action: 'champion.updated',
     entityType: 'champion',
     entityId: championId,
     details: {
       full_name: fullName,
-      email,
       club_id: clubId,
       club_changed: clubId !== current.club_id,
     },
   })
 
+  let emailPending: string | undefined
+  if (emailChanged) {
+    const started = await requestAccountEmailChange({
+      userId: championId, currentEmail: current.email, newEmail: email, fullName, requestedBy: caller.id,
+    })
+    if ('error' in started) {
+      revalidatePath(`/super-admin/champions/${championId}`)
+      return started.field ? invalid('email', started.error) : { error: `Other changes were saved. ${started.error}` }
+    }
+    emailPending = email
+  }
+
   revalidatePath(`/super-admin/champions/${championId}`)
   revalidatePath('/super-admin/champions')
-  return { success: true }
+  return { success: true, emailPending }
 }
 
 export async function deactivateChampionAction(
@@ -207,31 +228,39 @@ export async function deactivateChampionAction(
 ): Promise<ChampionActionState> {
   const championId = formData.get('champion_id') as string
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect(await loginPath())
+  const guard = await requireRole(['super_admin'], 'Only Super Admins can deactivate Champion accounts.')
+  if (!guard.ok) {
+    if (guard.reason === 'unauthenticated') redirect(await loginPath())
+    return { error: guard.message }
+  }
+  const { caller } = guard
+  const supabase = caller.supabase
+  if (!UUID_RE.test(championId ?? '')) return { error: 'Champion not found.' }
 
   // Fetch champion's club to check sole-champion scenario
   const { data: champion } = await supabase
     .from('profiles')
-    .select('club_id')
+    .select('club_id, role')
     .eq('id', championId)
     .single()
+  if (!champion || champion.role !== 'champion') return { error: 'Champion not found.' }
 
-  await supabase
+  const { data: changed, error: updateError } = await supabase
     .from('profiles')
     .update({ is_active: false, deactivation_reason: 'manual' })
     .eq('id', championId)
+    .select('id')
+  if (updateError || !changed?.length) return { error: 'The Champion could not be deactivated. Please try again.' }
 
   await writeAuditLog({
-    actorId: user.id,
+    actorId: caller.id,
     action: 'champion.deactivated',
     entityType: 'champion',
     entityId: championId,
     details: { deactivation_reason: 'manual' },
   })
 
-  await endDelegationsForDeactivatedUser(championId, user.id)
+  await endDelegationsForDeactivatedUser(championId, caller.id)
 
   // Check if this was the sole active champion in the club
   let soleChampion = false
@@ -259,11 +288,19 @@ export async function reactivateChampionAction(
   const championId     = formData.get('champion_id') as string
   const confirmedClubId = formData.get('club_id')    as string | null
 
-  if (!confirmedClubId) return invalid('club_id', 'Club assignment is required.')
+  const guard = await requireRole(['super_admin'], 'Only Super Admins can reactivate Champion accounts.')
+  if (!guard.ok) {
+    if (guard.reason === 'unauthenticated') redirect(await loginPath())
+    return { error: guard.message }
+  }
+  const { caller } = guard
+  const supabase = caller.supabase
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect(await loginPath())
+  if (!confirmedClubId) return invalid('club_id', 'Club assignment is required.')
+  if (!UUID_RE.test(confirmedClubId)) return invalid('club_id', 'Select a valid club.')
+  if (!UUID_RE.test(championId ?? '')) return { error: 'Champion not found.' }
+  const { data: target } = await supabase.from('profiles').select('role').eq('id', championId).single()
+  if (!target || target.role !== 'champion') return { error: 'Champion not found.' }
 
   // Verify the target club is active
   const { data: club } = await supabase
@@ -277,7 +314,7 @@ export async function reactivateChampionAction(
     return invalid('club_id', `Club "${club.name}" is currently inactive. Reactivate the club first or assign an active club.`)
   }
 
-  await supabase
+  const { data: changed, error: updateError } = await supabase
     .from('profiles')
     .update({
       is_active: true,
@@ -286,9 +323,11 @@ export async function reactivateChampionAction(
       club_id: confirmedClubId,
     })
     .eq('id', championId)
+    .select('id')
+  if (updateError || !changed?.length) return { error: 'The Champion could not be reactivated. Please try again.' }
 
   await writeAuditLog({
-    actorId: user.id,
+    actorId: caller.id,
     action: 'champion.reactivated',
     entityType: 'champion',
     entityId: championId,

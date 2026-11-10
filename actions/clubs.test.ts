@@ -12,6 +12,7 @@ const db = vi.hoisted(() => ({
   audit: [] as Record<string, unknown>[],
 }))
 
+vi.mock('server-only', () => ({}))
 vi.mock('@/lib/supabase/server', () => ({
   createClient: async () => ({
     auth: { getUser: async () => ({ data: { user: { id: 'user-1' } } }) },

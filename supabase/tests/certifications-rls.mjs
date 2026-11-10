@@ -135,10 +135,14 @@ async function main() {
   check('When a Super Admin removes, the club’s Champion is notified', (await notes(chA, 'certificate_removed')).length === 1)
 
   // ── Old QPR form ↔ certificates (Story 10.17 Sc04) ──
-  const up1 = await chA.db.from('profiles').update({ qpr_certification_date: '2025-03-01' }).eq('id', gkA2.id).select('id')
+  // Since Security Finding 3 only a Super Admin (or the certificate sync) may
+  // write the old QPR fields directly; Champions award QPR as a certificate.
+  const chQpr = await chA.db.from('profiles').update({ qpr_certification_date: '2025-03-01' }).eq('id', gkA2.id).select('id')
+  check('Old form: a Champion can no longer write the QPR date directly', !!chQpr.error)
+  const up1 = await sa.db.from('profiles').update({ qpr_certification_date: '2025-03-01' }).eq('id', gkA2.id).select('id')
   const q1 = (await admin.from('certificates').select('id, achieved_on, expires_on, removed_at').eq('holder_id', gkA2.id).eq('type_id', qpr.id)).data
   check('Old form: setting a QPR date creates a QPR certificate', !up1.error && q1?.length === 1 && q1[0].achieved_on === '2025-03-01' && q1[0].expires_on === '2028-03-01', up1.error?.message ?? JSON.stringify(q1))
-  await chA.db.from('profiles').update({ qpr_certification_date: '2025-04-01' }).eq('id', gkA2.id)
+  await sa.db.from('profiles').update({ qpr_certification_date: '2025-04-01' }).eq('id', gkA2.id)
   const q2 = (await admin.from('certificates').select('achieved_on').eq('id', q1[0].id).single()).data
   check('Old form: changing the date corrects that certificate', q2?.achieved_on === '2025-04-01')
   const nq = await chA.db.from('certificates').insert({ holder_id: gkA2.id, type_id: qpr.id, achieved_on: today }).select('id').single()
@@ -147,7 +151,7 @@ async function main() {
   await chA.db.rpc('remove_certificate', { p_id: nq.data.id, p_category: 'Added by mistake', p_reason: 'Testing removal sync.' })
   const p3 = (await admin.from('profiles').select('qpr_certification_date').eq('id', gkA2.id).single()).data
   check('Removing it puts the old fields back to the previous QPR certificate', p3.qpr_certification_date === '2025-04-01')
-  await chA.db.from('profiles').update({ qpr_certification_date: null }).eq('id', gkA2.id)
+  await sa.db.from('profiles').update({ qpr_certification_date: null }).eq('id', gkA2.id)
   const q3 = (await admin.from('certificates').select('removed_at').eq('id', q1[0].id).single()).data
   check('Old form: clearing the date removes that certificate', !!q3?.removed_at)
 

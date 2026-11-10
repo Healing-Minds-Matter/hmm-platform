@@ -219,7 +219,8 @@ export async function resetPasswordAction(
   // changePasswordAction does, or they'd still get forced to /set-password
   // after a real reset (and then fail there, since their "temporary" and
   // "new" password would be identical).
-  await supabase.from('profiles').update({ must_change_password: false }).eq('id', user.id)
+  // Server-only since Security Finding 3 (users can't change this flag themselves); runs only after the password update above succeeded.
+  await createAdminClient().from('profiles').update({ must_change_password: false }).eq('id', user.id)
 
   // Sign out the recovery session so the redirect below actually reaches the
   // login page instead of being bounced straight to the dashboard by
@@ -310,11 +311,11 @@ export async function changePasswordAction(
   // for the normal elective "change my password" flow (already false),
   // but this is also the exact same action the forced /set-password screen
   // calls after a Champion/Gatekeeper's temp password verifies correctly,
-  // so this one line is what actually lifts the block. Uses the regular
-  // authenticated client — same as everything else in this action — since
-  // must_change_password is deliberately not one of the columns the
-  // self-update-privileged-fields trigger pins.
-  await supabase.from('profiles').update({ must_change_password: false }).eq('id', user.id)
+  // so this one line is what actually lifts the block. Server-only since
+  // Security Finding 3: users can't change this flag themselves, so it's
+  // cleared with the service-role key, and only after the current password
+  // was verified and the new one saved above.
+  await createAdminClient().from('profiles').update({ must_change_password: false }).eq('id', user.id)
 
   // Scenario 07: keep this session active, but require re-authentication on
   // every other active session/device.

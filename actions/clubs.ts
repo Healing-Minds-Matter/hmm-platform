@@ -5,6 +5,7 @@ import { loginPath } from '@/lib/login-redirect.server'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { writeAuditLog } from '@/lib/audit'
+import { requireRole } from '@/lib/auth/guards.server'
 import { invalid, type FieldErrors } from '@/lib/form-errors'
 import { endDelegationsForDeactivatedUser } from '@/actions/permissions'
 import { readCsvUpload } from '@/lib/csv'
@@ -194,9 +195,11 @@ export async function updateClubAction(
 export async function deactivateClubAction(formData: FormData) {
   const clubId = formData.get('club_id') as string
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect(await loginPath())
+  // Security Finding 3: this changes every member's status, so Super Admins only.
+  const caller = await requireSuperAdminForClubs()
+  if (!caller || !UUID_RE.test(clubId ?? '')) return
+  const supabase = caller.supabase
+  const user = { id: caller.id }
 
   // Collect active members for audit log before deactivating
   const { data: affected } = await supabase
@@ -205,10 +208,12 @@ export async function deactivateClubAction(formData: FormData) {
     .eq('club_id', clubId)
     .eq('is_active', true)
 
-  await supabase
+  const { data: club } = await supabase
     .from('clubs')
     .update({ is_active: false })
     .eq('id', clubId)
+    .select('id')
+  if (!club?.length) return
 
   if (affected && affected.length > 0) {
     await supabase
@@ -243,14 +248,17 @@ export async function deactivateClubAction(formData: FormData) {
 export async function reactivateClubAction(formData: FormData) {
   const clubId = formData.get('club_id') as string
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect(await loginPath())
+  const caller = await requireSuperAdminForClubs()
+  if (!caller || !UUID_RE.test(clubId ?? '')) return
+  const supabase = caller.supabase
+  const user = { id: caller.id }
 
-  await supabase
+  const { data: club } = await supabase
     .from('clubs')
     .update({ is_active: true })
     .eq('id', clubId)
+    .select('id')
+  if (!club?.length) return
 
   // Restore only cascade-deactivated members of this specific club
   const { data: restored } = await supabase
@@ -276,4 +284,15 @@ export async function reactivateClubAction(formData: FormData) {
 
   revalidatePath(`/super-admin/clubs/${clubId}`)
   revalidatePath('/super-admin/clubs')
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+async function requireSuperAdminForClubs() {
+  const guard = await requireRole(['super_admin'])
+  if (!guard.ok) {
+    if (guard.reason === 'unauthenticated') redirect(await loginPath())
+    return null
+  }
+  return guard.caller
 }

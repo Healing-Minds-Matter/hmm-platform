@@ -11,10 +11,15 @@ const db = vi.hoisted(() => ({
   takenPhones: [] as { phone: string }[],
 }))
 
+vi.mock('server-only', () => ({}))
 vi.mock('@/lib/supabase/server', () => ({
   createClient: async () => ({
     auth: { getUser: async () => ({ data: { user: { id: 'user-1' } } }) },
-    from: () => ({ select: () => ({ eq: () => ({ single: async () => ({ data: db.caller }) }) }) }),
+    from: () => ({ select: () => ({ eq: (_column: string, value: string) => ({
+      single: async () => ({ data: db.caller }),
+      // The shared guard reads the caller ('user-1'); the Gatekeeper actions then read the target Gatekeeper.
+      maybeSingle: async () => ({ data: value === 'user-1' ? { ...db.caller, is_active: true } : { role: 'gatekeeper', club_id: null } }),
+    }) }) }),
   }),
 }))
 vi.mock('@/lib/supabase/admin', () => ({
@@ -56,6 +61,7 @@ import { createGatekeeperWithTempPassword } from '@/lib/invite-gatekeeper'
 import { loadPhoneOwners } from '@/lib/phone-uniqueness.server'
 import { RETIRED_CERTIFICATION_DATE_MESSAGE } from '@/lib/gatekeeper-csv'
 
+const GK_ID = '66666666-6666-4666-8666-666666666666'
 const HEADER = 'full_name,email,phone,club_id'
 
 function csvForm(text: string, intent: 'check' | 'save' = 'save') {
@@ -260,11 +266,11 @@ describe('single-Gatekeeper actions: field-level errors', () => {
   })
 
   it('updateGatekeeperAction and reactivateGatekeeperAction tie errors to their field', async () => {
-    expect((await updateGatekeeperAction(null, form({ ...valid, gatekeeper_id: 'g1', version: '1', email: '' })))?.fieldErrors)
+    expect((await updateGatekeeperAction(null, form({ ...valid, gatekeeper_id: GK_ID, version: '1', email: '' })))?.fieldErrors)
       .toEqual({ email: 'Email is required.' })
-    const badPhone = await updateGatekeeperAction(null, form({ ...valid, gatekeeper_id: 'g1', version: '1', phone: '12' }))
+    const badPhone = await updateGatekeeperAction(null, form({ ...valid, gatekeeper_id: GK_ID, version: '1', phone: '12' }))
     expect(Object.keys(badPhone?.fieldErrors ?? {})).toEqual(['phone'])
-    expect((await reactivateGatekeeperAction(null, form({ gatekeeper_id: 'g1', club_id: '' })))?.fieldErrors)
+    expect((await reactivateGatekeeperAction(null, form({ gatekeeper_id: GK_ID, club_id: '' })))?.fieldErrors)
       .toEqual({ club_id: 'Club assignment is required.' })
   })
 })
