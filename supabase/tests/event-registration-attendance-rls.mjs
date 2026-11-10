@@ -21,16 +21,15 @@ await run(async () => {
   const events = []
   onCleanup(async () => {
     await admin.from('event_registrations').delete().in('event_id', events)
-    await admin.from('audit_logs').delete().in('entity_id', events)
     await admin.from('event_clubs').delete().in('event_id', events)
     await admin.from('events').delete().in('id', events)
   })
   // Events are created by the service role here (event creation has its own tests).
-  async function mkEvent(title, { clubs = [], all = false, days = 7, cancelled = false } = {}) {
+  async function mkEvent(title, { clubs = [], all = false, days = 7, cancelled = false, max = null } = {}) {
     const starts = new Date(Date.now() + days * 864e5).toISOString()
     const { data, error } = await admin.from('events').insert({
       title: `ZZ RLS f4 ${title}`, type: 'workshop', starts_at: starts, venue: 'x', club_id: all ? null : clubs[0],
-      created_by: ch.id, is_all_clubs: all, is_cancelled: cancelled,
+      created_by: ch.id, is_all_clubs: all, is_cancelled: cancelled, max_participants: max,
     }).select('id').single()
     if (error) throw error
     events.push(data.id)
@@ -67,6 +66,20 @@ await run(async () => {
   const preRow = await regRow(allClubs, gkB.id)
   check('Gatekeeper: registering with attended=true doesn’t mark attendance', !preRow || preRow.attended === null, preAttended?.message ?? JSON.stringify(preRow))
   check('Champion: can’t register their Gatekeepers for events (no such feature)', !!(await ch.db.from('event_registrations').insert({ event_id: selected, gatekeeper_id: gkB.id })).error || !(await regRow(selected, gkB.id)))
+
+  // ── Capacity (decision after Finding 4): a full event refuses new registrations ──
+  const gk3 = await mkUser('gk3', 'gatekeeper', A)
+  const small = await mkEvent('one place', { clubs: [A], max: 1 })
+  check('capacity: first Gatekeeper takes the only place', !(await reg(gk, small)))
+  const fullErr = await reg(gk3, small)
+  check('capacity: next Gatekeeper is refused with "This event is full"', /full/i.test(fullErr?.message ?? '') && !(await regRow(small, gk3.id)), fullErr?.message)
+  const roomy = await mkEvent('two places', { clubs: [A], max: 2 })
+  const both = await Promise.all([reg(gk, roomy), reg(gk3, roomy)])
+  check('capacity: two people at once both fit when there are two places', both.every(e => !e), JSON.stringify(both.map(e => e?.message)))
+  const tight = await mkEvent('race for one place', { clubs: [A], max: 1 })
+  const race = await Promise.all([reg(gk, tight), reg(gk3, tight)])
+  const { count: taken } = await admin.from('event_registrations').select('id', { count: 'exact', head: true }).eq('event_id', tight)
+  check('capacity: two people racing for the last place → exactly one gets it', taken === 1 && race.filter(e => !e).length === 1, `${taken} registered`)
 
   // ── Attendance ──
   await gk.db.from('event_registrations').update({ attended: true }).eq('event_id', own).eq('gatekeeper_id', gk.id)
