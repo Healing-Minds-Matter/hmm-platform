@@ -19,6 +19,7 @@ import { validatePassword } from '@/lib/password-validation'
 import { isPasswordReused, recordPasswordHash } from '@/lib/password-history.server'
 import { writeAuditLog } from '@/lib/audit'
 import { invalid, type FieldErrors } from '@/lib/form-errors'
+import { fetchAccountStatus, isAllowedIn } from '@/lib/auth/account-status'
 
 // ---------------------------------------------------------------------------
 // Login — Story 1.1
@@ -47,14 +48,17 @@ export async function loginAction(
   // A confirmed self-service email change may not have reached profiles yet.
   await syncProfileEmail(user.id, user.email)
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, is_active, deactivation_reason')
-    .eq('id', user.id)
-    .single()
+  // my_account_status(): a deactivated user can no longer read their own
+  // profile row (Security Finding 2), only this.
+  const account = await fetchAccountStatus(supabase)
+  if (!account.ok) {
+    await supabase.auth.signOut()
+    return { error: 'Sign-in failed. Please try again.' }
+  }
+  const profile = account.status
 
   // Scenario 03: deactivated account
-  if (!profile?.is_active) {
+  if (!profile || !isAllowedIn(profile)) {
     await supabase.auth.signOut()
     if (profile?.deactivation_reason === 'club_deactivated') {
       return { error: 'Your club is currently inactive. Please contact your administrator.' }

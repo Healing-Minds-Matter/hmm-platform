@@ -15,6 +15,8 @@ const env = Object.fromEntries(fs.readFileSync(`${process.cwd()}/.env.local`, 'u
 const URL_ = env.NEXT_PUBLIC_SUPABASE_URL
 
 export const admin = createClient(URL_, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } })
+/** A fresh client holding only the public (anon) key — signed out until you sign in. */
+export const newAnonClient = () => createClient(URL_, env.NEXT_PUBLIC_SUPABASE_ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } })
 
 export function rlsSuite(prefix) {
   let pass = 0, fail = 0
