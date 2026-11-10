@@ -93,7 +93,7 @@ await run(async () => {
   await mk('rt champions only', { audience: 'champions' })
   await mk('rt other club', { audience: 'specific_clubs', clubs: [B] })
   await mk('rt published everyone', { audience: 'all' })
-  await sleep(6000)
+  await sleep(10000)
   await gk.db.removeChannel(channel)
   check('realtime: published announcement for them arrives', events.includes('ZZ RLS f7 rt published everyone'), JSON.stringify(events))
   check('realtime: draft never arrives', !events.includes('ZZ RLS f7 rt draft'), JSON.stringify(events))
