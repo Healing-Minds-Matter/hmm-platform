@@ -47,7 +47,7 @@ vi.mock('@/lib/supabase/server', () => ({
   }),
 }))
 vi.mock('@/lib/audit', () => ({ writeAuditLog: vi.fn(async (entry: Record<string, unknown>) => { db.audit.push(entry) }) }))
-vi.mock('@/actions/permissions', () => ({ endDelegationsForDeactivatedUser: vi.fn() }))
+vi.mock('@/lib/delegations.server', () => ({ endDelegationsForDeactivatedUser: vi.fn() }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 vi.mock('next/navigation', () => ({ redirect: vi.fn(() => { throw new Error('redirect') }) }))
 

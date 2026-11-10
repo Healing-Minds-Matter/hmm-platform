@@ -26,7 +26,7 @@ vi.mock('@/lib/phone-uniqueness.server', () => ({
 }))
 vi.mock('@/lib/invite-gatekeeper', () => ({ createGatekeeperWithTempPassword: vi.fn(), resendGatekeeperWelcomeEmail: vi.fn() }))
 vi.mock('@/lib/create-invited-user', () => ({ createInvitedUser: vi.fn() }))
-vi.mock('@/actions/permissions', () => ({ endDelegationsForDeactivatedUser: vi.fn() }))
+vi.mock('@/lib/delegations.server', () => ({ endDelegationsForDeactivatedUser: vi.fn() }))
 vi.mock('@/lib/login-redirect.server', () => ({ loginPath: async () => '/login' }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 vi.mock('next/navigation', () => ({ redirect: vi.fn(() => { throw new Error('NEXT_REDIRECT') }) }))

@@ -87,9 +87,10 @@ await run(async () => {
   // Signed-out caller can't read anyone's permissions (the old NULL hole).
   const { data: anonPerm, error: anonErr } = await newAnonClient().rpc('effective_permission', { p_user_id: other.id, p_permission: 'view_events' })
   check('not signed in: effective_permission refused', !!anonErr || !anonPerm?.length)
-  const { error: gkOtherErr } = await other.db.rpc('effective_permission', { p_user_id: ch.id, p_permission: 'view_events' })
+  const { error: gkOtherErr } = await other.db.rpc('list_effective_permissions', { p_user_id: ch.id })
   check('active Gatekeeper: still can’t resolve someone else’s permissions', !!gkOtherErr)
-  const { error: gkSelfErr } = await other.db.rpc('effective_permission', { p_user_id: other.id, p_permission: 'view_events' })
+  // effective_permission is server-only since Finding 5; apps use list_effective_permissions.
+  const { error: gkSelfErr } = await other.db.rpc('list_effective_permissions', { p_user_id: other.id })
   check('active Gatekeeper: can still resolve their own permissions', !gkSelfErr, gkSelfErr?.message)
 
   // Reactivation restores access (after signing in again).

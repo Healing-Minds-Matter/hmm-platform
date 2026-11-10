@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/server'
 import { writeAuditLog } from '@/lib/audit'
 import { requireRole } from '@/lib/auth/guards.server'
 import { invalid, type FieldErrors } from '@/lib/form-errors'
-import { endDelegationsForDeactivatedUser } from '@/actions/permissions'
+import { endDelegationsForDeactivatedUser } from '@/lib/delegations.server'
 import { readCsvUpload } from '@/lib/csv'
 import { batchLines, bulkIntent, type BulkUploadState } from '@/lib/bulk-upload'
 import {

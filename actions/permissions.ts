@@ -4,7 +4,6 @@ import { revalidatePath } from 'next/cache'
 import { loginPath } from '@/lib/login-redirect.server'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
 import { writeAuditLog } from '@/lib/audit'
 import { invalid, type FieldErrors } from '@/lib/form-errors'
 import { describeGrantPlan, planExceptionGrant } from '@/lib/exception-grant'
@@ -434,33 +433,4 @@ export async function endDelegationAction(formData: FormData) {
   })
 
   revalidatePath('/super-admin/permissions/delegations')
-}
-
-/**
- * Called from deactivation flows (champions.ts, clubs.ts cascade) so any
- * delegation where the deactivated user is the delegator ends immediately
- * and gets an audit trail — the access itself already vanishes on the next
- * live check via v_active_role_delegations' is_active predicate; this only
- * concerns the recorded end-reason and audit log.
- */
-export async function endDelegationsForDeactivatedUser(delegatorUserId: string, actorId: string) {
-  const admin = createAdminClient()
-
-  const { data: ended } = await admin
-    .from('role_delegations')
-    .update({ ended_early_at: new Date().toISOString(), ended_reason: 'delegator_deactivated' })
-    .eq('delegator_id', delegatorUserId)
-    .is('ended_early_at', null)
-    .gt('ends_at', new Date().toISOString())
-    .select('id, delegate_id')
-
-  if (!ended || ended.length === 0) return
-
-  await writeAuditLog({
-    actorId,
-    action: 'role_delegation.ended_delegator_deactivated',
-    entityType: 'profile',
-    entityId: delegatorUserId,
-    details: { ended_delegation_ids: ended.map(d => d.id), delegate_ids: ended.map(d => d.delegate_id) },
-  })
 }

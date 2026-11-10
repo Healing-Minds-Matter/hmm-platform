@@ -30,7 +30,7 @@ vi.mock('server-only', () => ({}))
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: () => ({}) }))
 vi.mock('@/lib/audit', () => ({ writeAuditLog: vi.fn() }))
 vi.mock('@/lib/create-invited-user', () => ({ createInvitedUser: vi.fn() }))
-vi.mock('@/actions/permissions', () => ({ endDelegationsForDeactivatedUser: vi.fn() }))
+vi.mock('@/lib/delegations.server', () => ({ endDelegationsForDeactivatedUser: vi.fn() }))
 vi.mock('@/lib/phone-uniqueness.server', () => ({
   checkPhoneAvailable: vi.fn(async (phone: string) =>
     phone === '+94771234567' ? 'This phone number is already registered to another user. Each user needs their own phone number.' : null),

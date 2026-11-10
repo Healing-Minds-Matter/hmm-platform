@@ -49,7 +49,7 @@ vi.mock('@/lib/supabase/admin', () => ({
 }))
 vi.mock('@/lib/audit', () => ({ writeAuditLog: vi.fn() }))
 vi.mock('@/lib/create-invited-user', () => ({ createInvitedUser: vi.fn(async () => ({ userId: 'new-champion' })) }))
-vi.mock('@/actions/permissions', () => ({ endDelegationsForDeactivatedUser: vi.fn() }))
+vi.mock('@/lib/delegations.server', () => ({ endDelegationsForDeactivatedUser: vi.fn() }))
 vi.mock('@/lib/phone-uniqueness.server', () => ({
   checkPhoneAvailable: vi.fn(async () => null),
   describePhoneDbError: vi.fn(() => null),
