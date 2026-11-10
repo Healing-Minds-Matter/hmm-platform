@@ -19,7 +19,6 @@ await run(async () => {
   const ids = []
   onCleanup(async () => {
     for (const t of ['announcement_reads', 'announcement_saves', 'announcement_recipients', 'announcement_clubs']) await admin.from(t).delete().in('announcement_id', ids)
-    await admin.from('audit_logs').delete().in('entity_id', ids)
     await admin.from('announcements').delete().in('id', ids)
   })
   const DAY = 864e5, now = Date.now()

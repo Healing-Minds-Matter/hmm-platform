@@ -20,7 +20,6 @@ await run(async () => {
   const paths = [], resources = []
   onCleanup(async () => {
     if (resources.length) {
-      await admin.from('audit_logs').delete().in('entity_id', resources)
       await admin.from('resources').delete().in('id', resources)
     }
     if (paths.length) await admin.storage.from(BUCKET).remove(paths)

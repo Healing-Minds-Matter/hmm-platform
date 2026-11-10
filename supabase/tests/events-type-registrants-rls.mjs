@@ -16,7 +16,6 @@ await run(async () => {
   onCleanup(async () => {
     if (ids.length) {
       await admin.from('event_registrations').delete().in('event_id', ids)
-      await admin.from('audit_logs').delete().in('entity_id', ids)
       await admin.from('events').delete().in('id', ids)
     }
   })

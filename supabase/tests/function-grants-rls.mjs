@@ -7,7 +7,7 @@
 // Needs migration 20261112000004.
 import { admin, newAnonClient, rlsSuite } from './_rls-helpers.mjs'
 
-const { check, mkClub, mkUser, onCleanup, run } = rlsSuite('f5')
+const { check, mkClub, mkUser, run } = rlsSuite('f5')
 
 const Z = '00000000-0000-4000-8000-000000000000'
 // Every client-reachable function, with harmless arguments.
@@ -57,8 +57,6 @@ await run(async () => {
   const gk2 = await mkUser('gk2', 'gatekeeper', A)
   const sa = await mkUser('sa', 'super_admin', null)
   const anon = newAnonClient()
-  const auditIds = []
-  onCleanup(async () => { if (auditIds.length) await admin.from('audit_logs').delete().in('id', auditIds) })
 
   // ── Signed-out: no function at all ──
   for (const [fn, args] of Object.entries(CALLS)) {
@@ -91,13 +89,14 @@ await run(async () => {
     check(`${label}: can't write an audit entry directly`, !!error)
   }
   const { data: entry } = await admin.from('audit_logs').insert({ actor_id: sa.id, action: 'zz.f5.test', entity_type: 'test' }).select('id').single()
-  auditIds.push(entry.id)
   await sa.db.from('audit_logs').update({ action: 'zz.f5.edited' }).eq('id', entry.id)
   await sa.db.from('audit_logs').delete().eq('id', entry.id)
   const { data: still } = await admin.from('audit_logs').select('action').eq('id', entry.id).maybeSingle()
   check('Super Admin: can’t edit or delete audit entries', still?.action === 'zz.f5.test', JSON.stringify(still))
   const { error: svcUpd } = await admin.from('audit_logs').update({ action: 'zz.f5.edited' }).eq('id', entry.id)
   check('server (service role): can’t edit audit entries either', !!svcUpd, 'update allowed')
+  const { error: svcDel } = await admin.from('audit_logs').delete().eq('id', entry.id)
+  check('server (service role): can’t delete audit entries either (decision 6)', !!svcDel, 'delete allowed')
   const { data: saRead } = await sa.db.from('audit_logs').select('id').eq('id', entry.id)
   check('Super Admin: can still read the audit log', (saRead ?? []).length === 1)
 })

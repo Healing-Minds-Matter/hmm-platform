@@ -18,6 +18,28 @@ export const admin = createClient(URL_, env.SUPABASE_SERVICE_ROLE_KEY, { auth: {
 /** A fresh client holding only the public (anon) key — signed out until you sign in. */
 export const newAnonClient = () => createClient(URL_, env.NEXT_PUBLIC_SUPABASE_ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } })
 
+// The audit log is permanent (decision 6), so a throwaway test user it refers
+// to can't be deleted: they're deactivated and blocked from signing in instead.
+export async function retireUsers(ids) {
+  let deleted = 0, retired = 0
+  for (const id of ids) {
+    const { error } = await admin.auth.admin.deleteUser(id)
+    if (!error) { deleted++; continue }
+    await admin.from('profiles').update({ is_active: false, deactivation_reason: 'manual' }).eq('id', id)
+    await admin.auth.admin.updateUserById(id, { ban_duration: '876000h' })
+    retired++
+  }
+  return { deleted, retired }
+}
+
+/** Deletes test clubs; any still referenced by a retired user is deactivated instead. */
+export async function retireClubs(ids) {
+  for (const id of ids) {
+    const { error } = await admin.from('clubs').delete().eq('id', id)
+    if (error) await admin.from('clubs').update({ is_active: false }).eq('id', id)
+  }
+}
+
 export function rlsSuite(prefix) {
   let pass = 0, fail = 0
   const created = { users: [], clubs: [], cleanups: [] }
@@ -55,14 +77,13 @@ export function rlsSuite(prefix) {
   async function cleanup() {
     for (const fn of created.cleanups.reverse()) { try { await fn() } catch (e) { console.log('cleanup step failed:', e.message) } }
     const users = [...created.users]
+    let r = { deleted: 0, retired: 0 }
     if (users.length) {
-      await admin.from('audit_logs').delete().in('actor_id', users)
       await admin.from('password_history').delete().in('user_id', users)
-      for (const id of users) await admin.auth.admin.deleteUser(id)
-      await admin.from('profiles').delete().in('id', users)
+      r = await retireUsers(users)
     }
-    if (created.clubs.length) await admin.from('clubs').delete().in('id', created.clubs)
-    console.log(`cleanup: ${users.length} users, ${created.clubs.length} clubs deleted`)
+    await retireClubs(created.clubs)
+    console.log(`cleanup: ${r.deleted} users deleted, ${r.retired} retired (in the audit log), ${created.clubs.length} clubs`)
   }
 
   async function run(main) {
