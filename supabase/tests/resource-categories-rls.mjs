@@ -15,7 +15,6 @@ await run(async () => {
   onCleanup(async () => {
     if (resIds.length) await admin.from('resources').delete().in('id', resIds)
     if (catIds.length) {
-      await admin.from('audit_logs').delete().in('entity_id', catIds)
       await admin.from('resource_categories').delete().in('id', catIds)
     }
   })
@@ -52,7 +51,7 @@ await run(async () => {
   const { data: after } = await admin.from('resources').select('category').eq('id', res.id).single()
   check('renaming updates linked resources', after?.category === 'ZZ RLS Cat Renamed', after?.category)
 
-  const del = await sa.db.from('resource_categories').delete().eq('id', made.id)
+  const del = await sa.db.rpc('soft_delete_resource_category', { p_id: made.id })
   check('a category in use cannot be deleted', !!del.error, 'delete succeeded')
   check('…with a plain-English message', /can't be deleted\. Deactivate it instead/.test(del.error?.message ?? ''), del.error?.message)
 
@@ -73,8 +72,7 @@ await run(async () => {
     actions.join(', '))
 
   const { data: unused } = await sa.db.from('resource_categories').insert({ name: 'ZZ RLS Unused' }).select('id').single()
-  const delUnused = await sa.db.from('resource_categories').delete().eq('id', unused.id).select('id')
-  check('an unused category can be deleted', !delUnused.error && delUnused.data?.length === 1, delUnused.error?.message)
-  if (delUnused.error) catIds.push(unused.id)
-  else await admin.from('audit_logs').delete().eq('entity_id', unused.id)
+  catIds.push(unused.id)
+  const delUnused = await sa.db.rpc('soft_delete_resource_category', { p_id: unused.id })
+  check('an unused category can be deleted (soft delete)', delUnused.data === true && !delUnused.error, delUnused.error?.message)
 })

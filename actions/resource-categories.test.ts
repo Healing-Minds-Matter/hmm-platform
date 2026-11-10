@@ -14,7 +14,11 @@ const db = vi.hoisted(() => ({
 vi.mock('@/lib/supabase/server', () => ({
   createClient: async () => ({
     auth: { getUser: async () => ({ data: { user: { id: 'u1' } } }) },
-    rpc: async (_fn: string, args: unknown) => { db.rpcArgs.push(args); return { data: db.allowed } },
+    rpc: async (fn: string, args: unknown) => {
+      // Deleting is a soft delete through this database function now.
+      if (fn === 'soft_delete_resource_category') { db.writes.push({ op: 'soft-delete', id: (args as { p_id: string }).p_id }); return { data: true, error: null } }
+      db.rpcArgs.push(args); return { data: db.allowed }
+    },
     from: (table: string) => {
       if (table === 'resources') return { select: () => ({ eq: async () => ({ count: db.inUse }) }) }
       return {
@@ -97,6 +101,6 @@ describe('deactivate and delete', () => {
   })
   it('deletes an unused category', async () => {
     expect(await deleteCategoryAction(null, form({ category_id: 'a' }))).toEqual({ success: true })
-    expect(db.writes[0]).toEqual({ op: 'delete', id: 'a' })
+    expect(db.writes[0]).toEqual({ op: 'soft-delete', id: 'a' })
   })
 })

@@ -25,6 +25,8 @@ vi.mock('@/lib/supabase/server', () => ({
     }),
     rpc: async (fn: string, args: Record<string, unknown>) => {
       if (fn === 'cert_can') return { data: db.allowed[args.p_permission as string] === true }
+      // Deleting is a soft delete through this database function now.
+      if (fn === 'soft_delete_announcement') { db.deleted.push(args.p_id as string); return { data: true, error: null } }
       db.rpcCalls.push(args)
       return { data: db.rpcError ? null : 'ann-new', error: db.rpcError }
     },
@@ -126,12 +128,13 @@ describe('Champion permissions', () => {
 
   it('needs delete_announcements to delete', async () => {
     const f = new FormData()
-    f.set('announcement_id', 'ann-1')
+    const ANN = '77777777-7777-4777-8777-777777777777'
+    f.set('announcement_id', ANN)
     await deleteAnnouncementAction(f)
     expect(db.deleted).toEqual([])
     db.allowed.delete_announcements = true
     await deleteAnnouncementAction(f)
-    expect(db.deleted).toEqual(['ann-1'])
+    expect(db.deleted).toEqual([ANN])
   })
 
   it('may narrow to people in their own club', async () => {

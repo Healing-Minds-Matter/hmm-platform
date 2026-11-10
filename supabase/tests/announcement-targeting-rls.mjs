@@ -20,7 +20,6 @@ await run(async () => {
   const ids = []
   onCleanup(async () => {
     if (ids.length) {
-      await admin.from('audit_logs').delete().in('entity_id', ids)
       await admin.from('announcements').delete().in('id', ids)
     }
     await admin.from('role_overrides').delete().eq('user_id', chA.id)
@@ -83,14 +82,14 @@ await run(async () => {
   // ── Row 61: Champion permissions ──
   const own = await save(chA, {})
   check('Champion posts to own club (publish_club_announcements on by default)', !own.error, own.error?.message)
-  const others = await chA.db.from('announcements').delete().eq('id', whole.data).select('id')
-  check("Champion can't delete someone else's announcement", (others.data ?? []).length === 0)
+  const others = await chA.db.rpc('soft_delete_announcement', { p_id: whole.data })
+  check("Champion can't delete someone else's announcement", others.data !== true)
   await admin.from('role_overrides').insert({ user_id: chA.id, permission: 'delete_announcements', is_enabled: false, updated_by: sa.id })
-  const delDenied = await chA.db.from('announcements').delete().eq('id', own.data).select('id')
-  check('Champion with delete_announcements denied cannot delete their own', (delDenied.data ?? []).length === 0)
+  const delDenied = await chA.db.rpc('soft_delete_announcement', { p_id: own.data })
+  check('Champion with delete_announcements denied cannot delete their own', delDenied.data !== true)
   await admin.from('role_overrides').delete().eq('user_id', chA.id)
-  const delAllowed = await chA.db.from('announcements').delete().eq('id', own.data).select('id')
-  check('Champion deletes their own announcement (on by default)', (delAllowed.data ?? []).length === 1)
+  const delAllowed = await chA.db.rpc('soft_delete_announcement', { p_id: own.data })
+  check('Champion deletes their own announcement (on by default, soft delete)', delAllowed.data === true, delAllowed.error?.message)
   await admin.from('role_overrides').insert({ user_id: chA.id, permission: 'publish_club_announcements', is_enabled: false, updated_by: sa.id })
   const noPublish = await save(chA, {})
   check('Champion without publish_club_announcements is refused', !!noPublish.error, 'saved')
