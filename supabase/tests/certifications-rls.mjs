@@ -30,7 +30,8 @@ async function mkClub(name) {
   created.clubs.push(data.id)
   return data.id
 }
-let phone = 0
+// Random start so a re-run never collides with numbers kept by retired test users.
+let phone = Math.floor(Math.random() * 9000)
 async function mkUser(tag, role, clubId) {
   const email = `${PREFIX}${tag}@example.com`
   const password = 'Zz!' + crypto.randomBytes(9).toString('base64url') + '9a'
@@ -39,7 +40,7 @@ async function mkUser(tag, role, clubId) {
   created.users.push(data.user.id)
   const { error: pErr } = await admin.from('profiles').insert({
     id: data.user.id, full_name: `ZZ RLS ${tag}`, email, role, club_id: clubId, is_active: true,
-    must_change_password: false, phone: `+9477929${String(phone++).padStart(4, '0')}`,
+    must_change_password: false, phone: `+9477929${String(phone++ % 10000).padStart(4, '0')}`,
   })
   if (pErr) throw pErr
   const client = createClient(URL_, env.NEXT_PUBLIC_SUPABASE_ANON_KEY, { auth: { persistSession: false } })

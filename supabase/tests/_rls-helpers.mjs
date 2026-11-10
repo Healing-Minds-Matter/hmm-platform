@@ -19,24 +19,27 @@ export const admin = createClient(URL_, env.SUPABASE_SERVICE_ROLE_KEY, { auth: {
 export const newAnonClient = () => createClient(URL_, env.NEXT_PUBLIC_SUPABASE_ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } })
 
 // The audit log is permanent (decision 6), so a throwaway test user it refers
-// to can't be deleted: they're deactivated and blocked from signing in instead.
+// to can't be deleted: they're deactivated and blocked from signing in instead,
+// and given a unique "retired" email so scripts with fixed test emails can run
+// again. (Phones stay: Gatekeepers must have one, so scripts pick random numbers.)
 export async function retireUsers(ids) {
   let deleted = 0, retired = 0
   for (const id of ids) {
     const { error } = await admin.auth.admin.deleteUser(id)
     if (!error) { deleted++; continue }
-    await admin.from('profiles').update({ is_active: false, deactivation_reason: 'manual' }).eq('id', id)
-    await admin.auth.admin.updateUserById(id, { ban_duration: '876000h' })
+    const email = `zz-retired-${id}@example.com`
+    await admin.from('profiles').update({ is_active: false, deactivation_reason: 'manual', email }).eq('id', id)
+    await admin.auth.admin.updateUserById(id, { ban_duration: '876000h', email, email_confirm: true })
     retired++
   }
   return { deleted, retired }
 }
 
-/** Deletes test clubs; any still referenced by a retired user is deactivated instead. */
+/** Deletes test clubs; any still referenced by a retired user is deactivated and renamed instead. */
 export async function retireClubs(ids) {
   for (const id of ids) {
     const { error } = await admin.from('clubs').delete().eq('id', id)
-    if (error) await admin.from('clubs').update({ is_active: false }).eq('id', id)
+    if (error) await admin.from('clubs').update({ is_active: false, name: `ZZ RLS retired ${id}`, club_code: `ZZR-${id}` }).eq('id', id)
   }
 }
 
