@@ -11,6 +11,9 @@ import { endDelegationsForDeactivatedUser } from '@/actions/permissions'
 import { createInvitedUser } from '@/lib/create-invited-user'
 import { parsePhone } from '@/lib/phone'
 import { checkPhoneAvailable, describePhoneDbError, phoneChanged } from '@/lib/phone-uniqueness.server'
+import { requireRole } from '@/lib/auth/guards.server'
+import { parseCreateChampion } from '@/lib/validation/champion'
+
 
 export type ChampionActionState = {
   error?: string
@@ -27,21 +30,34 @@ export async function createChampionAction(
   _prev: ChampionActionState,
   formData: FormData
 ): Promise<ChampionActionState> {
-  const fullName = (formData.get('full_name') as string | null)?.trim()
-  const email    = (formData.get('email')     as string | null)?.trim().toLowerCase()
-  const parsedPhone = parsePhone(formData.get('phone') as string | null)
-  const title    = (formData.get('title')     as string | null)?.trim() || null
-  const clubId   = formData.get('club_id')    as string | null
+  // Lock 1 (server): only an active Super Admin. Lock 2 is the database's
+  // "profiles: super_admin insert" policy — the profile is written below with
+  // the caller's own client, so that policy applies too.
+  const guard = await requireRole(['super_admin'], 'Only Super Admins can create Champion accounts.')
+  if (!guard.ok) {
+    if (guard.reason === 'unauthenticated') redirect(await loginPath())
+    return { error: guard.message }
+  }
+  const { caller } = guard
+  const supabase = caller.supabase
 
-  if (!fullName) return invalid('full_name', 'Full name is required.')
-  if (!email)    return invalid('email', 'Email is required.')
+  const parsed = parseCreateChampion(formData)
+  if (!parsed.ok) return invalid(parsed.field, parsed.error)
+  const { full_name: fullName, email, title, club_id: clubId } = parsed.value
+  const parsedPhone = parsePhone(formData.get('phone') as string | null)
   if (!parsedPhone.ok) return invalid('phone', parsedPhone.error)
   const phone = parsedPhone.value // optional for Champions
-  if (!clubId)   return invalid('club_id', 'Club assignment is required.')
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect(await loginPath())
+  // The club must exist and be active — looked up here, never trusted from the form.
+  const { data: club } = await supabase
+    .from('clubs')
+    .select('id, name, is_active')
+    .eq('id', clubId)
+    .maybeSingle()
+  if (!club) return invalid('club_id', 'Club not found.')
+  if (!club.is_active) {
+    return invalid('club_id', `Club "${club.name}" is currently inactive. Reactivate the club first or assign an active club.`)
+  }
 
   // Check for duplicate email in profiles
   const { data: existing } = await supabase
@@ -59,11 +75,10 @@ export async function createChampionAction(
     if (phoneError) return invalid('phone', phoneError)
   }
 
-  const admin = createAdminClient()
-
   // Creates the auth user with a system-generated temporary password and
   // emails it directly (Supabase's own invite email can't embed a
-  // password) — see lib/create-invited-user.ts.
+  // password) — see lib/create-invited-user.ts. Uses the service-role key,
+  // which is why it only runs after the guard above has passed.
   const invited = await createInvitedUser({ email, fullName, roleLabel: 'Champion' })
   if ('error' in invited) {
     return invited.error === EMAIL_TAKEN ? invalid('email', invited.error) : { error: invited.error }
@@ -71,7 +86,10 @@ export async function createChampionAction(
 
   const newUserId = invited.userId
 
-  const { error: profileError } = await admin.from('profiles').insert({
+  // Written with the caller's own client (not the service-role key), so the
+  // database checks the caller is a Super Admin as well, and the club
+  // trigger refuses an inactive club.
+  const { error: profileError } = await supabase.from('profiles').insert({
     id: newUserId,
     full_name: fullName,
     email,
@@ -85,13 +103,16 @@ export async function createChampionAction(
 
   if (profileError) {
     // Roll back auth user if profile insert fails
-    await admin.auth.admin.deleteUser(newUserId)
+    await createAdminClient().auth.admin.deleteUser(newUserId)
     const phoneDbError = describePhoneDbError(profileError)
-    return phoneDbError ? invalid('phone', phoneDbError) : { error: profileError.message }
+    if (phoneDbError) return invalid('phone', phoneDbError)
+    if (profileError.code === '42501') return { error: 'Only Super Admins can create Champion accounts.' }
+    if (profileError.code === '23514') return invalid('club_id', 'This club is inactive. Reactivate the club first or assign an active club.')
+    return { error: profileError.message }
   }
 
   await writeAuditLog({
-    actorId: user.id,
+    actorId: caller.id,
     action: 'champion.created',
     entityType: 'champion',
     entityId: newUserId,

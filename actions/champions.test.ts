@@ -13,14 +13,20 @@ vi.mock('@/lib/supabase/server', () => ({
     auth: { getUser: async () => ({ data: { user: { id: 'user-1' } } }) },
     from: (table: string) => ({
       select: () => ({
-        eq: (_column: string, value: string) => ({
-          maybeSingle: async () => ({ data: db.takenEmails.has(value) ? { id: 'existing' } : null }),
+        eq: (column: string, value: string) => ({
+          maybeSingle: async () => {
+            // The caller's own profile (read by the shared guard): an active Super Admin.
+            if (table === 'profiles' && column === 'id' && value === 'user-1') return { data: { role: 'super_admin', club_id: null, is_active: true } }
+            if (table === 'clubs') return { data: db.clubs.get(value) ?? null }
+            return { data: db.takenEmails.has(value) ? { id: 'existing' } : null }
+          },
           single: async () => ({ data: table === 'clubs' ? db.clubs.get(value) ?? null : null }),
         }),
       }),
     }),
   }),
 }))
+vi.mock('server-only', () => ({}))
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: () => ({}) }))
 vi.mock('@/lib/audit', () => ({ writeAuditLog: vi.fn() }))
 vi.mock('@/lib/create-invited-user', () => ({ createInvitedUser: vi.fn() }))
@@ -43,13 +49,15 @@ function form(fields: Record<string, string>) {
   return f
 }
 
-const valid = { full_name: 'Maya Lin', email: 'maya@example.com', phone: '', club_id: 'club-1' }
+const CLUB_1 = '11111111-1111-4111-8111-111111111111'
+const CLUB_OFF = '33333333-3333-4333-8333-333333333333'
+const valid = { full_name: 'Maya Lin', email: 'maya@example.com', phone: '', club_id: CLUB_1 }
 
 beforeEach(() => {
   db.takenEmails = new Set(['asha@example.com'])
   db.clubs = new Map([
-    ['club-1', { name: 'Rotaract Club of Colombo', is_active: true }],
-    ['club-off', { name: 'Rotaract Club of Kandy', is_active: false }],
+    [CLUB_1, { name: 'Rotaract Club of Colombo', is_active: true }],
+    [CLUB_OFF, { name: 'Rotaract Club of Kandy', is_active: false }],
   ])
   vi.mocked(createInvitedUser).mockClear()
 })
@@ -79,7 +87,7 @@ describe('reactivateChampionAction: field-level errors', () => {
   it('ties club errors to the club picker', async () => {
     expect((await reactivateChampionAction(null, form({ champion_id: 'c1', club_id: '' })))?.fieldErrors)
       .toEqual({ club_id: 'Club assignment is required.' })
-    expect((await reactivateChampionAction(null, form({ champion_id: 'c1', club_id: 'club-off' })))?.fieldErrors)
+    expect((await reactivateChampionAction(null, form({ champion_id: 'c1', club_id: CLUB_OFF })))?.fieldErrors)
       .toEqual({ club_id: 'Club "Rotaract Club of Kandy" is currently inactive. Reactivate the club first or assign an active club.' })
   })
 })
