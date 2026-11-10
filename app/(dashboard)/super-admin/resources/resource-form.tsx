@@ -112,7 +112,6 @@ export function EditResourceForm({ resource, categories, onClose }: { resource: 
       <form ref={el => { formRef.current = el; bindForm(el) }} noValidate onSubmit={e => checkThen(handleSubmit)(e)} className="flex flex-1 flex-col overflow-hidden">
       <FormErrorsProvider value={fe}>
         <input type="hidden" name="resource_id" value={resource.id} />
-        <input type="hidden" name="previous_content_url" value={resource.content_url ?? ''} />
 
         <div className="flex flex-1 flex-col gap-5 overflow-y-auto bg-[#F8FAFC] p-6">
           {errorMessage && (

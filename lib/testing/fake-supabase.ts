@@ -4,10 +4,16 @@
 // (supabase/tests/*.mjs); these tests check the server-side lock.
 
 type Row = Record<string, unknown>
-export type FakeDb = { tables: Record<string, Row[]>; writes: { client: string; table: string; op: string; values: Row; filters: [string, string, unknown][] }[] }
+type RpcHandler = (args: Row, ctx: { db: FakeDb; client: string; userId: string | null }) => { data: unknown; error: { message: string; code?: string } | null }
+export type FakeDb = {
+  tables: Record<string, Row[]>
+  writes: { client: string; table: string; op: string; values: Row; filters: [string, string, unknown][] }[]
+  /** Stand-ins for database functions called with .rpc(). */
+  rpcs: Record<string, RpcHandler>
+}
 
-export function createFakeDb(tables: Record<string, Row[]> = {}): FakeDb {
-  return { tables, writes: [] }
+export function createFakeDb(tables: Record<string, Row[]> = {}, rpcs: Record<string, RpcHandler> = {}): FakeDb {
+  return { tables, writes: [], rpcs }
 }
 
 export function fakeClient(db: FakeDb, client: string, userId: string | null = null) {
@@ -16,6 +22,7 @@ export function fakeClient(db: FakeDb, client: string, userId: string | null = n
     let op: 'select' | 'update' | 'insert' | 'delete' = 'select'
     let values: Row = {}
     let returning = false
+    let wantCount = false
     let limit = Infinity
     const rows = () => (db.tables[table] ??= [])
     const matches = (r: Row) => filters.every(([kind, c, v]) =>
@@ -34,7 +41,7 @@ export function fakeClient(db: FakeDb, client: string, userId: string | null = n
       if (op === 'update') {
         hit.forEach(r => Object.assign(r, values))
         db.writes.push({ client, table, op, values, filters: [...filters] })
-        return { data: returning ? hit.map(r => ({ ...r })) : null, error: null }
+        return { data: returning ? hit.map(r => ({ ...r })) : null, error: null, count: wantCount ? hit.length : null }
       }
       if (op === 'delete') {
         db.tables[table] = rows().filter(r => !hit.includes(r))
@@ -46,7 +53,7 @@ export function fakeClient(db: FakeDb, client: string, userId: string | null = n
 
     const b = {
       select: () => { if (op !== 'select') returning = true; return b },
-      update: (v: Row) => { op = 'update'; values = v; return b },
+      update: (v: Row, o?: { count?: string }) => { op = 'update'; values = v; wantCount = !!o?.count; return b },
       insert: (v: Row) => { op = 'insert'; values = v; return b },
       delete: () => { op = 'delete'; return b },
       eq: (c: string, v: unknown) => { filters.push(['eq', c, v]); return b },
@@ -63,6 +70,20 @@ export function fakeClient(db: FakeDb, client: string, userId: string | null = n
   }
   return {
     from,
+    rpc: async (name: string, args: Row = {}) => {
+      db.writes.push({ client, table: `rpc:${name}`, op: 'call', values: args, filters: [] })
+      const handler = db.rpcs[name]
+      return handler ? handler(args, { db, client, userId }) : { data: null, error: { message: `no fake for ${name}` } }
+    },
+    // Storage stub: every removal is recorded so tests can see which files were deleted.
+    storage: {
+      from: (bucket: string) => ({
+        remove: async (paths: string[]) => { db.writes.push({ client, table: `storage:${bucket}`, op: 'delete', values: { paths }, filters: [] }); return { data: [], error: null } },
+        info: async () => ({ data: { size: 10 }, error: null }),
+        createSignedUrl: async () => ({ data: { signedUrl: 'https://signed' }, error: null }),
+        createSignedUploadUrl: async (path: string) => ({ data: { path, token: 't' }, error: null }),
+      }),
+    },
     auth: {
       getUser: async () => ({ data: { user: userId ? { id: userId } : null } }),
       admin: {

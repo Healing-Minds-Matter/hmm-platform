@@ -143,7 +143,7 @@ export function ResourceRow({
               <img src="/icons/pencil.svg" alt="" className="h-3 w-3" />
               Edit
             </Link>
-            <ResourceDeleteButton resourceId={resource.id} contentUrl={resource.content_url} />
+            <ResourceDeleteButton resourceId={resource.id} />
           </>
         )}
       </div>
