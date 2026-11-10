@@ -29,7 +29,8 @@ export function fakeClient(db: FakeDb, client: string, userId: string | null = n
       kind === 'eq' ? r[c] === v
         : kind === 'neq' ? r[c] !== v
           : kind === 'is' ? (r[c] ?? null) === v
-            : kind === 'in' ? (v as unknown[]).includes(r[c]) : true)
+            : kind === 'in' ? (v as unknown[]).includes(r[c])
+              : kind === 'lt' ? r[c] != null && String(r[c]) < String(v) : true)
 
     const run = () => {
       if (op === 'insert') {
@@ -60,6 +61,7 @@ export function fakeClient(db: FakeDb, client: string, userId: string | null = n
       neq: (c: string, v: unknown) => { filters.push(['neq', c, v]); return b },
       is: (c: string, v: unknown) => { filters.push(['is', c, v]); return b },
       in: (c: string, v: unknown[]) => { filters.push(['in', c, v]); return b },
+      lt: (c: string, v: unknown) => { filters.push(['lt', c, v]); return b },
       order: () => b,
       limit: (n: number) => { limit = n; return b },
       maybeSingle: async () => { const r = run(); return { data: (r.data as Row[] | null)?.[0] ?? null, error: null } },

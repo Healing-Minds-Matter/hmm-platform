@@ -5,8 +5,9 @@ import { LAST_ACTIVE_COOKIE, SESSION_MAX_AGE_MS, sessionEnded, signedInAtFromAcc
 import { fetchAccountStatus, inactiveLoginError, isAllowedIn, type AccountStatus } from '@/lib/auth/account-status'
 
 // '/.well-known/' (app-link files) and '/mobile/' (the reset-link fallback page)
-// must be reachable signed out — Security Finding 9.
-const PUBLIC_PREFIXES = ['/login', '/champion/login', '/forgot-password', '/champion/forgot-password', '/reset-password', '/auth/', '/.well-known/', '/mobile/']
+// must be reachable signed out — Security Finding 9. /api/cron/ routes check
+// their own secret (CRON_SECRET) instead of a session.
+const PUBLIC_PREFIXES = ['/login', '/champion/login', '/forgot-password', '/champion/forgot-password', '/reset-password', '/auth/', '/.well-known/', '/mobile/', '/api/cron/']
 
 // Sign-in pages an already-authenticated user gets bounced away from.
 const AUTH_PAGES = ['/login', '/champion/login', '/forgot-password', '/champion/forgot-password']
