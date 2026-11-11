@@ -3,13 +3,21 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // Sheet row 32: Reset Password, Change Password and Change Email get each
 // error back tied to the field it is about. (Login keeps its deliberately
 // generic "Invalid email or password." — it is not covered here.)
-const db = vi.hoisted(() => ({ reused: false, signInError: null as { message: string } | null }))
+const db = vi.hoisted(() => ({
+  reused: false,
+  signInError: null as { message: string } | null,
+  sessionSignIns: 0,
+  verifierSignIns: 0,
+  updateError: null as { message: string; code?: string } | null,
+}))
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: async () => ({
     auth: {
       getUser: async () => ({ data: { user: { id: 'user-1', email: 'admin@example.com' } } }),
-      signInWithPassword: async () => ({ error: db.signInError }),
+      signInWithPassword: async () => { db.sessionSignIns++; return { error: db.signInError } },
+      updateUser: async () => ({ error: db.updateError }),
+      signOut: async () => ({}),
     },
     from: () => ({
       select: () => ({
@@ -19,9 +27,9 @@ vi.mock('@/lib/supabase/server', () => ({
   }),
 }))
 vi.mock('@supabase/supabase-js', () => ({
-  createClient: () => ({ auth: { signInWithPassword: async () => ({ error: db.signInError }), signOut: async () => ({}) } }),
+  createClient: () => ({ auth: { signInWithPassword: async () => { db.verifierSignIns++; return { error: db.signInError } }, signOut: async () => ({}) } }),
 }))
-vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: () => ({}) }))
+vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: () => ({ from: () => ({ update: () => ({ eq: async () => ({ error: null }) }) }) }) }))
 vi.mock('@/lib/email-sync.server', () => ({ syncProfileEmail: vi.fn() }))
 vi.mock('@/lib/password-reset-grant.server', () => ({
   RESET_GRANT_COOKIE: 'g', RESET_GRANT_MAX_AGE_SECONDS: 60, RESET_PORTAL_COOKIE: 'p', hasResetGrant: async () => true,
@@ -46,6 +54,24 @@ const STRONG = 'Tr0ub4dor&Zebra'
 beforeEach(() => {
   db.reused = false
   db.signInError = null
+  db.sessionSignIns = 0
+  db.verifierSignIns = 0
+  db.updateError = null
+})
+
+describe('Review Finding 8: two-step verification is kept / asked for', () => {
+  it('Change Password checks the current password with a separate client, so the verified session isn’t replaced', async () => {
+    const r = await changePasswordAction(null, form({ currentPassword: 'Old-Pass-Word1!', newPassword: STRONG, confirm: STRONG }))
+    expect(r).toEqual({ success: true })
+    expect(db.verifierSignIns).toBe(1)
+    expect(db.sessionSignIns).toBe(0)
+  })
+  it('reset link for an account with two-step verification → sent to enter the code, then back to the reset page', async () => {
+    db.updateError = { message: 'AAL2 required', code: 'insufficient_aal' }
+    const { redirect } = await import('next/navigation')
+    await expect(resetPasswordAction(null, form({ password: STRONG, confirm: STRONG }))).rejects.toThrow('redirect')
+    expect(redirect).toHaveBeenCalledWith('/mfa?next=/reset-password')
+  })
 })
 
 describe('resetPasswordAction: field-level errors', () => {

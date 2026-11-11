@@ -4,6 +4,7 @@ import { DashboardClientLayout } from '@/components/dashboard-client-layout'
 import { loadBell } from '@/lib/notifications.server'
 import { signedInAtFromAccessToken } from '@/lib/session-policy'
 import { loginPath } from '@/lib/login-redirect.server'
+import { fetchAccountStatus, inactiveLoginError } from '@/lib/auth/account-status'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -18,11 +19,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
     .single()
 
   if (!profile?.is_active) {
+    // Review Finding 6: the database hides the profile of a member of an
+    // inactive club, so the reason comes from my_account_status().
+    const status = await fetchAccountStatus(supabase)
     await supabase.auth.signOut()
-    const reason = profile?.deactivation_reason === 'club_deactivated'
-      ? 'club_inactive'
-      : 'account_inactive'
-    redirect(`${await loginPath(profile?.role)}?error=${reason}`)
+    const reason = inactiveLoginError(status.ok ? status.status : null)
+    redirect(`${await loginPath(profile?.role ?? (status.ok ? status.status?.role : undefined))}?error=${reason}`)
   }
 
   const bell = await loadBell(supabase, { id: user.id, role: profile.role })

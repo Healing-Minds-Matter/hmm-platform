@@ -14,7 +14,11 @@ const db = vi.hoisted(() => ({
 vi.mock('server-only', () => ({}))
 vi.mock('@/lib/supabase/server', () => ({
   createClient: async () => ({
-    auth: { getUser: async () => ({ data: { user: { id: 'user-1' } } }) },
+    auth: {
+      getUser: async () => ({ data: { user: { id: 'user-1' } } }),
+      // A verified (aal2) session, as a Super Admin has after two-step verification (Review Finding 8).
+      mfa: { getAuthenticatorAssuranceLevel: async () => ({ data: { currentLevel: 'aal2', nextLevel: 'aal2' }, error: null }) },
+    },
     from: () => ({ select: () => ({ eq: (_column: string, value: string) => ({
       single: async () => ({ data: db.caller }),
       // The shared guard reads the caller ('user-1'); the Gatekeeper actions then read the target Gatekeeper.
@@ -43,9 +47,8 @@ vi.mock('@/lib/supabase/admin', () => ({
   }),
 }))
 vi.mock('@/lib/audit', () => ({ writeAuditLog: vi.fn() }))
-vi.mock('@/lib/invite-gatekeeper', () => ({
-  createGatekeeperWithTempPassword: vi.fn(),
-  resendGatekeeperWelcomeEmail: vi.fn(),
+vi.mock('@/lib/create-invited-user', () => ({
+  createAuthAccount: vi.fn(),
 }))
 vi.mock('@/lib/phone-uniqueness.server', () => ({
   checkPhoneAvailable: vi.fn(async () => null), describePhoneDbError: vi.fn(), phoneChanged: vi.fn(),
@@ -57,7 +60,7 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 vi.mock('next/navigation', () => ({ redirect: vi.fn(() => { throw new Error('redirect') }) }))
 
 import { createGatekeeperAction, createGatekeepersBulkAction, reactivateGatekeeperAction, updateGatekeeperAction } from '@/actions/gatekeepers'
-import { createGatekeeperWithTempPassword } from '@/lib/invite-gatekeeper'
+import { createAuthAccount } from '@/lib/create-invited-user'
 import { loadPhoneOwners } from '@/lib/phone-uniqueness.server'
 import { RETIRED_CERTIFICATION_DATE_MESSAGE } from '@/lib/gatekeeper-csv'
 
@@ -79,7 +82,7 @@ beforeEach(() => {
     ['club-off', { name: 'Rotaract Club of Kandy', is_active: false }],
   ])
   db.takenPhones = []
-  vi.mocked(createGatekeeperWithTempPassword).mockClear()
+  vi.mocked(createAuthAccount).mockClear()
   vi.mocked(loadPhoneOwners).mockClear()
 })
 
@@ -108,7 +111,7 @@ describe('createGatekeepersBulkAction: file-level checks', () => {
   it('still rejects callers who are not Super Admins or Champions', async () => {
     db.caller = { role: 'gatekeeper', club_id: null }
     expect(await createGatekeepersBulkAction(null, csvForm(`${HEADER}\nA,a@example.com,0771234567,club-1`))).toEqual({
-      error: 'Not authorized.',
+      error: 'Only Super Admins and Champions can add Gatekeepers.',
     })
   })
 })
@@ -137,14 +140,14 @@ Dilani Raj,dilani@example.com,0771234567,club-1`, 'check'))
         { row: 9, label: 'dilani@example.com', status: 'ready' },
       ],
     })
-    expect(createGatekeeperWithTempPassword).not.toHaveBeenCalled()
+    expect(createAuthAccount).not.toHaveBeenCalled()
   })
 
   it('refuses a file with the old certification_date column instead of dropping its dates', async () => {
     const state = await createGatekeepersBulkAction(null, csvForm(`${HEADER},certification_date
 Maya Lin,maya@example.com,0771234561,club-1,2025-01-01`, 'check'))
     expect(state).toEqual({ error: RETIRED_CERTIFICATION_DATE_MESSAGE })
-    expect(createGatekeeperWithTempPassword).not.toHaveBeenCalled()
+    expect(createAuthAccount).not.toHaveBeenCalled()
   })
 
   it('reads every user\'s phone number once per request, not once per row', async () => {
@@ -192,7 +195,7 @@ Asha Silva,asha@example.com,0771234569,club-1`))
         { row: 4, label: 'asha@example.com', status: 'failed', error: 'An account with this email already exists.' },
       ],
     })
-    expect(createGatekeeperWithTempPassword).not.toHaveBeenCalled()
+    expect(createAuthAccount).not.toHaveBeenCalled()
   })
 
 describe('createGatekeepersBulkAction: in batches', () => {
@@ -224,7 +227,7 @@ Dilani Raj,dilani@example.com,0771234565,club-1`
     db.takenEmails = new Set(['maya@example.com', 'ravi@example.com', 'sunil@example.com', 'dilani@example.com'])
     const state = await createGatekeepersBulkAction(null, batchForm('save', [2, 3]))
     expect(state?.results?.map(r => r.row)).toEqual([2, 3])
-    expect(createGatekeeperWithTempPassword).not.toHaveBeenCalled()
+    expect(createAuthAccount).not.toHaveBeenCalled()
   })
 })
 })
@@ -257,7 +260,7 @@ describe('single-Gatekeeper actions: field-level errors', () => {
     db.takenPhones = []
     expect((await createGatekeeperAction(null, form({ ...valid, club_id: 'club-off' })))?.fieldErrors)
       .toEqual({ club_id: 'Club "Rotaract Club of Kandy" is currently inactive. Reactivate it first or choose a different club.' })
-    expect(createGatekeeperWithTempPassword).not.toHaveBeenCalled()
+    expect(createAuthAccount).not.toHaveBeenCalled()
   })
 
   it('a Champion’s missing club stays a form-level error (they have no club picker)', async () => {

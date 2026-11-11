@@ -2,9 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Sheet row 60: Grant Exception for several permissions at once, called
 // directly as a modified browser could.
+const GK_ID = '00000000-0000-4000-8000-000000000004'
 const db = vi.hoisted(() => ({
   callerRole: 'super_admin',
-  target: { id: 'gk-1', role: 'gatekeeper', is_active: true } as Record<string, unknown> | null,
+  target: { id: '00000000-0000-4000-8000-000000000004', role: 'gatekeeper', is_active: true } as Record<string, unknown> | null,
   catalog: [
     { key: 'download_facilitator_kits', label: 'Download Gatekeeper Facilitator Kits', restricted_to: null },
     { key: 'publish_club_announcements', label: 'Publish Club Announcements', restricted_to: null },
@@ -19,9 +20,14 @@ const db = vi.hoisted(() => ({
   audit: [] as Record<string, unknown>[],
 }))
 
+vi.mock('server-only', () => ({}))
+vi.mock('@/lib/login-redirect.server', () => ({ loginPath: async () => '/login' }))
 vi.mock('@/lib/supabase/server', () => ({
   createClient: async () => ({
-    auth: { getUser: async () => ({ data: { user: { id: 'admin-1' } } }) },
+    auth: {
+      getUser: async () => ({ data: { user: { id: '00000000-0000-4000-8000-000000000001' } } }),
+      mfa: { getAuthenticatorAssuranceLevel: async () => ({ data: { currentLevel: 'aal2', nextLevel: 'aal2' }, error: null }) },
+    },
     rpc: async () => ({ data: db.effective }),
     from: (table: string) => {
       if (table === 'permission_catalog') return { select: async () => ({ data: db.catalog }) }
@@ -30,7 +36,11 @@ vi.mock('@/lib/supabase/server', () => ({
           select: () => ({
             eq: (_c: string, id: string) => ({
               single: async () => ({ data: { role: db.callerRole } }),
-              maybeSingle: async () => ({ data: id === 'gk-1' ? db.target : null }),
+              maybeSingle: async () => ({
+                data: id === '00000000-0000-4000-8000-000000000004' ? db.target
+                  : id === '00000000-0000-4000-8000-000000000001' ? { role: db.callerRole, club_id: null, is_active: true, must_change_password: false }
+                  : null,
+              }),
             }),
           }),
         }
@@ -38,7 +48,7 @@ vi.mock('@/lib/supabase/server', () => ({
       return {
         upsert: (row: Record<string, unknown>) => {
           db.upserts.push(row)
-          return { select: () => ({ single: async () => ({ data: { id: `ov-${db.upserts.length}` }, error: null }) }) }
+          return Object.assign(Promise.resolve({ error: null }), { select: () => ({ single: async () => ({ data: { id: `ov-${db.upserts.length}` }, error: null }) }) })
         },
       }
     },
@@ -51,7 +61,7 @@ vi.mock('next/navigation', () => ({ redirect: vi.fn(() => { throw new Error('red
 
 import { grantIndividualExceptionAction } from '@/actions/permissions'
 
-function form(keys: string[], allow = true, userId = 'gk-1') {
+function form(keys: string[], allow = true, userId = GK_ID) {
   const f = new FormData()
   f.set('user_id', userId)
   f.set('is_enabled', String(allow))
@@ -62,13 +72,13 @@ function form(keys: string[], allow = true, userId = 'gk-1') {
 beforeEach(() => { db.callerRole = 'super_admin'; db.upserts = []; db.audit = [] })
 
 describe('grant several permissions at once', () => {
-  it('saves each new one and writes one audit entry per permission', async () => {
+  // Review Finding 9: the database writes one audit entry per row it really
+  // changes (migration 20261113000005); the server writes none itself.
+  it('saves each new one; the audit entries are left to the database', async () => {
     const r = await grantIndividualExceptionAction(null, form(['publish_club_announcements', 'view_event_calendar']))
     expect(r).toMatchObject({ success: true, allSaved: true })
     expect(db.upserts.map(u => u.permission)).toEqual(['publish_club_announcements', 'view_event_calendar'])
-    expect(db.audit).toHaveLength(2)
-    expect(db.audit.map(a => (a.details as { permission: string }).permission)).toEqual(['publish_club_announcements', 'view_event_calendar'])
-    expect(db.audit.every(a => a.action === 'permission.individual_exception_granted' && a.actorId === 'admin-1')).toBe(true)
+    expect(db.audit).toEqual([])
   })
 
   it('skips what the person already has, and says so', async () => {
@@ -77,7 +87,6 @@ describe('grant several permissions at once', () => {
     expect(r?.allSaved).toBe(false)
     expect(r?.summary).toContain('Skipped (already allowed): “Download Gatekeeper Facilitator Kits”.')
     expect(db.upserts.map(u => u.permission)).toEqual(['view_event_calendar'])
-    expect(db.audit).toHaveLength(1)
   })
 
   it('refuses never-grantable keys and unknown keys', async () => {
@@ -95,7 +104,7 @@ describe('grant several permissions at once', () => {
 
   it('refuses a caller who is not a Super Admin', async () => {
     db.callerRole = 'champion'
-    expect(await grantIndividualExceptionAction(null, form(['view_event_calendar']))).toEqual({ error: 'Only Super Admins can grant exceptions.' })
+    expect(await grantIndividualExceptionAction(null, form(['view_event_calendar']))).toEqual({ error: 'Only Super Admins can manage permissions.' })
     expect(db.upserts).toEqual([])
   })
 

@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { CertificatesSection } from '@/components/certifications/certificates-section'
 import { GatekeeperStatusControls } from './gatekeeper-status-controls'
 import { ResendInviteButton } from './resend-invite-button'
+import { hasSignedIn } from '@/lib/account-setup.server'
 import { PERSON_CERT_STATUS_LABEL, PERSON_CERT_STATUS_BADGE, PERSON_CERT_STATUS_DOT } from '../gatekeeper-status'
 import { loadCertSummary } from '@/lib/cert-summary.server'
 import { personCertStatus } from '@/lib/cert-summary'
@@ -27,6 +28,9 @@ export default async function GatekeeperDetailPage({ params, searchParams }: { p
     .single()
 
   if (!gatekeeper) notFound()
+
+  // Review Finding 2: an invite can only be resent before first sign-in.
+  const canResendInvite = gatekeeper.is_active && !(await hasSignedIn(id).catch(() => true))
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const club = gatekeeper.clubs as any
@@ -101,7 +105,7 @@ export default async function GatekeeperDetailPage({ params, searchParams }: { p
               Edit Gatekeeper
             </Link>
           )}
-          {gatekeeper.is_active && <ResendInviteButton gatekeeperId={id} />}
+          {canResendInvite && <ResendInviteButton gatekeeperId={id} />}
           <GatekeeperStatusControls gatekeeperId={id} isActive={gatekeeper.is_active} />
         </div>
       </div>

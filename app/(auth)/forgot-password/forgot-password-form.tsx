@@ -109,7 +109,7 @@ function ForgotPasswordFormInner({ portal }: { portal: Portal }) {
       </form>
 
       <div className="mt-6 rounded-lg bg-amber-50 px-4 py-3 text-[14px] tracking-[0.14px] text-[#D97706]">
-        The reset link expires in 30 minutes. Check your spam folder if it doesn&apos;t arrive
+        The reset link expires in 15 minutes. Check your spam folder if it doesn&apos;t arrive
         within a few minutes.
       </div>
     </div>

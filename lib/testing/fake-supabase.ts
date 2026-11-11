@@ -10,16 +10,21 @@ export type FakeDb = {
   writes: { client: string; table: string; op: string; values: Row; filters: [string, string, unknown][] }[]
   /** Stand-ins for database functions called with .rpc(). */
   rpcs: Record<string, RpcHandler>
+  /** Make writes to a table fail, as a database rule (trigger, constraint) would. */
+  writeErrors: Record<string, { message: string; code?: string }>
+  /** The session's MFA assurance level (Review Finding 8). Default: verified (aal2). */
+  aal?: 'aal1' | 'aal2'
 }
 
 export function createFakeDb(tables: Record<string, Row[]> = {}, rpcs: Record<string, RpcHandler> = {}): FakeDb {
-  return { tables, writes: [], rpcs }
+  return { tables, writes: [], rpcs, writeErrors: {} }
 }
 
 export function fakeClient(db: FakeDb, client: string, userId: string | null = null) {
   function from(table: string) {
     const filters: [string, string, unknown][] = []
-    let op: 'select' | 'update' | 'insert' | 'delete' = 'select'
+    let op: 'select' | 'update' | 'insert' | 'delete' | 'upsert' = 'select'
+    let conflictCols: string[] = []
     let values: Row = {}
     let returning = false
     let wantCount = false
@@ -33,6 +38,15 @@ export function fakeClient(db: FakeDb, client: string, userId: string | null = n
               : kind === 'lt' ? r[c] != null && String(r[c]) < String(v) : true)
 
     const run = () => {
+      const refused = op !== 'select' ? db.writeErrors[table] : undefined
+      if (refused) return { data: null, error: refused }
+      if (op === 'upsert') {
+        // INSERT … ON CONFLICT (conflictCols) DO UPDATE
+        const existing = rows().find(r => conflictCols.every(c => r[c] === values[c]))
+        const row = existing ? Object.assign(existing, values) : (rows().push({ id: `${table}-${rows().length + 1}`, ...values }), rows()[rows().length - 1])
+        db.writes.push({ client, table, op, values, filters })
+        return { data: returning ? [{ ...row }] : null, error: null }
+      }
       if (op === 'insert') {
         rows().push({ ...values })
         db.writes.push({ client, table, op, values, filters })
@@ -56,6 +70,7 @@ export function fakeClient(db: FakeDb, client: string, userId: string | null = n
       select: () => { if (op !== 'select') returning = true; return b },
       update: (v: Row, o?: { count?: string }) => { op = 'update'; values = v; wantCount = !!o?.count; return b },
       insert: (v: Row) => { op = 'insert'; values = v; return b },
+      upsert: (v: Row, o?: { onConflict?: string }) => { op = 'upsert'; values = v; conflictCols = (o?.onConflict ?? 'id').split(','); return b },
       delete: () => { op = 'delete'; return b },
       eq: (c: string, v: unknown) => { filters.push(['eq', c, v]); return b },
       neq: (c: string, v: unknown) => { filters.push(['neq', c, v]); return b },
@@ -64,8 +79,8 @@ export function fakeClient(db: FakeDb, client: string, userId: string | null = n
       lt: (c: string, v: unknown) => { filters.push(['lt', c, v]); return b },
       order: () => b,
       limit: (n: number) => { limit = n; return b },
-      maybeSingle: async () => { const r = run(); return { data: (r.data as Row[] | null)?.[0] ?? null, error: null } },
-      single: async () => { const r = run(); const d = (r.data as Row[] | null)?.[0] ?? null; return { data: d, error: d ? null : { message: 'not found' } } },
+      maybeSingle: async () => { const r = run(); return { data: (r.data as Row[] | null)?.[0] ?? null, error: r.error ?? null } },
+      single: async () => { const r = run(); const d = (r.data as Row[] | null)?.[0] ?? null; return { data: d, error: r.error ?? (d ? null : { message: 'not found' }) } },
       then: (resolve: (v: unknown) => void, reject: (e: unknown) => void) => Promise.resolve(run()).then(resolve, reject),
     }
     return b
@@ -88,9 +103,11 @@ export function fakeClient(db: FakeDb, client: string, userId: string | null = n
     },
     auth: {
       getUser: async () => ({ data: { user: userId ? { id: userId } : null } }),
+      mfa: { getAuthenticatorAssuranceLevel: async () => ({ data: { currentLevel: db.aal ?? 'aal2', nextLevel: 'aal2' }, error: null }) },
       admin: {
         updateUserById: async (id: string, attrs: Row) => { db.writes.push({ client, table: 'auth.users', op: 'update', values: { id, ...attrs }, filters: [] }); return { error: null } },
         deleteUser: async () => ({ error: null }),
+        getUserById: async (id: string) => ({ data: { user: (db.tables['auth.users'] ?? []).find(u => u.id === id) ?? null }, error: null }),
       },
     },
   }

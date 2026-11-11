@@ -2,10 +2,18 @@ import { describe, expect, it, vi } from 'vitest'
 
 // Sheet row 32: the Create Group and Create Delegation forms get each error
 // back tied to the field it is about, so it can be shown next to that input.
+vi.mock('server-only', () => ({}))
+vi.mock('@/lib/login-redirect.server', () => ({ loginPath: async () => '/login' }))
 vi.mock('@/lib/supabase/server', () => ({
   createClient: async () => ({
-    auth: { getUser: async () => ({ data: { user: { id: 'user-1' } } }) },
-    from: () => ({
+    auth: {
+      getUser: async () => ({ data: { user: { id: 'user-1' } } }),
+      // A verified Super Admin (Review Findings 8 and 9: the guard runs first).
+      mfa: { getAuthenticatorAssuranceLevel: async () => ({ data: { currentLevel: 'aal2', nextLevel: 'aal2' }, error: null }) },
+    },
+    from: (table: string) => table === 'profiles'
+      ? { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { role: 'super_admin', club_id: null, is_active: true, must_change_password: false } }) }) }) }
+      : ({
       insert: () => ({
         select: () => ({
           single: async () => ({ data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint' } }),

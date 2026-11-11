@@ -7,7 +7,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { writeAuditLog } from '@/lib/audit'
 import { invalid, type FieldErrors } from '@/lib/form-errors'
 import { endDelegationsForDeactivatedUser } from '@/lib/delegations.server'
-import { createInvitedUser } from '@/lib/create-invited-user'
+import { createAuthAccount } from '@/lib/create-invited-user'
+import { issueAccountSetupInvite } from '@/lib/account-setup.server'
 import { parsePhone } from '@/lib/phone'
 import { checkPhoneAvailable, describePhoneDbError, phoneChanged } from '@/lib/phone-uniqueness.server'
 import { requireRole } from '@/lib/auth/guards.server'
@@ -72,18 +73,17 @@ export async function createChampionAction(
 
   if (existing) return invalid('email', EMAIL_TAKEN)
 
-  // Every user needs their own number — checked before createInvitedUser()
-  // below sends a real account email.
+  // Every user needs their own number — checked before any account is created.
   if (phone) {
     const phoneError = await checkPhoneAvailable(phone)
     if (phoneError) return invalid('phone', phoneError)
   }
 
-  // Creates the auth user with a system-generated temporary password and
-  // emails it directly (Supabase's own invite email can't embed a
-  // password) — see lib/create-invited-user.ts. Uses the service-role key,
+  // Review Finding 3: no temporary password. The account is created with a
+  // random password nobody is told, and the Champion chooses their own from
+  // a single-use set-password link (sent below). Uses the service-role key,
   // which is why it only runs after the guard above has passed.
-  const invited = await createInvitedUser({ email, fullName, roleLabel: 'Champion' })
+  const invited = await createAuthAccount({ email, fullName })
   if ('error' in invited) {
     return invited.error === EMAIL_TAKEN ? invalid('email', invited.error) : { error: invited.error }
   }
@@ -102,7 +102,8 @@ export async function createChampionAction(
     role: 'champion',
     club_id: clubId,
     is_active: true,
-    must_change_password: true,
+    // Nothing to change: they choose their first password from the link.
+    must_change_password: false,
   })
 
   if (profileError) {
@@ -113,6 +114,13 @@ export async function createChampionAction(
     if (profileError.code === '42501') return { error: 'Only Super Admins can create Champion accounts.' }
     if (profileError.code === '23514') return invalid('club_id', 'This club is inactive. Reactivate the club first or assign an active club.')
     return { error: profileError.message }
+  }
+
+  const sent = await issueAccountSetupInvite({ userId: newUserId, requestedBy: caller.id })
+  if ('error' in sent) {
+    // No half-made account: without the email they'd have no way to sign in.
+    await createAdminClient().auth.admin.deleteUser(newUserId)
+    return { error: `The account was not created: ${sent.error}` }
   }
 
   await writeAuditLog({

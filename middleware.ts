@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { PORTAL_HINT_COOKIE, loginPathFor } from '@/lib/portals'
 import { LAST_ACTIVE_COOKIE, SESSION_MAX_AGE_MS, sessionEnded, signedInAtFromAccessToken } from '@/lib/session-policy'
 import { fetchAccountStatus, inactiveLoginError, isAllowedIn, type AccountStatus } from '@/lib/auth/account-status'
+import { MFA_PATH, currentAssuranceLevel, roleNeedsMfa } from '@/lib/auth/mfa'
 
 // '/.well-known/' (app-link files) and '/mobile/' (the reset-link fallback page)
 // must be reachable signed out — Security Finding 9. /api/cron/ routes check
@@ -124,11 +125,16 @@ export async function middleware(request: NextRequest) {
     user &&
     (AUTH_PAGES.includes(pathname) ||
      pathname.startsWith('/super-admin') || pathname.startsWith('/champion') ||
-     pathname === '/set-password')
+     pathname === '/set-password' || pathname === MFA_PATH)
 
   if (needsRole) {
-    const destination = profile?.role === 'champion' ? '/champion' : '/super-admin'
     const mustSetPassword = profile?.must_change_password === true
+    // Review Finding 8: a Super Admin's session must pass two-step
+    // verification (authenticator code) before any Super Admin page or
+    // server action. The database refuses them until then too.
+    const needsMfa = roleNeedsMfa(profile?.role) && (await currentAssuranceLevel(supabase)) !== 'aal2'
+    const home = profile?.role === 'champion' ? '/champion' : '/super-admin'
+    const destination = needsMfa ? MFA_PATH : home
 
     // Authenticated user hitting auth pages → send to their dashboard, or
     // to the forced password screen first if they haven't set a real
@@ -153,6 +159,15 @@ export async function middleware(request: NextRequest) {
     }
     if (!mustSetPassword && pathname === '/set-password') {
       return withCookies(NextResponse.redirect(new URL(destination, request.url)), supabaseResponse)
+    }
+
+    if (pathname === MFA_PATH) {
+      return needsMfa ? supabaseResponse : withCookies(NextResponse.redirect(new URL(home, request.url)), supabaseResponse)
+    }
+    if (needsMfa) {
+      // A server action can't follow a redirect; its own guard refuses it.
+      if (request.method === 'POST' && request.headers.has('next-action')) return supabaseResponse
+      return withCookies(NextResponse.redirect(new URL(MFA_PATH, request.url)), supabaseResponse)
     }
 
     // Role-gate the dashboard route groups themselves — RLS already scopes
