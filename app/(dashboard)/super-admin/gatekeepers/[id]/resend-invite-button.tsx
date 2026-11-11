@@ -3,13 +3,9 @@
 import { useActionState, useState } from 'react'
 import { resendGatekeeperInviteAction, type GatekeeperActionState } from '@/actions/gatekeepers'
 
-// Renamed from the earlier invite-link version of this component — this
-// now generates a genuinely NEW temp password every time (see
-// lib/invite-gatekeeper.ts's resendGatekeeperWelcomeEmail), which
-// silently invalidates whatever password the Gatekeeper is currently
-// using, including one they've already changed to themselves. That's a
-// real enough consequence to need the same inline "Sure? Yes/No" confirm
-// pattern already used elsewhere in this app, not a single-click action.
+// Review Finding 2: only shown for a Gatekeeper who has never signed in.
+// Emails a new single-use set-password link to their own address; earlier
+// links (and any temporary password) stop working, hence the confirm step.
 export function ResendInviteButton({ gatekeeperId }: { gatekeeperId: string }) {
   const [confirming, setConfirming] = useState(false)
   const [state, formAction, isPending] = useActionState<GatekeeperActionState, FormData>(
@@ -21,7 +17,7 @@ export function ResendInviteButton({ gatekeeperId }: { gatekeeperId: string }) {
     return (
       <form action={formAction} className="flex items-center gap-2">
         <input type="hidden" name="gatekeeper_id" value={gatekeeperId} />
-        <span className="text-xs font-medium text-[#0F172A]">Reset their password &amp; resend?</span>
+        <span className="text-xs font-medium text-[#0F172A]">Send a new set-password link? Earlier links stop working.</span>
         <button
           type="submit"
           disabled={isPending}

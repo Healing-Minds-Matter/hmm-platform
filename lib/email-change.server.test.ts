@@ -4,7 +4,12 @@ import { createFakeDb, fakeClient, type FakeDb } from '@/lib/testing/fake-supaba
 // Security Finding 3: someone else's sign-in email only changes once the new
 // address confirms a one-time, expiring link.
 
-const h = vi.hoisted(() => ({ db: null as unknown as FakeDb, mails: [] as { kind: string; to: string; url?: string }[] }))
+const h = vi.hoisted(() => ({
+  db: null as unknown as FakeDb,
+  mails: [] as { kind: string; to: string; url?: string }[],
+  signedIn: false,
+  calls: [] as string[],
+}))
 
 vi.mock('server-only', () => ({}))
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: () => fakeClient(h.db, 'admin') }))
@@ -12,6 +17,14 @@ vi.mock('@/lib/audit', () => ({ writeAuditLog: vi.fn() }))
 vi.mock('@/lib/send-email', () => ({
   sendEmailChangeConfirmation: vi.fn(async (p: { to: string; confirmUrl: string }) => { h.mails.push({ kind: 'confirm', to: p.to, url: p.confirmUrl }); return {} }),
   sendEmailChangeNotice: vi.fn(async (p: { to: string }) => { h.mails.push({ kind: 'notice', to: p.to }); return {} }),
+}))
+
+// Review Finding 2: what happens to sessions and set-password links on confirmation.
+vi.mock('@/lib/account-setup.server', () => ({
+  revokeUserSessions: vi.fn(async (id: string) => { h.calls.push(`revoke:${id}`); return true }),
+  cancelAccountSetupInvites: vi.fn(async (id: string) => { h.calls.push(`cancel:${id}`) }),
+  hasSignedIn: vi.fn(async () => h.signedIn),
+  issueAccountSetupInvite: vi.fn(async (p: { userId: string; requestedBy: string }) => { h.calls.push(`invite:${p.userId}:${p.requestedBy}`); return { ok: true } }),
 }))
 
 import { confirmAccountEmailChange, hashEmailChangeToken, requestAccountEmailChange } from '@/lib/email-change.server'
@@ -24,6 +37,8 @@ const authWrites = () => h.db.writes.filter(w => w.table === 'auth.users')
 
 beforeEach(() => {
   h.mails = []
+  h.signedIn = false
+  h.calls = []
   h.db = createFakeDb({
     profiles: [{ id: 'gk', email: 'old@example.com' }, { id: 'other', email: 'taken@example.com' }],
     email_change_requests: [],
@@ -88,5 +103,36 @@ describe('confirmAccountEmailChange', () => {
     h.db.tables.profiles.push({ id: 'late', email: 'new@example.com' })
     expect(await confirmAccountEmailChange(tokenFromMail())).toBe('taken')
     expect(authWrites()).toEqual([])
+  })
+})
+
+describe('confirmAccountEmailChange — Review Finding 2', () => {
+  it('ends every session of the account and cancels set-password links sent to the old address', async () => {
+    h.signedIn = true
+    await request()
+    expect(await confirmAccountEmailChange(tokenFromMail())).toBe('done')
+    expect(h.calls).toEqual(['revoke:gk', 'cancel:gk'])
+  })
+
+  it('typo fixed before first sign-in → a fresh set-password link goes to the corrected address', async () => {
+    await request()
+    expect(await confirmAccountEmailChange(tokenFromMail())).toBe('done')
+    expect(h.calls).toContain('invite:gk:champ')
+  })
+
+  it('account already signed in → no set-password link', async () => {
+    h.signedIn = true
+    await request()
+    await confirmAccountEmailChange(tokenFromMail())
+    expect(h.calls.some(c => c.startsWith('invite:'))).toBe(false)
+  })
+
+  it('refused by the database at confirmation (Champion request, Gatekeeper signed in since) → not applied', async () => {
+    await request()
+    h.db.writeErrors.email_change_requests = { code: '42501', message: 'refused' }
+    expect(await confirmAccountEmailChange(tokenFromMail())).toBe('not_allowed')
+    expect(authWrites()).toEqual([])
+    expect(h.db.tables.profiles[0].email).toBe('old@example.com')
+    expect(h.calls).toEqual([])
   })
 })

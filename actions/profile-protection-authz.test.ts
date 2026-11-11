@@ -53,6 +53,10 @@ beforeEach(() => {
       p(CH_A, 'champion', CLUB_A), p(CH_B, 'champion', CLUB_B),
       p(GK_A, 'gatekeeper', CLUB_A), p(GK_B, 'gatekeeper', CLUB_B),
     ],
+  }, {
+    // Review Finding 2: these Gatekeepers have never signed in, so a Champion
+    // may still correct their email (see gatekeeper-takeover-authz.test.ts).
+    account_has_signed_in: () => ({ data: false, error: null }),
   })
 })
 

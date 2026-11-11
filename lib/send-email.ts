@@ -200,6 +200,38 @@ If you didn't expect this, contact your Club Champion or administrator. Until th
   return sendEmail({ to: params.to, subject: 'Your Healing Minds Matter sign-in email change request', html, text })
 }
 
+// Review Finding 2: a single-use link to choose the account's first password.
+// No password is ever put in an email.
+export async function sendAccountSetupEmail(params: {
+  to: string
+  fullName: string
+  setupUrl: string
+  expiresInHours: number
+  /** Gatekeepers: where to get the app. */
+  appLink?: string
+}): Promise<{ error?: string }> {
+  const name = escapeHtml(params.fullName)
+  const appHtml = params.appLink
+    ? `<p>Then sign in to the Healing Minds Matter app with this email address and your new password. <a href="${escapeHtml(params.appLink)}">Get the app</a></p>`
+    : '<p>Then sign in with this email address and your new password.</p>'
+  const appText = params.appLink
+    ? `Then sign in to the Healing Minds Matter app with this email address and your new password. Get the app: ${params.appLink}`
+    : 'Then sign in with this email address and your new password.'
+  const html = `<p>Hi ${name},</p>
+<p>Your Healing Minds Matter account is ready. Choose your password here:</p>
+<p><a href="${escapeHtml(params.setupUrl)}">Set your password</a></p>
+${appHtml}
+<p>The link works once and expires in ${params.expiresInHours} hours. If it has expired, ask your Club Champion to send a new one. If you weren't expecting this, you can ignore this email.</p>`
+  const text = `Hi ${params.fullName},
+
+Your Healing Minds Matter account is ready. Choose your password here: ${params.setupUrl}
+
+${appText}
+
+The link works once and expires in ${params.expiresInHours} hours. If it has expired, ask your Club Champion to send a new one. If you weren't expecting this, you can ignore this email.`
+  return sendEmail({ to: params.to, subject: 'Set your Healing Minds Matter password', html, text })
+}
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')

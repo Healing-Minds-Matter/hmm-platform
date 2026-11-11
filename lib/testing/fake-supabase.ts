@@ -10,10 +10,12 @@ export type FakeDb = {
   writes: { client: string; table: string; op: string; values: Row; filters: [string, string, unknown][] }[]
   /** Stand-ins for database functions called with .rpc(). */
   rpcs: Record<string, RpcHandler>
+  /** Make writes to a table fail, as a database rule (trigger, constraint) would. */
+  writeErrors: Record<string, { message: string; code?: string }>
 }
 
 export function createFakeDb(tables: Record<string, Row[]> = {}, rpcs: Record<string, RpcHandler> = {}): FakeDb {
-  return { tables, writes: [], rpcs }
+  return { tables, writes: [], rpcs, writeErrors: {} }
 }
 
 export function fakeClient(db: FakeDb, client: string, userId: string | null = null) {
@@ -33,6 +35,8 @@ export function fakeClient(db: FakeDb, client: string, userId: string | null = n
               : kind === 'lt' ? r[c] != null && String(r[c]) < String(v) : true)
 
     const run = () => {
+      const refused = op !== 'select' ? db.writeErrors[table] : undefined
+      if (refused) return { data: null, error: refused }
       if (op === 'insert') {
         rows().push({ ...values })
         db.writes.push({ client, table, op, values, filters })
@@ -64,8 +68,8 @@ export function fakeClient(db: FakeDb, client: string, userId: string | null = n
       lt: (c: string, v: unknown) => { filters.push(['lt', c, v]); return b },
       order: () => b,
       limit: (n: number) => { limit = n; return b },
-      maybeSingle: async () => { const r = run(); return { data: (r.data as Row[] | null)?.[0] ?? null, error: null } },
-      single: async () => { const r = run(); const d = (r.data as Row[] | null)?.[0] ?? null; return { data: d, error: d ? null : { message: 'not found' } } },
+      maybeSingle: async () => { const r = run(); return { data: (r.data as Row[] | null)?.[0] ?? null, error: r.error ?? null } },
+      single: async () => { const r = run(); const d = (r.data as Row[] | null)?.[0] ?? null; return { data: d, error: r.error ?? (d ? null : { message: 'not found' }) } },
       then: (resolve: (v: unknown) => void, reject: (e: unknown) => void) => Promise.resolve(run()).then(resolve, reject),
     }
     return b
@@ -91,6 +95,7 @@ export function fakeClient(db: FakeDb, client: string, userId: string | null = n
       admin: {
         updateUserById: async (id: string, attrs: Row) => { db.writes.push({ client, table: 'auth.users', op: 'update', values: { id, ...attrs }, filters: [] }); return { error: null } },
         deleteUser: async () => ({ error: null }),
+        getUserById: async (id: string) => ({ data: { user: (db.tables['auth.users'] ?? []).find(u => u.id === id) ?? null }, error: null }),
       },
     },
   }

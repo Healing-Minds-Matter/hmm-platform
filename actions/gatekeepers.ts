@@ -7,7 +7,9 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { writeAuditLog } from '@/lib/audit'
 import { invalid, type FieldErrors } from '@/lib/form-errors'
-import { createGatekeeperWithTempPassword, resendGatekeeperWelcomeEmail } from '@/lib/invite-gatekeeper'
+import { createGatekeeperWithTempPassword } from '@/lib/invite-gatekeeper'
+import { hasSignedIn, issueAccountSetupInvite } from '@/lib/account-setup.server'
+import { CHAMPION_EMAIL_LOCKED } from '@/lib/account-sign-in'
 import { parsePhone } from '@/lib/phone'
 import { checkPhoneAvailable, describePhoneDbError, findPhoneClash, loadPhoneOwners, phoneChanged, type PhoneOwner } from '@/lib/phone-uniqueness.server'
 import { readCsvUpload } from '@/lib/csv'
@@ -500,6 +502,13 @@ export async function updateGatekeeperAction(
   }
 
   const emailChanged = email !== current.email.toLowerCase()
+  // Review Finding 2: once the Gatekeeper has signed in, only a Super Admin
+  // may change their sign-in email (a Champion may only fix a typo before
+  // first sign-in). If the check can't be made, a Champion is refused.
+  if (emailChanged && caller.role !== 'super_admin') {
+    const signedIn = await hasSignedIn(gatekeeperId).catch(() => true)
+    if (signedIn) return invalid('email', CHAMPION_EMAIL_LOCKED)
+  }
   if (emailChanged && !(await isEmailAvailable(email, gatekeeperId))) {
     return invalid('email', 'That email is already used by another account.')
   }
@@ -666,79 +675,32 @@ export async function reactivateGatekeeperAction(
   return { success: true }
 }
 
-// Real gap closed: no way to resend a Gatekeeper's welcome email existed
-// before this (confirmed — no such action or UI anywhere). Issues a
-// genuinely new temp password each time (nothing plaintext is ever stored
-// to "resend the same one") — correct behavior for "the original email
-// got lost/never arrived," not just cosmetic. Meaningful for any active
-// gatekeeper, not just ones who never logged in — an admin re-sharing
-// credentials after a Gatekeeper forgot theirs is a real use case too.
+// Review Finding 2: "Resend invite" only for a Gatekeeper who has never
+// signed in. It emails a single-use set-password link to the account's own
+// sign-in address; it never creates, shows or emails a password. Once the
+// Gatekeeper has signed in, a forgotten password is reset from the app.
 export async function resendGatekeeperInviteAction(
   _prev: GatekeeperActionState,
   formData: FormData
 ): Promise<GatekeeperActionState> {
   const gatekeeperId = formData.get('gatekeeper_id') as string
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect(await loginPath())
+  const target = await guardGatekeeperTarget(gatekeeperId, 'invite')
+  if ('error' in target) return { error: target.error }
+  const { caller } = target
 
-  const { data: caller } = await supabase.from('profiles').select('role, club_id, full_name').eq('id', user.id).single()
-  if (caller?.role !== 'champion' && caller?.role !== 'super_admin') {
-    return { error: 'Not authorized.' }
+  const { data: gatekeeper } = await createAdminClient()
+    .from('profiles').select('is_active').eq('id', gatekeeperId).maybeSingle()
+  if (!gatekeeper?.is_active) return { error: 'This Gatekeeper is deactivated. Reactivate them first.' }
+
+  const signedIn = await hasSignedIn(gatekeeperId).catch(() => true)
+  if (signedIn) {
+    return { error: 'This Gatekeeper has already signed in, so there’s no invite to resend. If they’ve forgotten their password, they can reset it from the app’s sign-in screen.' }
   }
 
-  const admin = createAdminClient()
-  const { data: gatekeeper } = await admin
-    .from('profiles')
-    .select('full_name, email, club_id, clubs!profiles_club_id_fkey(name)')
-    .eq('id', gatekeeperId)
-    .eq('role', 'gatekeeper')
-    .maybeSingle()
-  if (!gatekeeper) return { error: 'Gatekeeper not found.' }
+  const result = await issueAccountSetupInvite({ userId: gatekeeperId, requestedBy: caller.id })
+  if ('error' in result) return { error: result.error }
 
-  // A Champion may only resend for their own club's gatekeepers — this
-  // action uses the service-role admin client below (to read/update
-  // auth-adjacent state), which bypasses RLS entirely, so this scoping
-  // has to be enforced here explicitly, same as every other
-  // Champion-reachable gatekeeper action in this file.
-  if (caller.role === 'champion' && gatekeeper.club_id !== caller.club_id) {
-    return { error: 'Not authorized.' }
-  }
-
-  // Same real {{champion_name}} resolution as creation (see
-  // inviteAndCreateGatekeeper above) — a Super Admin resending should
-  // still name the real linked Champion when one exists, not themselves.
-  let championName = caller.full_name ?? 'Your Champion'
-  if (caller.role === 'super_admin') {
-    const { data: linkedChampion } = await admin
-      .from('profiles')
-      .select('full_name')
-      .eq('club_id', gatekeeper.club_id)
-      .eq('role', 'champion')
-      .eq('is_active', true)
-      .maybeSingle()
-    championName = linkedChampion?.full_name ?? caller.full_name ?? 'The Healing Minds Matter Team'
-  }
-
-  const appLoginLink = process.env.GATEKEEPER_ANDROID_DOWNLOAD_URL ?? process.env.NEXT_PUBLIC_SITE_URL ?? ''
-  const result = await resendGatekeeperWelcomeEmail({
-    userId: gatekeeperId,
-    email: gatekeeper.email,
-    fullName: gatekeeper.full_name,
-    championName,
-    clubName: (gatekeeper.clubs as unknown as { name: string } | null)?.name ?? 'your club',
-    appLoginLink,
-  })
-  if (result.error) return { error: result.error }
-
-  await writeAuditLog({
-    actorId: user.id,
-    action: 'gatekeeper.invite_resent',
-    entityType: 'gatekeeper',
-    entityId: gatekeeperId,
-    details: { email: gatekeeper.email },
-  })
-
+  revalidateGatekeeper(gatekeeperId)
   return { success: true }
 }

@@ -14,13 +14,13 @@ interface Gatekeeper {
   version: number
 }
 
-export function EditGatekeeperModal({ gatekeeper, clubName }: { gatekeeper: Gatekeeper; clubName: string }) {
+export function EditGatekeeperModal({ gatekeeper, clubName, emailLocked }: { gatekeeper: Gatekeeper; clubName: string; emailLocked: boolean }) {
   const router = useRouter()
   const close = () => router.back()
 
   return (
     <ModalOverlay onClose={close}>
-      <GatekeeperEditForm gatekeeper={gatekeeper} clubName={clubName} onClose={close} />
+      <GatekeeperEditForm gatekeeper={gatekeeper} clubName={clubName} onClose={close} emailLocked={emailLocked} />
     </ModalOverlay>
   )
 }

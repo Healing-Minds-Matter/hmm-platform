@@ -78,38 +78,3 @@ export async function createGatekeeperWithTempPassword(params: {
   // nothing to leak (or accidentally render) on the sent path at all.
   return { userId, tempPassword: params.sendWelcomeEmail ? null : tempPassword }
 }
-
-// Resend — there's no "the same password" to resend (never stored in
-// plaintext anywhere), so this issues a genuinely NEW temporary password
-// via updateUserById and re-sends the welcome email with it, invalidating
-// whatever the Gatekeeper had before. Correct behavior for "the original
-// email got lost/never arrived," not just a cosmetic resend.
-export async function resendGatekeeperWelcomeEmail(params: {
-  userId: string
-  email: string
-  fullName: string
-  championName: string
-  clubName: string
-  appLoginLink: string
-}): Promise<{ error?: string }> {
-  const admin = createAdminClient()
-  const tempPassword = generateTempPassword()
-
-  const { error: updateError } = await admin.auth.admin.updateUserById(params.userId, { password: tempPassword })
-  if (updateError) return { error: describeInviteError(updateError) }
-
-  const firstName = params.fullName.trim().split(/\s+/)[0] || params.fullName
-
-  const { error: emailError } = await sendGatekeeperWelcomeEmail({
-    to: params.email,
-    gatekeeperFirstName: firstName,
-    championName: params.championName,
-    clubName: params.clubName,
-    tempPassword,
-    appLoginLink: params.appLoginLink,
-  })
-  if (emailError) return { error: emailError }
-
-  await seedPasswordHistoryAdmin(params.userId, tempPassword)
-  return {}
-}

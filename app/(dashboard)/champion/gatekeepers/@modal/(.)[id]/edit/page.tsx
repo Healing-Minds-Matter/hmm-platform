@@ -1,6 +1,7 @@
 import { notFound, redirect } from 'next/navigation'
 import { loginPath } from '@/lib/login-redirect.server'
 import { createClient } from '@/lib/supabase/server'
+import { hasSignedIn } from '@/lib/account-setup.server'
 import { EditGatekeeperModal } from './edit-gatekeeper-modal'
 
 export default async function InterceptedEditGatekeeperPage({ params }: { params: Promise<{ id: string }> }) {
@@ -26,8 +27,11 @@ export default async function InterceptedEditGatekeeperPage({ params }: { params
 
   if (!gatekeeper) notFound()
 
+  // Review Finding 2: a Champion may only fix the email before the Gatekeeper first signs in.
+  const emailLocked = await hasSignedIn(id).catch(() => true)
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const club = callerProfile.clubs as any
 
-  return <EditGatekeeperModal gatekeeper={gatekeeper} clubName={club?.name ?? 'Your Club'} />
+  return <EditGatekeeperModal gatekeeper={gatekeeper} clubName={club?.name ?? 'Your Club'} emailLocked={emailLocked} />
 }
