@@ -91,6 +91,19 @@ describe('createGatekeeperAction (single)', () => {
     const profile = h.db.tables.profiles.find(row => row.id === NEW_USER)!
     expect(profile).toMatchObject({ role: 'gatekeeper', club_id: CLUB_A, must_change_password: false })
   })
+  it('Review Finding 7: a forged request can’t set role, status, code, QPR date or a certificate — the server sets the profile fields itself', async () => {
+    h.me = CH_A
+    await createGatekeeperAction(null, single({
+      send_welcome_email: 'on', role: 'super_admin', is_active: 'false', gatekeeper_code: 'GK-0001',
+      qpr_certification_date: '2026-01-15', must_change_password: 'true', club_id: CLUB_B,
+    }))
+    const insert = h.db.writes.find(w => w.table === 'profiles' && w.op === 'insert')!
+    expect(insert.client).toBe('admin') // server code, only after the guard passed
+    expect(Object.keys(insert.values).sort()).toEqual(
+      ['club_id', 'email', 'full_name', 'gatekeeper_code', 'id', 'is_active', 'must_change_password', 'phone', 'preferred_language', 'role'])
+    expect(insert.values).toMatchObject({ role: 'gatekeeper', club_id: CLUB_A, is_active: true, gatekeeper_code: 'GK-1001', must_change_password: false })
+    expect(h.db.writes.filter(w => w.table === 'certificates')).toEqual([])
+  })
   it('Champion’s submitted club is ignored: always their own club', async () => {
     h.me = CH_A
     await createGatekeeperAction(null, single({ club_id: CLUB_B, send_welcome_email: 'on' }))
