@@ -116,7 +116,7 @@ export function LoginForm({ portal }: { portal: 'super_admin' | 'champion' }) {
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="current-password"
                   required
-                  placeholder="At least 8 characters"
+                  placeholder="Enter your password"
                   className="h-12 w-full rounded-lg border border-[#D4D7E3] bg-[#FCFDFF] px-4 pr-11 text-[16px] tracking-[0.16px] text-[#0C1421] outline-none transition placeholder:text-[14px] placeholder:tracking-[0.14px] placeholder:text-[#8897AD] focus:border-[#F4AC1E] focus:ring-2 focus:ring-[#F4AC1E]/20"
                 />
                 <button

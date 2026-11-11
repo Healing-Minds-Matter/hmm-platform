@@ -22,6 +22,18 @@ export const SUPER_ADMIN_MANUAL: HelpManual = {
           ],
         },
         {
+          id: 'two-step-verification',
+          title: 'Two-step verification',
+          steps: [
+            'After your password, enter the 6-digit code from your authenticator app (for example Google Authenticator or Microsoft Authenticator).',
+            'The first time, scan the QR code shown with the app (or type in the key under it), then enter the code it shows.',
+          ],
+          notes: [
+            'Super Admin accounts always need the code. Codes change every 30 seconds; if one is refused, check your phone sets its time automatically.',
+            'Lost or replaced your phone? Ask the person who manages the HMM Supabase project to reset your two-step verification, then sign in and set it up again.',
+          ],
+        },
+        {
           id: 'session-timeout',
           title: 'Why was I signed out?',
           notes: [
@@ -44,7 +56,7 @@ export const SUPER_ADMIN_MANUAL: HelpManual = {
           steps: [
             'Select your name, then My Profile.',
             'Edit your name, phone, job title, office location or language, then Save Changes.',
-            'Use Change Password to set a new one. It must be at least 8 characters with upper- and lower-case letters, a number and a symbol, and can’t match your last five passwords.',
+            'Use Change Password to set a new one. It must be at least 12 characters with upper- and lower-case letters, a number and a symbol, and can’t match your last five passwords.',
           ],
           notes: ['Role & Access lists what your account can do right now.'],
         },

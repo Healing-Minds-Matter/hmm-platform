@@ -4,7 +4,7 @@ import { useActionState, useState } from 'react'
 import Link from 'next/link'
 import { resetPasswordAction } from '@/actions/auth'
 import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
-import { checkPasswordRules } from '@/lib/password-validation'
+import { PASSWORD_MIN_LENGTH, checkPasswordRules } from '@/lib/password-validation'
 import { FormErrorsProvider, useFormErrors } from '@/hooks/use-form-errors'
 import { FieldError } from '@/components/field-error'
 import { formLevelError } from '@/lib/form-errors'
@@ -12,7 +12,7 @@ import { formLevelError } from '@/lib/form-errors'
 type RuleKey = 'minLength' | 'case' | 'hasNumber' | 'hasSpecial'
 
 const RULES: { key: RuleKey; label: string }[] = [
-  { key: 'minLength', label: '8+ characters' },
+  { key: 'minLength', label: `${PASSWORD_MIN_LENGTH}+ characters` },
   { key: 'case',     label: 'Upper & lowercase' },
   { key: 'hasNumber', label: 'One number' },
   { key: 'hasSpecial', label: 'One symbol' },

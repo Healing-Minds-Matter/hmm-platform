@@ -12,6 +12,8 @@ export type FakeDb = {
   rpcs: Record<string, RpcHandler>
   /** Make writes to a table fail, as a database rule (trigger, constraint) would. */
   writeErrors: Record<string, { message: string; code?: string }>
+  /** The session's MFA assurance level (Review Finding 8). Default: verified (aal2). */
+  aal?: 'aal1' | 'aal2'
 }
 
 export function createFakeDb(tables: Record<string, Row[]> = {}, rpcs: Record<string, RpcHandler> = {}): FakeDb {
@@ -92,6 +94,7 @@ export function fakeClient(db: FakeDb, client: string, userId: string | null = n
     },
     auth: {
       getUser: async () => ({ data: { user: userId ? { id: userId } : null } }),
+      mfa: { getAuthenticatorAssuranceLevel: async () => ({ data: { currentLevel: db.aal ?? 'aal2', nextLevel: 'aal2' }, error: null }) },
       admin: {
         updateUserById: async (id: string, attrs: Row) => { db.writes.push({ client, table: 'auth.users', op: 'update', values: { id, ...attrs }, filters: [] }); return { error: null } },
         deleteUser: async () => ({ error: null }),

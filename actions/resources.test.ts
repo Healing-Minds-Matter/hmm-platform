@@ -17,7 +17,11 @@ const db = vi.hoisted(() => ({
 vi.mock('server-only', () => ({}))
 vi.mock('@/lib/supabase/server', () => ({
   createClient: async () => ({
-    auth: { getUser: async () => ({ data: { user: { id: 'u1' } } }) },
+    auth: {
+      getUser: async () => ({ data: { user: { id: 'u1' } } }),
+      // A verified (aal2) session, as a Super Admin has after two-step verification (Review Finding 8).
+      mfa: { getAuthenticatorAssuranceLevel: async () => ({ data: { currentLevel: 'aal2', nextLevel: 'aal2' }, error: null }) },
+    },
     from: (table: string) => {
       if (table === 'resource_categories') return { select: async () => ({ data: db.categories }) }
       // The caller (read by the shared guard): an active Super Admin.

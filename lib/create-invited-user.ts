@@ -18,7 +18,10 @@ export async function createAuthAccount(params: {
 }): Promise<{ userId: string } | { error: string }> {
   const { data: created, error } = await createAdminClient().auth.admin.createUser({
     email: params.email,
-    password: crypto.randomBytes(48).toString('base64url'),
+    // Review Finding 8: Supabase now requires upper, lower, digit and symbol;
+    // a random base64url string can miss one, so a fixed tail guarantees all
+    // four. Still 64 random characters nobody is told.
+    password: `${crypto.randomBytes(48).toString('base64url')}aA1!`,
     email_confirm: true,
     user_metadata: { full_name: params.fullName },
   })
