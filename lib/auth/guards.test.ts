@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const state = vi.hoisted(() => ({
   userId: null as string | null,
   profile: null as { role: string; club_id: string | null; is_active: boolean; must_change_password?: boolean } | null,
+  status: null as { is_active: boolean; deactivation_reason: string | null } | null,
 }))
 
 vi.mock('server-only', () => ({}))
@@ -10,12 +11,13 @@ vi.mock('@/lib/supabase/server', () => ({
   createClient: async () => ({
     auth: { getUser: async () => ({ data: { user: state.userId ? { id: state.userId } : null } }) },
     from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: state.profile }) }) }) }),
+    rpc: async () => ({ data: state.status ? [state.status] : [], error: null }),
   }),
 }))
 
 import { requireClubScope, requireRole, requireUser, type Caller } from '@/lib/auth/guards.server'
 
-beforeEach(() => { state.userId = 'u1'; state.profile = null })
+beforeEach(() => { state.userId = 'u1'; state.profile = null; state.status = null })
 
 describe('requireUser', () => {
   it('not signed in → unauthenticated', async () => {
@@ -28,6 +30,15 @@ describe('requireUser', () => {
   it('deactivated → inactive', async () => {
     state.profile = { role: 'super_admin', club_id: null, is_active: false }
     expect(await requireUser()).toMatchObject({ ok: false, reason: 'inactive' })
+  })
+  it('club inactive (the database hides the profile; my_account_status says why) → club_inactive (Review Finding 6)', async () => {
+    state.status = { is_active: false, deactivation_reason: 'club_deactivated' }
+    expect(await requireUser()).toMatchObject({ ok: false, reason: 'club_inactive', message: 'Your club is currently inactive. Please contact your administrator.' })
+  })
+  it('club deactivated with the member (cascade) → club_inactive', async () => {
+    state.profile = { role: 'gatekeeper', club_id: 'c1', is_active: false }
+    state.status = { is_active: false, deactivation_reason: 'club_deactivated' }
+    expect(await requireUser()).toMatchObject({ ok: false, reason: 'club_inactive' })
   })
   it('temporary password not yet replaced → refused (Review Finding 3)', async () => {
     state.profile = { role: 'champion', club_id: 'c1', is_active: true, must_change_password: true }

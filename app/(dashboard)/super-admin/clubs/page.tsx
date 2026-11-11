@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { loadCertSummary } from '@/lib/cert-summary.server'
 import { certifiedFigures } from '@/lib/cert-summary'
-import { reactivateClubAction } from '@/actions/clubs'
+import { reactivateClubFormAction } from '@/actions/clubs'
 import { ClubFilters } from './club-filters'
 import { ExportClubsButton, type ExportRow } from './export-clubs-button'
 
@@ -356,7 +356,7 @@ export default async function ClubsPage({
                           </div>
                         ) : (
                           <div className="flex items-center justify-end">
-                            <form action={reactivateClubAction}>
+                            <form action={reactivateClubFormAction}>
                               <input type="hidden" name="club_id" value={club.id} />
                               <button
                                 type="submit"

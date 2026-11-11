@@ -1,5 +1,6 @@
 import 'server-only'
 import { createClient } from '@/lib/supabase/server'
+import { fetchAccountStatus } from '@/lib/auth/account-status'
 
 // Shared server-side guards (security go-live plan, "two locks"). Every server
 // action and route handler checks the caller here first; the database rules
@@ -22,13 +23,14 @@ export type Caller = {
   supabase: ServerClient
 }
 
-export type GuardFailureReason = 'unauthenticated' | 'inactive' | 'password_change_required' | 'forbidden' | 'out_of_scope'
+export type GuardFailureReason = 'unauthenticated' | 'inactive' | 'club_inactive' | 'password_change_required' | 'forbidden' | 'out_of_scope'
 export type GuardFailure = { ok: false; reason: GuardFailureReason; message: string }
 export type GuardResult = { ok: true; caller: Caller } | GuardFailure
 
 export const GUARD_MESSAGES: Record<GuardFailureReason, string> = {
   unauthenticated: 'Please sign in again.',
   inactive: 'Your account has been deactivated. Please contact your administrator.',
+  club_inactive: 'Your club is currently inactive. Please contact your administrator.',
   password_change_required: 'Please set a new password before continuing.',
   forbidden: 'You don’t have permission to do this.',
   out_of_scope: 'You can only do this for your own club.',
@@ -51,7 +53,12 @@ export async function requireUser(): Promise<GuardResult> {
     .maybeSingle()
 
   // No profile row means no role: treat it like a deactivated account.
-  if (!profile || profile.is_active !== true) return fail('inactive')
+  // (The database also hides the profile of a member of an inactive club —
+  // Review Finding 6 — so ask my_account_status() which message applies.)
+  if (!profile || profile.is_active !== true) {
+    const status = await fetchAccountStatus(supabase).catch(() => ({ ok: false as const }))
+    return status.ok && status.status?.deactivation_reason === 'club_deactivated' ? fail('club_inactive') : fail('inactive')
+  }
   // Until the temporary password is replaced, only the change-password
   // screen (which doesn't use these guards) is available.
   if (profile.must_change_password === true) return fail('password_change_required')

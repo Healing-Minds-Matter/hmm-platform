@@ -7,7 +7,6 @@ import { createClient } from '@/lib/supabase/server'
 import { writeAuditLog } from '@/lib/audit'
 import { requireRole } from '@/lib/auth/guards.server'
 import { invalid, type FieldErrors } from '@/lib/form-errors'
-import { endDelegationsForDeactivatedUser } from '@/lib/delegations.server'
 import { readCsvUpload } from '@/lib/csv'
 import { batchLines, bulkIntent, type BulkUploadState } from '@/lib/bulk-upload'
 import {
@@ -192,98 +191,42 @@ export async function updateClubAction(
   return { success: true }
 }
 
-export async function deactivateClubAction(formData: FormData) {
-  const clubId = formData.get('club_id') as string
+export type ClubStatusResult = { success: true } | { error: string } | undefined
 
-  // Security Finding 3: this changes every member's status, so Super Admins only.
+// Review Finding 6: one database call (set_club_active) changes the club, its
+// members (the existing trigger ends their sessions), their delegations and
+// the audit log together, in one transaction — a failure part-way leaves
+// nothing changed. The database checks the caller again (active Super Admin)
+// and records them as the actor.
+async function setClubActive(formData: FormData, active: boolean): Promise<ClubStatusResult> {
+  const clubId = formData.get('club_id')
+
   const caller = await requireSuperAdminForClubs()
-  if (!caller || !UUID_RE.test(clubId ?? '')) return
-  const supabase = caller.supabase
-  const user = { id: caller.id }
+  if (!caller) return { error: 'Only Super Admins can change a club’s status.' }
+  if (typeof clubId !== 'string' || !UUID_RE.test(clubId)) return { error: 'Club not found.' }
 
-  // Collect active members for audit log before deactivating
-  const { data: affected } = await supabase
-    .from('profiles')
-    .select('id, full_name, role')
-    .eq('club_id', clubId)
-    .eq('is_active', true)
-
-  const { data: club } = await supabase
-    .from('clubs')
-    .update({ is_active: false })
-    .eq('id', clubId)
-    .select('id')
-  if (!club?.length) return
-
-  if (affected && affected.length > 0) {
-    await supabase
-      .from('profiles')
-      .update({
-        is_active: false,
-        deactivation_reason: 'club_deactivated',
-        deactivated_club_id: clubId,
-      })
-      .eq('club_id', clubId)
-      .eq('is_active', true)
-  }
-
-  await writeAuditLog({
-    actorId: user.id,
-    action: 'club.deactivated',
-    entityType: 'club',
-    entityId: clubId,
-    details: {
-      affectedUsers: affected?.map(p => ({ id: p.id, role: p.role, name: p.full_name })) ?? [],
-    },
-  })
-
-  for (const member of affected ?? []) {
-    await endDelegationsForDeactivatedUser(member.id, user.id)
+  const { error } = await caller.supabase.rpc('set_club_active', { p_club_id: clubId, p_active: active })
+  if (error) {
+    if (error.code === 'P0002') return { error: 'Club not found.' }
+    return { error: active ? 'The club couldn’t be reactivated. Nothing was changed — please try again.' : 'The club couldn’t be deactivated. Nothing was changed — please try again.' }
   }
 
   revalidatePath(`/super-admin/clubs/${clubId}`)
   revalidatePath('/super-admin/clubs')
+  return { success: true }
 }
 
-export async function reactivateClubAction(formData: FormData) {
-  const clubId = formData.get('club_id') as string
+export async function deactivateClubAction(formData: FormData): Promise<ClubStatusResult> {
+  return setClubActive(formData, false)
+}
 
-  const caller = await requireSuperAdminForClubs()
-  if (!caller || !UUID_RE.test(clubId ?? '')) return
-  const supabase = caller.supabase
-  const user = { id: caller.id }
+export async function reactivateClubAction(formData: FormData): Promise<ClubStatusResult> {
+  return setClubActive(formData, true)
+}
 
-  const { data: club } = await supabase
-    .from('clubs')
-    .update({ is_active: true })
-    .eq('id', clubId)
-    .select('id')
-  if (!club?.length) return
-
-  // Restore only cascade-deactivated members of this specific club
-  const { data: restored } = await supabase
-    .from('profiles')
-    .update({
-      is_active: true,
-      deactivation_reason: null,
-      deactivated_club_id: null,
-    })
-    .eq('deactivated_club_id', clubId)
-    .eq('deactivation_reason', 'club_deactivated')
-    .select('id, full_name, role')
-
-  await writeAuditLog({
-    actorId: user.id,
-    action: 'club.reactivated',
-    entityType: 'club',
-    entityId: clubId,
-    details: {
-      restoredUsers: restored?.map(p => ({ id: p.id, role: p.role, name: p.full_name })) ?? [],
-    },
-  })
-
-  revalidatePath(`/super-admin/clubs/${clubId}`)
-  revalidatePath('/super-admin/clubs')
+/** For a plain <form action> (the clubs list's Reactivate button). */
+export async function reactivateClubFormAction(formData: FormData): Promise<void> {
+  await setClubActive(formData, true)
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
