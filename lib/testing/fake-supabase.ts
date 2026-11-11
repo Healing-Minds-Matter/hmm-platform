@@ -23,7 +23,8 @@ export function createFakeDb(tables: Record<string, Row[]> = {}, rpcs: Record<st
 export function fakeClient(db: FakeDb, client: string, userId: string | null = null) {
   function from(table: string) {
     const filters: [string, string, unknown][] = []
-    let op: 'select' | 'update' | 'insert' | 'delete' = 'select'
+    let op: 'select' | 'update' | 'insert' | 'delete' | 'upsert' = 'select'
+    let conflictCols: string[] = []
     let values: Row = {}
     let returning = false
     let wantCount = false
@@ -39,6 +40,13 @@ export function fakeClient(db: FakeDb, client: string, userId: string | null = n
     const run = () => {
       const refused = op !== 'select' ? db.writeErrors[table] : undefined
       if (refused) return { data: null, error: refused }
+      if (op === 'upsert') {
+        // INSERT … ON CONFLICT (conflictCols) DO UPDATE
+        const existing = rows().find(r => conflictCols.every(c => r[c] === values[c]))
+        const row = existing ? Object.assign(existing, values) : (rows().push({ id: `${table}-${rows().length + 1}`, ...values }), rows()[rows().length - 1])
+        db.writes.push({ client, table, op, values, filters })
+        return { data: returning ? [{ ...row }] : null, error: null }
+      }
       if (op === 'insert') {
         rows().push({ ...values })
         db.writes.push({ client, table, op, values, filters })
@@ -62,6 +70,7 @@ export function fakeClient(db: FakeDb, client: string, userId: string | null = n
       select: () => { if (op !== 'select') returning = true; return b },
       update: (v: Row, o?: { count?: string }) => { op = 'update'; values = v; wantCount = !!o?.count; return b },
       insert: (v: Row) => { op = 'insert'; values = v; return b },
+      upsert: (v: Row, o?: { onConflict?: string }) => { op = 'upsert'; values = v; conflictCols = (o?.onConflict ?? 'id').split(','); return b },
       delete: () => { op = 'delete'; return b },
       eq: (c: string, v: unknown) => { filters.push(['eq', c, v]); return b },
       neq: (c: string, v: unknown) => { filters.push(['neq', c, v]); return b },

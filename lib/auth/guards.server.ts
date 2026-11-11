@@ -81,6 +81,15 @@ export async function requireRole(roles: readonly Role[], message?: string): Pro
 }
 
 /**
+ * Review Finding 9: managing permissions (role defaults, individual
+ * exceptions, groups, delegations) is Super-Admin-only (Epic 9) — there is no
+ * permission key that grants it to anyone else.
+ */
+export async function requirePermissionManager(): Promise<GuardResult> {
+  return requireRole(['super_admin'], 'Only Super Admins can manage permissions.')
+}
+
+/**
  * Super Admins may act on any club; Champions and Gatekeepers only on their own.
  * Call after requireUser/requireRole, with a club id looked up on the server.
  */
