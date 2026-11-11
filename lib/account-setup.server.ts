@@ -2,7 +2,7 @@ import 'server-only'
 import crypto from 'crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { writeAuditLog } from '@/lib/audit'
-import { sendAccountSetupEmail } from '@/lib/send-email'
+import { sendAccountSetupEmail, sendGatekeeperWelcomeEmail } from '@/lib/send-email'
 import { validatePassword } from '@/lib/password-validation'
 import { seedPasswordHistoryAdmin } from '@/lib/password-history.server'
 import type { FieldErrors } from '@/lib/form-errors'
@@ -48,7 +48,28 @@ export async function cancelAccountSetupInvites(userId: string): Promise<void> {
     .eq('user_id', userId).is('used_at', null).is('cancelled_at', null)
 }
 
-const NOT_ALLOWED = 'This account has already been signed into, so there’s no invite to resend. If they’ve forgotten their password, they can reset it from the sign-in screen.'
+/**
+ * {{champion_name}} / {{club_name}} for the Gatekeeper welcome email: a
+ * Champion sender is named directly; for a Super Admin sender the club's
+ * active Champion is named (their day-to-day contact), falling back to the
+ * Super Admin's own name.
+ */
+async function gatekeeperEmailNames(clubId: string | null, requestedBy: string): Promise<{ championName: string; clubName: string }> {
+  const admin = createAdminClient()
+  const [{ data: actor }, { data: club }] = await Promise.all([
+    admin.from('profiles').select('full_name, role').eq('id', requestedBy).maybeSingle(),
+    clubId ? admin.from('clubs').select('name').eq('id', clubId).maybeSingle() : Promise.resolve({ data: null }),
+  ])
+  let championName: string = actor?.full_name ?? 'Your Champion'
+  if (actor?.role === 'super_admin' && clubId) {
+    const { data: champion } = await admin.from('profiles').select('full_name')
+      .eq('club_id', clubId).eq('role', 'champion').eq('is_active', true).maybeSingle()
+    championName = champion?.full_name ?? actor.full_name ?? 'The Healing Minds Matter Team'
+  }
+  return { championName, clubName: (club as { name?: string } | null)?.name ?? 'your club' }
+}
+
+const NOT_ALLOWED ='This account has already been signed into, so there’s no invite to resend. If they’ve forgotten their password, they can reset it from the sign-in screen.'
 
 /**
  * Emails a new set-password link to the account's current sign-in address.
@@ -62,7 +83,7 @@ export async function issueAccountSetupInvite(params: {
   siteUrl?: string
 }): Promise<{ ok: true } | { error: string }> {
   const admin = createAdminClient()
-  const { data: profile } = await admin.from('profiles').select('full_name, role').eq('id', params.userId).maybeSingle()
+  const { data: profile } = await admin.from('profiles').select('full_name, role, club_id').eq('id', params.userId).maybeSingle()
   const { data: authUser } = await admin.auth.admin.getUserById(params.userId)
   const email = authUser?.user?.email
   if (!profile || !email) return { error: 'Account not found.' }
@@ -93,13 +114,21 @@ export async function issueAccountSetupInvite(params: {
   }
 
   const siteUrl = params.siteUrl ?? process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
-  const sent = await sendAccountSetupEmail({
-    to: email,
-    fullName: profile.full_name ?? '',
-    setupUrl: `${siteUrl}${ACCOUNT_SETUP_PATH}?token=${encodeURIComponent(token)}`,
-    expiresInHours: ACCOUNT_SETUP_TTL_HOURS,
-    appLink: profile.role === 'gatekeeper' ? process.env.GATEKEEPER_ANDROID_DOWNLOAD_URL : undefined,
-  })
+  const setupUrl = `${siteUrl}${ACCOUNT_SETUP_PATH}?token=${encodeURIComponent(token)}`
+  const sent = profile.role === 'gatekeeper'
+    ? await sendGatekeeperWelcomeEmail({
+      to: email,
+      gatekeeperFirstName: (profile.full_name ?? '').trim().split(/\s+/)[0] || (profile.full_name ?? ''),
+      ...(await gatekeeperEmailNames(profile.club_id, params.requestedBy)),
+      setPasswordLink: setupUrl,
+      expiresInHours: ACCOUNT_SETUP_TTL_HOURS,
+    })
+    : await sendAccountSetupEmail({
+      to: email,
+      fullName: profile.full_name ?? '',
+      setupUrl,
+      expiresInHours: ACCOUNT_SETUP_TTL_HOURS,
+    })
   if (sent.error) {
     console.error('[issueAccountSetupInvite] email failed')
     await admin.from('account_setup_invites').update({ cancelled_at: new Date().toISOString() }).eq('id', invite.id)

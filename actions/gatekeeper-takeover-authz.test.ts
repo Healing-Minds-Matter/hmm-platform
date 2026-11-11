@@ -43,15 +43,15 @@ vi.mock('@/lib/phone-uniqueness.server', () => ({
   checkPhoneAvailable: vi.fn(async () => null), describePhoneDbError: vi.fn(() => null), phoneChanged: vi.fn(() => false),
   findPhoneClash: vi.fn(), loadPhoneOwners: vi.fn(),
 }))
-vi.mock('@/lib/invite-gatekeeper', () => ({ createGatekeeperWithTempPassword: vi.fn() }))
-vi.mock('@/lib/send-email', () => ({ sendGatekeeperWelcomeEmail: vi.fn(), sendTemporaryPasswordEmail: vi.fn() }))
+vi.mock('@/lib/create-invited-user', () => ({ createAuthAccount: vi.fn() }))
+vi.mock('@/lib/send-email', () => ({ sendGatekeeperWelcomeEmail: vi.fn(), sendAccountSetupEmail: vi.fn() }))
 vi.mock('@/lib/login-redirect.server', () => ({ loginPath: async () => '/login' }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 vi.mock('next/navigation', () => ({ redirect: vi.fn(() => { throw new Error('NEXT_REDIRECT') }) }))
 
 import { resendGatekeeperInviteAction, updateGatekeeperAction } from '@/actions/gatekeepers'
 import { writeAuditLog } from '@/lib/audit'
-import { sendGatekeeperWelcomeEmail, sendTemporaryPasswordEmail } from '@/lib/send-email'
+import { sendGatekeeperWelcomeEmail } from '@/lib/send-email'
 
 const form = (f: Record<string, string>) => { const d = new FormData(); for (const [k, v] of Object.entries(f)) d.set(k, v); return d }
 const passwordWrites = () => h.db.writes.filter(w => w.table === 'auth.users' && 'password' in w.values)
@@ -63,7 +63,6 @@ beforeEach(() => {
   h.signedIn = new Set([GK_USED, SA, CH_A, CH_B])
   vi.mocked(writeAuditLog).mockClear()
   vi.mocked(sendGatekeeperWelcomeEmail).mockClear()
-  vi.mocked(sendTemporaryPasswordEmail).mockClear()
   const p = (pid: string, role: string, club_id: string | null, extra: Record<string, unknown> = {}) =>
     ({ id: pid, role, club_id, is_active: true, email: `${pid}@example.com`, phone: '+94771234567', version: 1, full_name: 'Asha Perera', ...extra })
   h.db = createFakeDb({
@@ -144,7 +143,6 @@ describe('resendGatekeeperInviteAction', () => {
     expect(r).toEqual({ success: true })
     expect(h.invites).toEqual([expect.objectContaining({ userId: GK_NEW, requestedBy: who })])
     expect(sendGatekeeperWelcomeEmail).not.toHaveBeenCalled()
-    expect(sendTemporaryPasswordEmail).not.toHaveBeenCalled()
     expect(passwordWrites()).toEqual([])
     expect(JSON.stringify(r)).not.toMatch(/password/i)
   })

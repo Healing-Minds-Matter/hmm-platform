@@ -7,9 +7,9 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { writeAuditLog } from '@/lib/audit'
 import { invalid, type FieldErrors } from '@/lib/form-errors'
-import { createGatekeeperWithTempPassword } from '@/lib/invite-gatekeeper'
+import { createAuthAccount } from '@/lib/create-invited-user'
 import { hasSignedIn, issueAccountSetupInvite } from '@/lib/account-setup.server'
-import { CHAMPION_EMAIL_LOCKED } from '@/lib/account-sign-in'
+import { BULK_SEND_LATER_NOTE, CHAMPION_EMAIL_LOCKED } from '@/lib/account-sign-in'
 import { parsePhone } from '@/lib/phone'
 import { checkPhoneAvailable, describePhoneDbError, findPhoneClash, loadPhoneOwners, phoneChanged, type PhoneOwner } from '@/lib/phone-uniqueness.server'
 import { readCsvUpload } from '@/lib/csv'
@@ -27,10 +27,8 @@ export type GatekeeperActionState = {
   fieldErrors?: FieldErrors
   conflict?: boolean
   success?: boolean
-  // Only set when the Champion/Super Admin chose "I'll share credentials
-  // manually" — the one time this ever appears on screen, since no
-  // plaintext password is stored anywhere afterward.
-  tempPassword?: string
+  /** Registered without the welcome email ("send later"): the creator sends it from the Gatekeeper's page. */
+  inviteDeferred?: boolean
   // Set when the Gatekeeper was registered but a certification couldn't be added.
   warning?: string
   /** Set when a new sign-in email is waiting for the new address to confirm (Security Finding 3). */
@@ -105,7 +103,7 @@ function checkNewGatekeeperAgainst(
 ): { club: { name: string } } | CheckError {
   if (lookups.takenEmails.has(params.email)) return { error: EMAIL_TAKEN, field: 'email' }
 
-  // Before createInvitedUser() below sends a real account email.
+  // Before any account is created or email sent.
   const phoneError = findPhoneClash(params.phone, lookups.phoneOwners, { creatingGatekeeper: true })
   if (phoneError) return { error: phoneError, field: 'phone' }
 
@@ -114,9 +112,8 @@ function checkNewGatekeeperAgainst(
   // cell (bulk upload) or read straight off form data (single create), so
   // it's never guaranteed to be a real club. Without this check, a bad ID
   // only surfaces as a raw Postgres FK-violation message on the later
-  // profiles insert, by which point the invite email (with a real temp
-  // password) has already been sent for an account that's about to be
-  // rolled back.
+  // profiles insert, after an account has already been created that then
+  // has to be rolled back.
   const club = lookups.clubs.get(params.clubId)
   if (!club) {
     return { error: 'The selected club could not be found. Double-check the club_id and try again.', field: 'club_id' }
@@ -135,48 +132,18 @@ async function inviteAndCreateGatekeeper(params: {
   clubId: string
   actorId: string
   sendWelcomeEmail: boolean
-}): Promise<CheckError | { id: string; gatekeeper_code: string; tempPassword?: string }> {
+}): Promise<CheckError | { id: string; gatekeeper_code: string; inviteDeferred: boolean }> {
   const checked = await checkNewGatekeeper(params)
   if ('error' in checked) return checked
-  const club = checked.club
   const admin = createAdminClient()
 
   const { data: gkCode, error: codeError } = await admin.rpc('next_gatekeeper_code')
-  if (codeError) return { error: codeError.message }
+  if (codeError) return { error: 'Could not create the Gatekeeper. Please try again.' }
 
-  const { data: actor } = await admin.from('profiles').select('full_name, role').eq('id', params.actorId).maybeSingle()
-
-  // {{champion_name}}: when a Champion creates the Gatekeeper, the actor
-  // IS the real champion_name — use their own name directly. When a
-  // Super Admin creates one instead, "Super Admin created you" is less
-  // useful to a Gatekeeper than their actual day-to-day club contact, so
-  // this looks up the club's real active Champion and uses that name;
-  // only falls back to the Super Admin's own name (per explicit decision)
-  // when the club genuinely has no active Champion assigned.
-  let championName = actor?.full_name ?? 'Your Champion'
-  if (actor?.role === 'super_admin') {
-    const { data: linkedChampion } = await admin
-      .from('profiles')
-      .select('full_name')
-      .eq('club_id', params.clubId)
-      .eq('role', 'champion')
-      .eq('is_active', true)
-      .maybeSingle()
-    championName = linkedChampion?.full_name ?? actor.full_name ?? 'The Healing Minds Matter Team'
-  }
-
-  // Real system-generated temp password (crypto-random — see
-  // generate-temp-password.ts), no invite link. See lib/invite-gatekeeper.ts
-  // for why this is a separate path from Champion's createInvitedUser flow.
-  const appLoginLink = process.env.GATEKEEPER_ANDROID_DOWNLOAD_URL ?? process.env.NEXT_PUBLIC_SITE_URL ?? ''
-  const invited = await createGatekeeperWithTempPassword({
-    email: params.email,
-    fullName: params.fullName,
-    championName,
-    clubName: club.name,
-    appLoginLink,
-    sendWelcomeEmail: params.sendWelcomeEmail,
-  })
+  // Review Finding 3: no temporary password. The account gets a random
+  // password nobody is told; the Gatekeeper chooses their own from a
+  // single-use set-password link, emailed now or later ("send later").
+  const invited = await createAuthAccount({ email: params.email, fullName: params.fullName })
   if ('error' in invited) return invited.error === EMAIL_TAKEN ? { error: invited.error, field: 'email' } : { error: invited.error }
 
   const newUserId = invited.userId
@@ -191,11 +158,7 @@ async function inviteAndCreateGatekeeper(params: {
     preferred_language: params.preferredLanguage,
     gatekeeper_code: gkCode,
     is_active: true,
-    // No forced first-login password change needed — the real invite
-    // No forced first-login password change — per the spec's "no forced
-    // password change gate for Phase 1," the Gatekeeper logs in directly
-    // with the emailed (or manually-shared) temp password; the welcome
-    // email just nudges them toward Change Password afterward.
+    // Nothing to change: they choose their first password from the link.
     must_change_password: false,
   })
 
@@ -208,7 +171,16 @@ async function inviteAndCreateGatekeeper(params: {
       return { error: 'Could not save this gatekeeper — one of the referenced records (e.g. the club) no longer exists.' }
     }
     const phoneDbError = describePhoneDbError(profileError)
-    return phoneDbError ? { error: phoneDbError, field: 'phone' } : { error: profileError.message }
+    return phoneDbError ? { error: phoneDbError, field: 'phone' } : { error: 'Could not save this Gatekeeper. Please try again.' }
+  }
+
+  if (params.sendWelcomeEmail) {
+    const sent = await issueAccountSetupInvite({ userId: newUserId, requestedBy: params.actorId })
+    if ('error' in sent) {
+      // Same as before: a failed welcome email means no account is left behind.
+      await admin.auth.admin.deleteUser(newUserId)
+      return { error: `The account was not created: ${sent.error}` }
+    }
   }
 
   await writeAuditLog({
@@ -216,10 +188,10 @@ async function inviteAndCreateGatekeeper(params: {
     action: 'gatekeeper.created',
     entityType: 'gatekeeper',
     entityId: newUserId,
-    details: { full_name: params.fullName, email: params.email, club_id: params.clubId, gatekeeper_code: gkCode },
+    details: { full_name: params.fullName, email: params.email, club_id: params.clubId, gatekeeper_code: gkCode, invite_sent: params.sendWelcomeEmail },
   })
 
-  return { id: newUserId, gatekeeper_code: gkCode, tempPassword: invited.tempPassword ?? undefined }
+  return { id: newUserId, gatekeeper_code: gkCode, inviteDeferred: !params.sendWelcomeEmail }
 }
 
 // inviteAndCreateGatekeeper uses the service-role admin client, which
@@ -229,27 +201,24 @@ async function inviteAndCreateGatekeeper(params: {
 // may target an arbitrary club. Shared by both the Super Admin and Champion
 // create-gatekeeper UIs rather than forked into a second action.
 async function resolveScopedClubId(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  _supabase: Awaited<ReturnType<typeof createClient>>,
   requestedClubId: string | null
 ): Promise<{ clubId: string } | CheckError> {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect(await loginPath())
-
-  const { data: caller } = await supabase
-    .from('profiles')
-    .select('role, club_id')
-    .eq('id', user.id)
-    .single()
-
-  if (caller?.role === 'champion') {
-    if (!caller.club_id) return { error: 'Your account has no assigned club.' }
-    return { clubId: caller.club_id }
+  // Shared guard: signed in, active (Review Finding 3 — a deactivated
+  // Champion could otherwise still create accounts here), and a Super Admin
+  // or Champion. Role and club come from the database, never the form.
+  const guard = await requireRole(['super_admin', 'champion'], 'Only Super Admins and Champions can add Gatekeepers.')
+  if (!guard.ok) {
+    if (guard.reason === 'unauthenticated') redirect(await loginPath())
+    return { error: guard.message }
   }
-  if (caller?.role === 'super_admin') {
-    if (!requestedClubId) return { error: 'Assigned club is required.', field: 'club_id' }
-    return { clubId: requestedClubId }
+  const caller = guard.caller
+  if (caller.role === 'champion') {
+    if (!caller.clubId) return { error: 'Your account has no assigned club.' }
+    return { clubId: caller.clubId }
   }
-  return { error: 'Not authorized.' }
+  if (!requestedClubId) return { error: 'Assigned club is required.', field: 'club_id' }
+  return { clubId: requestedClubId }
 }
 
 type ServerClient = Awaited<ReturnType<typeof createClient>>
@@ -323,16 +292,14 @@ export async function createGatekeeperAction(
     revalidatePath('/super-admin/gatekeepers')
     revalidatePath('/champion/gatekeepers')
     return {
-      success: true, tempPassword: result.tempPassword,
+      success: true, inviteDeferred: result.inviteDeferred,
       warning: `The Gatekeeper was registered, but these certifications couldn’t be added. Add them from their profile. ${failed.join(' ')}`,
     }
   }
 
   revalidatePath('/super-admin/gatekeepers')
   revalidatePath('/champion/gatekeepers')
-  // Only present when sendWelcomeEmail was false — the one time this
-  // password is ever shown, since it's never stored in plaintext.
-  return { success: true, tempPassword: result.tempPassword }
+  return { success: true, inviteDeferred: result.inviteDeferred }
 }
 
 // CSV header: full_name,email,phone,club_id (see lib/gatekeeper-csv.ts). Certificates
@@ -360,26 +327,21 @@ export async function createGatekeepersBulkAction(
   const phoneIdx = col('phone')
   const clubIdx = col('club_id')
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect(await loginPath())
-
-  const { data: caller } = await supabase
-    .from('profiles')
-    .select('role, club_id')
-    .eq('id', user.id)
-    .single()
-
-  if (caller?.role !== 'champion' && caller?.role !== 'super_admin') {
-    return { error: 'Not authorized.' }
+  // Shared guard: signed in, active (Review Finding 3), Super Admin or Champion.
+  const guard = await requireRole(['super_admin', 'champion'], 'Only Super Admins and Champions can add Gatekeepers.')
+  if (!guard.ok) {
+    if (guard.reason === 'unauthenticated') redirect(await loginPath())
+    return { error: guard.message }
   }
+  const caller = guard.caller
+  const user = { id: caller.id }
   // A Champion's rows are always scoped to their own club regardless of any
   // club_id column in the CSV — same rule as the single-gatekeeper form. A
   // Super Admin's CSV still requires a real club_id column, same as before.
-  const forcedClubId = caller.role === 'champion' ? caller.club_id : null
+  const forcedClubId = caller.role === 'champion' ? caller.clubId : null
   if (caller.role === 'champion' && !forcedClubId) return { error: 'Your account has no assigned club.' }
 
-  const headerError = gatekeeperCsvHeaderError(header, caller.role)
+  const headerError = gatekeeperCsvHeaderError(header, caller.role as 'super_admin' | 'champion')
   if (headerError) return { error: headerError }
 
   const results: BulkRowResult[] = []
@@ -437,7 +399,7 @@ export async function createGatekeepersBulkAction(
       fullName, email, phone, preferredLanguage: 'en', clubId, actorId: user.id, sendWelcomeEmail,
     })
     if ('error' in result) fail(result.error)
-    else results.push({ row: rowNum, label: email, status: 'created', tempPassword: result.tempPassword })
+    else results.push({ row: rowNum, label: email, status: 'created', ...(result.inviteDeferred ? { note: BULK_SEND_LATER_NOTE } : {}) })
   }
 
   if (toLookUp.length) {

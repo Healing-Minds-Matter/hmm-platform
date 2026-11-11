@@ -55,7 +55,7 @@ export default async function SetUpAccountPage({
         <Result
           ok={false}
           title="Link invalid or expired"
-          body="This link is invalid, has expired, has been replaced by a newer one, or has already been used. Ask your Club Champion or administrator to send a new one."
+          body="This link is invalid, has expired, has been replaced by a newer one, or has already been used. To get a new link, use “Forgot password?” on the sign-in screen, or ask your Club Champion or administrator."
         />
       )
   }

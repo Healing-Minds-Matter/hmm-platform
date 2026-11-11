@@ -106,7 +106,7 @@ export const SUPER_ADMIN_MANUAL: HelpManual = {
           steps: [
             'Open Champions and choose Add Champion.',
             'Enter their name, email and phone, and choose their club. Each Champion manages one club.',
-            'Save. They receive an email with a temporary password and must set their own when they first sign in.',
+            'Save. They receive an email with a single-use link (valid for 72 hours) to set their own password. Nobody else ever sees or chooses it.',
           ],
         },
         {

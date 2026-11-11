@@ -15,7 +15,9 @@ vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: () => fakeClient(h.d
 vi.mock('@/lib/audit', () => ({ writeAuditLog: vi.fn() }))
 vi.mock('@/lib/password-history.server', () => ({ seedPasswordHistoryAdmin: vi.fn() }))
 vi.mock('@/lib/send-email', () => ({
-  sendAccountSetupEmail: vi.fn(async (p: Record<string, unknown>) => { h.emails.push(p); return {} }),
+  sendAccountSetupEmail: vi.fn(async (p: Record<string, unknown>) => { h.emails.push({ kind: 'plain', ...p }); return {} }),
+  // Gatekeepers get the branded welcome email (Review Finding 3).
+  sendGatekeeperWelcomeEmail: vi.fn(async (p: Record<string, unknown>) => { h.emails.push({ kind: 'gatekeeper', setupUrl: p.setPasswordLink, ...p }); return {} }),
 }))
 
 import {
@@ -23,7 +25,7 @@ import {
 } from '@/lib/account-setup.server'
 import { writeAuditLog } from '@/lib/audit'
 import { seedPasswordHistoryAdmin } from '@/lib/password-history.server'
-import { sendAccountSetupEmail } from '@/lib/send-email'
+import { sendAccountSetupEmail, sendGatekeeperWelcomeEmail } from '@/lib/send-email'
 
 const invites = () => h.db.tables.account_setup_invites ?? []
 const passwordWrites = () => h.db.writes.filter(w => w.table === 'auth.users' && 'password' in w.values)
@@ -34,8 +36,15 @@ beforeEach(() => {
   vi.mocked(writeAuditLog).mockClear()
   vi.mocked(seedPasswordHistoryAdmin).mockClear()
   vi.mocked(sendAccountSetupEmail).mockClear()
+  vi.mocked(sendGatekeeperWelcomeEmail).mockClear()
   h.db = createFakeDb({
-    profiles: [{ id: USER, full_name: 'Asha Perera', email: 'asha@example.com', role: 'gatekeeper', is_active: true }],
+    profiles: [
+      { id: USER, full_name: 'Asha Perera', email: 'asha@example.com', role: 'gatekeeper', club_id: 'club-a', is_active: true },
+      { id: CHAMPION, full_name: 'Nimal Silva', email: 'nimal@example.com', role: 'champion', club_id: 'club-a', is_active: true },
+      { id: 'sa', full_name: 'Super Admin', email: 'sa@example.com', role: 'super_admin', club_id: null, is_active: true },
+      { id: 'ch-other', full_name: 'Club Champion', email: 'c@example.com', role: 'champion', club_id: 'club-b', is_active: true },
+    ],
+    clubs: [{ id: 'club-a', name: 'Kandy Lions' }, { id: 'club-b', name: 'Galle' }],
     'auth.users': [{ id: USER, email: 'asha@example.com' }],
     account_setup_invites: [],
   }, {
@@ -153,5 +162,21 @@ describe('completeAccountSetup', () => {
     h.db.writeErrors.account_setup_invites = { code: '42501', message: 'refused' }
     expect(await completeAccountSetup(token, GOOD, GOOD)).toEqual({ invalid: true })
     expect(passwordWrites()).toEqual([])
+  })
+})
+
+describe('issueAccountSetupInvite — which email (Review Finding 3)', () => {
+  it('Gatekeeper: branded welcome email naming the Champion who sent it and the club', async () => {
+    await issueAccountSetupInvite({ userId: USER, requestedBy: CHAMPION })
+    expect(h.emails[0]).toMatchObject({ kind: 'gatekeeper', to: 'asha@example.com', gatekeeperFirstName: 'Asha', championName: 'Nimal Silva', clubName: 'Kandy Lions', expiresInHours: 72 })
+  })
+  it('Gatekeeper, sent by a Super Admin: names the club’s active Champion', async () => {
+    await issueAccountSetupInvite({ userId: USER, requestedBy: 'sa' })
+    expect(h.emails[0]).toMatchObject({ championName: 'Nimal Silva' })
+  })
+  it('Champion account: the plain set-password email', async () => {
+    h.db.tables['auth.users'].push({ id: 'ch-other', email: 'c@example.com' })
+    await issueAccountSetupInvite({ userId: 'ch-other', requestedBy: 'sa' })
+    expect(h.emails[0]).toMatchObject({ kind: 'plain', to: 'c@example.com' })
   })
 })

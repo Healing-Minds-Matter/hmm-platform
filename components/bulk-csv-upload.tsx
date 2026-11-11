@@ -249,12 +249,7 @@ function ResultList({ results }: { results: BulkRowResult[] }) {
             <span className="shrink-0 font-medium">{r.label}</span>
             <span>{r.status === 'ready' ? 'Ready' : r.status === 'created' ? '✓ Created' : `✗ ${r.error}`}</span>
           </div>
-          {r.tempPassword && (
-            <div className="ml-6 flex flex-wrap items-center gap-1.5 text-[#0F172A]">
-              <span className="text-[11px] text-[#64748B]">Temp password (share manually — shown only once):</span>
-              <span className="font-mono font-semibold">{r.tempPassword}</span>
-            </div>
-          )}
+          {r.note && <div className="ml-6 text-[11px] text-[#64748B]">{r.note}</div>}
         </li>
       ))}
     </ul>

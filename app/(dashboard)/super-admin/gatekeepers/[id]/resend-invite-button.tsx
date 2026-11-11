@@ -43,7 +43,7 @@ export function ResendInviteButton({ gatekeeperId }: { gatekeeperId: string }) {
         onClick={() => setConfirming(true)}
         className="flex items-center gap-1.5 rounded-lg border border-[#D4D7E3] bg-white px-4 py-2.5 text-xs font-semibold text-[#022C51] shadow-sm hover:bg-[#F8FAFC]"
       >
-        Resend Welcome Email
+        Send Welcome Email
       </button>
       {state?.success && <span className="text-xs font-medium text-[#059669]">Sent.</span>}
       {state?.error && <span className="text-xs font-medium text-[#DC2626]">{state.error}</span>}

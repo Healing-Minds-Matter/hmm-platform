@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const state = vi.hoisted(() => ({
   userId: null as string | null,
-  profile: null as { role: string; club_id: string | null; is_active: boolean } | null,
+  profile: null as { role: string; club_id: string | null; is_active: boolean; must_change_password?: boolean } | null,
 }))
 
 vi.mock('server-only', () => ({}))
@@ -28,6 +28,10 @@ describe('requireUser', () => {
   it('deactivated → inactive', async () => {
     state.profile = { role: 'super_admin', club_id: null, is_active: false }
     expect(await requireUser()).toMatchObject({ ok: false, reason: 'inactive' })
+  })
+  it('temporary password not yet replaced → refused (Review Finding 3)', async () => {
+    state.profile = { role: 'champion', club_id: 'c1', is_active: true, must_change_password: true }
+    expect(await requireUser()).toMatchObject({ ok: false, reason: 'password_change_required', message: expect.stringMatching(/new password/) })
   })
   it('active → the caller, with role and club from the database', async () => {
     state.profile = { role: 'champion', club_id: 'c1', is_active: true }
