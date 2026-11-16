@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Sheet row 32: Reset Password, Change Password and Change Email get each
 // error back tied to the field it is about. (Login keeps its deliberately
-// generic "Invalid email or password." — it is not covered here.)
+// generic "Email or password is incorrect." — see auth-throttle.test.ts.)
 const db = vi.hoisted(() => ({
   reused: false,
   signInError: null as { message: string } | null,
@@ -11,6 +11,7 @@ const db = vi.hoisted(() => ({
   updateError: null as { message: string; code?: string } | null,
 }))
 
+vi.mock('server-only', () => ({}))
 vi.mock('@/lib/supabase/server', () => ({
   createClient: async () => ({
     auth: {

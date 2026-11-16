@@ -21,6 +21,29 @@ import { isPasswordReused, recordPasswordHash } from '@/lib/password-history.ser
 import { writeAuditLog } from '@/lib/audit'
 import { invalid, type FieldErrors } from '@/lib/form-errors'
 import { fetchAccountStatus, isAllowedIn } from '@/lib/auth/account-status'
+import { z } from 'zod'
+import {
+  LOGIN_FAILED_MESSAGE,
+  THROTTLE_UNAVAILABLE_MESSAGE,
+  allowResetRequest,
+  checkLoginAllowed,
+  clearLoginFailures,
+  normaliseEmail,
+  recordLoginFailure,
+  tooManyAttemptsMessage,
+  trustedClientIp,
+} from '@/lib/auth/throttle.server'
+
+// Review Finding 10: sign-in and reset-request input, checked on the server.
+const REQUIRED = 'required'
+const EMAIL = z.string({ error: REQUIRED }).transform(normaliseEmail)
+  .pipe(z.string().min(1, REQUIRED).max(254).pipe(z.email()))
+const LOGIN_INPUT = z.object({
+  email: EMAIL,
+  password: z.string({ error: REQUIRED }).min(1, REQUIRED).max(1024),
+  portal: z.enum(['super_admin', 'champion']),
+})
+const RESET_REQUEST_INPUT = EMAIL
 
 // ---------------------------------------------------------------------------
 // Login — Story 1.1
@@ -29,19 +52,33 @@ export async function loginAction(
   _prev: { error?: string } | null,
   formData: FormData
 ) {
-  const email    = (formData.get('email')    as string).trim()
-  const password = formData.get('password') as string
-  const portal   = formData.get('portal') as string | null // 'super_admin' | 'champion'
+  const parsed = LOGIN_INPUT.safeParse({
+    email: formData.get('email'),
+    password: formData.get('password'),
+    portal: formData.get('portal') ?? 'super_admin',
+  })
+  if (!parsed.success) {
+    const { email, password } = parsed.error.flatten().fieldErrors
+    if (email?.includes(REQUIRED) || password?.includes(REQUIRED)) return { error: 'Email and password are required.' }
+    return { error: LOGIN_FAILED_MESSAGE }
+  }
+  const { email, password, portal } = parsed.data
 
-  if (!email || !password) return { error: 'Email and password are required.' }
+  // Review Finding 10: per-account and per-IP limits, checked before the
+  // password ever reaches Supabase. Unknown emails are counted the same way.
+  const subject = { email, ip: await trustedClientIp() }
+  const gate = await checkLoginAllowed(subject)
+  if (!gate.ok) return { error: 'unavailable' in gate ? THROTTLE_UNAVAILABLE_MESSAGE : tooManyAttemptsMessage(gate.blockedUntil) }
 
   const supabase = await createClient()
   const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
 
   if (signInError) {
     // Scenario 02: generic error — don't reveal which field is wrong
-    return { error: 'Invalid email or password.' }
+    const blockedUntil = await recordLoginFailure({ ...subject, portal })
+    return { error: blockedUntil ? tooManyAttemptsMessage(blockedUntil) : LOGIN_FAILED_MESSAGE }
   }
+  await clearLoginFailures(email)
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Authentication failed. Please try again.' }
@@ -103,8 +140,13 @@ export async function forgotPasswordAction(
   _prev: { sent?: boolean } | null,
   formData: FormData
 ) {
-  const email = (formData.get('email') as string).trim()
-  if (!email) return { sent: false, error: 'Email is required.' }
+  const parsedEmail = RESET_REQUEST_INPUT.safeParse(formData.get('email'))
+  if (!parsedEmail.success) {
+    return parsedEmail.error.issues[0]?.message === REQUIRED
+      ? { sent: false, error: 'Email is required.' }
+      : { sent: false, error: 'Enter a valid email address.' }
+  }
+  const email = parsedEmail.data
 
   // Each portal's Forgot Password page only serves its own accounts: the
   // Super Admin page only emails Super Admins, the Champion page only
@@ -121,6 +163,10 @@ export async function forgotPasswordAction(
     path: '/',
     maxAge: RESET_GRANT_MAX_AGE_SECONDS,
   })
+
+  // Review Finding 10: at most 3 requests per account (and a per-IP limit)
+  // an hour. Over the limit, nothing is sent, but the answer is the same.
+  if (!(await allowResetRequest({ email, ip: await trustedClientIp() }))) return { sent: true }
 
   // Scenario 02: the response is identical whether the email is unregistered,
   // belongs to a different portal's role, or really gets a link — so this

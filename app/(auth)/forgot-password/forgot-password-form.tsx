@@ -36,8 +36,8 @@ function ForgotPasswordFormInner({ portal }: { portal: Portal }) {
           Check your email
         </h1>
         <p className="mt-[7px] text-[15px] leading-[1.56] tracking-[0.15px] text-[#67707F] sm:text-[18px] sm:tracking-[0.18px]">
-          If this email is registered, a password reset link has been sent. Please check
-          your inbox and follow the instructions.
+          If an account exists, we’ve sent a link. Please check your inbox and follow
+          the instructions.
         </p>
         <Link
           href={LOGIN_PATH[portal]}
