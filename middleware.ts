@@ -4,6 +4,7 @@ import { PORTAL_HINT_COOKIE, loginPathFor } from '@/lib/portals'
 import { LAST_ACTIVE_COOKIE, SESSION_MAX_AGE_MS, sessionEnded, signedInAtFromAccessToken } from '@/lib/session-policy'
 import { fetchAccountStatus, inactiveLoginError, isAllowedIn, type AccountStatus } from '@/lib/auth/account-status'
 import { MFA_PATH, currentAssuranceLevel, roleNeedsMfa } from '@/lib/auth/mfa'
+import { SECURITY_HEADERS, buildCsp, newNonce } from '@/lib/security-headers'
 
 // '/.well-known/' (app-link files) and '/mobile/' (the reset-link fallback page)
 // must be reachable signed out — Security Finding 9. /api/cron/ routes check
@@ -13,7 +14,24 @@ const PUBLIC_PREFIXES = ['/login', '/champion/login', '/forgot-password', '/cham
 // Sign-in pages an already-authenticated user gets bounced away from.
 const AUTH_PAGES = ['/login', '/champion/login', '/forgot-password', '/champion/forgot-password']
 
+// Review Finding 13c: every page gets a Content-Security-Policy with a fresh
+// nonce. It's put on the request too, so Next.js finds the nonce while
+// rendering and adds it to its own scripts; and on every response (pages and
+// redirects), with the fixed security headers.
 export async function middleware(request: NextRequest) {
+  const csp = buildCsp({
+    nonce: newNonce(),
+    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+    isDev: process.env.NODE_ENV === 'development',
+  })
+  request.headers.set('content-security-policy', csp)
+  const response = await handleRequest(request)
+  response.headers.set('Content-Security-Policy', csp)
+  for (const { key, value } of SECURITY_HEADERS) response.headers.set(key, value)
+  return response
+}
+
+async function handleRequest(request: NextRequest) {
   // Must be created before any other logic so cookie refresh always runs
   let supabaseResponse = NextResponse.next({ request })
 
@@ -191,8 +209,13 @@ function withCookies(res: NextResponse, from: NextResponse) {
   return res
 }
 
+// Review Finding 13c: the dots are escaped twice ('\\.'). Written as '\.' in
+// a JS string the backslash vanished, so ".*.(?:svg|png…)$" skipped this
+// middleware — sign-in, role, account and session checks — for ANY path that
+// merely ended in those letters (e.g. /super-admin/champions/xpng opened the
+// Champion detail page with no role check). Only real files with those
+// extensions, Next.js's own static files and the favicon skip it now.
+// (Next.js reads this as a literal: keep it a plain string.)
 export const config = {
-  matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
-  ],
+  matcher: ['/((?!_next/static/|_next/image|favicon\\.ico$|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
 }

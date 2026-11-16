@@ -1,6 +1,14 @@
 import type { NextConfig } from "next";
+import { SECURITY_HEADERS } from "./lib/security-headers";
 
 const nextConfig: NextConfig = {
+  // Review Finding 13c: HSTS, nosniff, referrer and permissions policy, no
+  // framing — on every response, static files included. The per-request
+  // Content-Security-Policy (with its nonce) is set in middleware.ts.
+  async headers() {
+    return [{ source: "/:path*", headers: SECURITY_HEADERS }];
+  },
+  poweredByHeader: false,
   // mediainfo.js's Node build reads its .wasm file via `fs.readFileSync`
   // relative to its own __dirname. Marking it external (below) stops
   // webpack from bundling its JS, but Vercel's own output file tracer
