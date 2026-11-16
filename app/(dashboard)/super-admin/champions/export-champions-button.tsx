@@ -1,5 +1,7 @@
 'use client'
 
+import { downloadCsv } from '@/lib/csv-download'
+
 export type ExportRow = {
   full_name: string
   email: string
@@ -10,40 +12,28 @@ export type ExportRow = {
   is_active: boolean
 }
 
-function toCsv(rows: ExportRow[]): string {
-  const header = ['Full Name', 'Email', 'Phone', 'Title', 'Assigned Club', 'Gatekeepers in Club', 'Status']
-  const escape = (v: string) => `"${v.replace(/"/g, '""')}"`
-  const lines = [header.map(escape).join(',')]
-  for (const r of rows) {
-    lines.push([
+/** The export's rows. Written out by the shared, formula-safe CSV helper (Review Finding 13b). */
+export function championsCsvRows(rows: ExportRow[]): (string | number)[][] {
+  return [
+    ['Full Name', 'Email', 'Phone', 'Title', 'Assigned Club', 'Gatekeepers in Club', 'Status'],
+    ...rows.map(r => [
       r.full_name,
       r.email,
       r.phone ?? '',
       r.title ?? '',
       r.club_name,
-      String(r.gatekeepers),
+      r.gatekeepers,
       r.is_active ? 'Active' : 'Inactive',
-    ].map(escape).join(','))
-  }
-  return lines.join('\n')
+    ]),
+  ]
 }
 
 // Client-side CSV export of the champion rows currently displayed on the
 // page — no server round-trip, no fabricated feature (real data already
 // fetched), same pattern as export-clubs-button.tsx.
 export function ExportChampionsButton({ rows }: { rows: ExportRow[] }) {
-  const handleExport = () => {
-    const csv = toCsv(rows)
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `champions-export-${new Date().toISOString().split('T')[0]}.csv`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-  }
+  const handleExport = () =>
+    downloadCsv(`champions-export-${new Date().toISOString().split('T')[0]}.csv`, championsCsvRows(rows))
 
   return (
     <button

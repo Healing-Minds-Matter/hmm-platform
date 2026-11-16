@@ -1,5 +1,7 @@
 'use client'
 
+import { downloadCsv } from '@/lib/csv-download'
+
 export type ExportRow = {
   name: string
   club_code: string | null
@@ -10,39 +12,27 @@ export type ExportRow = {
   certified_pct: number | null
 }
 
-function toCsv(rows: ExportRow[]): string {
-  const header = ['Club Name', 'Club Code', 'Location', 'Status', 'Gatekeepers', 'Assigned Champions', 'Certification Readiness (%)']
-  const escape = (v: string) => `"${v.replace(/"/g, '""')}"`
-  const lines = [header.map(escape).join(',')]
-  for (const r of rows) {
-    lines.push([
+/** The export's rows. Written out by the shared, formula-safe CSV helper (Review Finding 13b). */
+export function clubsCsvRows(rows: ExportRow[]): (string | number)[][] {
+  return [
+    ['Club Name', 'Club Code', 'Location', 'Status', 'Gatekeepers', 'Assigned Champions', 'Certification Readiness (%)'],
+    ...rows.map(r => [
       r.name,
       r.club_code ?? '',
       r.location,
       r.is_active ? 'Active' : 'Inactive',
-      String(r.gatekeepers),
+      r.gatekeepers,
       r.champions,
-      r.certified_pct === null ? '' : String(r.certified_pct),
-    ].map(escape).join(','))
-  }
-  return lines.join('\n')
+      r.certified_pct === null ? '' : r.certified_pct,
+    ]),
+  ]
 }
 
 // Client-side CSV export of the club rows currently displayed on the page —
 // no server round-trip, no fabricated feature (real data already fetched).
 export function ExportClubsButton({ rows }: { rows: ExportRow[] }) {
-  const handleExport = () => {
-    const csv = toCsv(rows)
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `clubs-export-${new Date().toISOString().split('T')[0]}.csv`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-  }
+  const handleExport = () =>
+    downloadCsv(`clubs-export-${new Date().toISOString().split('T')[0]}.csv`, clubsCsvRows(rows))
 
   return (
     <button
