@@ -5,6 +5,7 @@
 
 import { formatCertDate, isRealDate, type CertificationTypeRow, type RetirementOption } from '@/lib/certification-types'
 import type { SelfReportedRow } from '@/lib/self-reported'
+import { describeDbError, messageForPeople } from '@/lib/db-errors'
 
 export type CertificateStatus = 'valid' | 'expiring_soon' | 'expired' | 'stopped' | 'renewed' | 'removed'
 export type CertificateFormat = 'physical' | 'digital' | 'both'
@@ -145,10 +146,10 @@ export function canRenew(cert: Pick<CertificateRow, 'status' | 'removed_at' | 'i
 
 export function describeCertError(error: { code?: string; message?: string } | null): string {
   if (!error) return 'Something went wrong. Please try again.'
-  if (error.code === '23514' || error.code === '42501' || error.code === 'P0001') return error.message ?? 'That change isn’t allowed.'
-  if ((error.message ?? '').includes('row-level security')) return 'You don’t have permission to do that.'
-  if (error.code === '23505') return 'That certificate already exists.'
-  return 'Something went wrong. Please try again.'
+  if (error.code === '23505' && !messageForPeople(error)) return 'That certificate already exists.'
+  // Rule and permission messages our database raises are written for people;
+  // Postgres's own wording is replaced (Review Finding 13a).
+  return describeDbError(error).message
 }
 
 // ── Journey (Story 10.11) ────────────────────────────────────────────────────

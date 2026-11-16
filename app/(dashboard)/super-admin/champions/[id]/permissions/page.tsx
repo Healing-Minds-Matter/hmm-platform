@@ -25,7 +25,7 @@ export default async function ChampionPermissionsPage({ params }: { params: Prom
       <ChampionPermissionsCard
         champion={champion}
         rows={(rows ?? []) as EffectiveRow[]}
-        error={error?.message}
+        error={error ? "This person’s permissions couldn’t be loaded. Please refresh the page and try again." : undefined}
       />
     </div>
   )

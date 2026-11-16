@@ -9,6 +9,7 @@ import { writeAuditLog } from '@/lib/audit'
 import { readClubChoice } from '@/lib/event-clubs'
 import type { FieldErrors } from '@/lib/form-errors'
 import { resolveSchedule } from '@/lib/announcement-schedule'
+import { describeDbError } from '@/lib/db-errors'
 import {
   ANNOUNCEMENT_CLUBS_EMBED,
   announcementClubIds,
@@ -95,8 +96,8 @@ function describeSaveError(error: { code?: string; message?: string }): Failure 
   if (/publication time/.test(message)) return fieldFail('publish_time', message)
   if (/pick must be an active/.test(message)) return fieldFail('recipient_ids', message)
   if (/at least one club/.test(message)) return fieldFail('club_ids', message)
-  if (error.code === '42501' || error.code === '23514') return { error: message }
-  return { error: 'The announcement could not be saved. Please try again.' }
+  // Our own rule messages pass through; Postgres's own wording never does (Review Finding 13a).
+  return { error: describeDbError(error, { fallback: 'The announcement could not be saved. Please try again.' }).message }
 }
 
 // save_announcement saves the announcement, its clubs and its people in one

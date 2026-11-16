@@ -11,6 +11,7 @@ import type { FieldErrors } from '@/lib/form-errors'
 import { todayDateString } from '@/lib/org-date'
 import { checkResourceFile } from '@/lib/resource-file-types'
 import { requireRole } from '@/lib/auth/guards.server'
+import { describeDbError, logDbError, messageForPeople } from '@/lib/db-errors'
 
 const BUCKET = 'resources'
 // No separate "Other" type (Story 4.1): other file formats are Documents —
@@ -241,8 +242,10 @@ export async function createResourceAction(
   if (error) {
     if (hasFile && contentUrl) await deleteResourceFile(contentUrl)
     // The database refuses an inactive or unknown category (migration 20261110000000).
-    if (error.code === '23514' && /categor/i.test(error.message)) return failState(error.message, 'category_id')
-    return { error: error.message }
+    const own = messageForPeople(error)
+    if (error.code === '23514' && own && /categor/i.test(own)) return failState(own, 'category_id')
+    logDbError('saveResource', error)
+    return { error: describeDbError(error, { fallback: 'The resource could not be saved. Please try again.' }).message }
   }
 
   await writeAuditLog({
@@ -361,8 +364,10 @@ export async function updateResourceAction(
   if (error) {
     if (hasFile && contentUrl) await deleteResourceFile(contentUrl)
     // The database refuses an inactive or unknown category (migration 20261110000000).
-    if (error.code === '23514' && /categor/i.test(error.message)) return failState(error.message, 'category_id')
-    return { error: error.message }
+    const own = messageForPeople(error)
+    if (error.code === '23514' && own && /categor/i.test(own)) return failState(own, 'category_id')
+    logDbError('saveResource', error)
+    return { error: describeDbError(error, { fallback: 'The resource could not be saved. Please try again.' }).message }
   }
 
   // Replaced a stored file with a new file, a new URL, or removed it — remove the old

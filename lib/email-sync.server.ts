@@ -24,7 +24,7 @@ export async function syncProfileEmail(userId: string, authEmail: string | undef
 
   const { error } = await admin.from('profiles').update({ email: authEmail }).eq('id', userId)
   if (error) {
-    console.error('[syncProfileEmail] failed to update profiles.email:', error.message)
+    console.error('[syncProfileEmail] failed to update profiles.email', { code: error.code ?? null })
     return
   }
 

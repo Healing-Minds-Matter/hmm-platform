@@ -14,6 +14,7 @@ import { checkPhoneAvailable, describePhoneDbError, phoneChanged } from '@/lib/p
 import { requireRole } from '@/lib/auth/guards.server'
 import { parseCreateChampion } from '@/lib/validation/champion'
 import { isEmailAvailable, requestAccountEmailChange } from '@/lib/email-change.server'
+import { dbErrorState, logDbError } from '@/lib/db-errors'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -113,7 +114,8 @@ export async function createChampionAction(
     if (phoneDbError) return invalid('phone', phoneDbError)
     if (profileError.code === '42501') return { error: 'Only Super Admins can create Champion accounts.' }
     if (profileError.code === '23514') return invalid('club_id', 'This club is inactive. Reactivate the club first or assign an active club.')
-    return { error: profileError.message }
+    logDbError('createChampionAction', profileError)
+    return dbErrorState(profileError, { constraints: { profiles_email_key: { field: 'email', message: EMAIL_TAKEN } } })
   }
 
   const sent = await issueAccountSetupInvite({ userId: newUserId, requestedBy: caller.id })
@@ -197,7 +199,8 @@ export async function updateChampionAction(
     const phoneDbError = describePhoneDbError(updateError)
     if (phoneDbError) return invalid('phone', phoneDbError)
     if (updateError.code === '23514') return invalid('club_id', 'This club is inactive. Reactivate the club first or assign an active club.')
-    return { error: updateError.message }
+    logDbError('updateChampionAction', updateError)
+    return dbErrorState(updateError, { constraints: { profiles_email_key: { field: 'email', message: EMAIL_TAKEN } }, fallback: 'The Champion could not be saved. Please try again.' })
   }
   if (!updated || updated.length === 0) return { conflict: true }
 

@@ -20,6 +20,7 @@ import { TYPE_COLUMNS, type CertificationTypeRow } from '@/lib/certification-typ
 import { describeCertError, validateAward } from '@/lib/certificates'
 import { requireClubScope, requireRole, type Caller } from '@/lib/auth/guards.server'
 import { isEmailAvailable, requestAccountEmailChange } from '@/lib/email-change.server'
+import { dbErrorState, logDbError } from '@/lib/db-errors'
 
 export type GatekeeperActionState = {
   error?: string
@@ -500,7 +501,11 @@ export async function updateGatekeeperAction(
     // Phone first — a phone clash is also a 23505, and isn't an email problem.
     const phoneDbError = describePhoneDbError(updateError)
     if (phoneDbError) return invalid('phone', phoneDbError)
-    return { error: updateError.message }
+    logDbError('updateGatekeeperAction', updateError)
+    return dbErrorState(updateError, {
+      constraints: { profiles_email_key: { field: 'email', message: 'An account with this email already exists.' } },
+      fallback: 'The Gatekeeper could not be saved. Please try again.',
+    })
   }
   if (!updated || updated.length === 0) return { conflict: true }
 

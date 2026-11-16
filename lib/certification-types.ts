@@ -1,3 +1,4 @@
+import { describeDbError } from '@/lib/db-errors'
 // Certification types (Epic 10, Stories 10.1 and 10.2): form rules, labels and
 // friendly error messages. Pure functions, shared by the pages and the server
 // actions. The database (migrations 20261103000000 and 20261108000000) enforces
@@ -227,10 +228,9 @@ export function describeTypeError(error: { code?: string; message?: string } | n
     if (msg.includes('certification_type_retirements_one_open')) return 'This type already has a retirement date. Change it from the type’s page.'
     return 'That name or code is already used.'
   }
-  // Rule and permission messages raised by the database are written for people.
-  if (error.code === '23514' || error.code === '42501' || error.code === 'P0001') return error.message ?? 'That change isn’t allowed.'
-  if ((error.message ?? '').includes('row-level security')) return 'You don’t have permission to do that.'
-  return 'Something went wrong. Please try again.'
+  // Rule and permission messages our database raises are written for people;
+  // Postgres's own wording is replaced (Review Finding 13a).
+  return describeDbError(error).message
 }
 
 // ── Audit history (Story 10.16) ──────────────────────────────────────────────

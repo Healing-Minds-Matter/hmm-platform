@@ -193,7 +193,7 @@ export async function forgotPasswordAction(
   })
   // Still shown as "sent" to the user (see above), but logged so real
   // delivery failures (SMTP errors, rate limits) aren't invisible.
-  if (error) console.error('[forgotPasswordAction] resetPasswordForEmail failed:', error.message)
+  if (error) console.error('[forgotPasswordAction] reset email not sent', { status: error.status ?? null, code: error.code ?? null })
 
   return { sent: true }
 }
@@ -335,16 +335,12 @@ export async function changePasswordAction(
   })
   if (!verifyError) await verifier.auth.signOut({ scope: 'local' })
   if (verifyError) {
-    // TEMP DIAGNOSTIC LOGGING — remove once the "Password change failed"
-    // root cause is confirmed. The user-facing message is intentionally
-    // generic (Scenario 01), but that means real auth failures (expired
-    // session, unconfirmed email, rate limit) get masked as "wrong
-    // password" with no way to tell them apart from server logs alone.
-    console.error('[changePasswordAction] signInWithPassword verify failed:', {
-      email: user.email,
-      status: verifyError.status,
-      code: (verifyError as { code?: string }).code,
-      message: verifyError.message,
+    // The message stays generic (Scenario 01). The log tells a wrong password
+    // apart from an expired session or a rate limit by status and code only:
+    // no email, no message text (Review Finding 13a).
+    console.error('[changePasswordAction] current-password check failed', {
+      status: verifyError.status ?? null,
+      code: (verifyError as { code?: string }).code ?? null,
     })
     return invalid('currentPassword', 'Password change failed. Please check your current password and try again.')
   }
@@ -452,7 +448,7 @@ export async function requestEmailChangeAction(
     { emailRedirectTo: `${siteUrl}/auth/confirm-email-change` }
   )
   if (updateError) {
-    console.error('[requestEmailChangeAction] updateUser failed:', updateError.message)
+    console.error('[requestEmailChangeAction] updateUser failed', { status: updateError.status ?? null, code: updateError.code ?? null })
     const code = (updateError as { code?: string }).code
     if (code === 'email_exists') return invalid('newEmail', 'That email is already used by another account.')
     if (code === 'over_email_send_rate_limit' || updateError.status === 429) {
