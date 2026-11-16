@@ -25,6 +25,7 @@ const CALLS = {
   list_effective_permissions: { p_user_id: Z },
   my_access_list: {},
   my_account_status: {},
+  my_password_changed_at: {}, // Review Finding 13f
   // Used by access rules (signed-in users need these)
   current_user_role: {}, current_user_club_id: {}, is_active_user: {},
   user_can_see_event: { p_event_id: Z }, announcement_reaches_me: { p_announcement_id: Z },

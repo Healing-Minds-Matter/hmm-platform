@@ -198,6 +198,17 @@ export async function forgotPasswordAction(
   return { sent: true }
 }
 
+// Review Finding 13f: the history is read by trusted server code only; if it
+// can't be read, the change is refused rather than let through unchecked.
+const HISTORY_UNAVAILABLE = 'We couldn’t check your password history right now. Please try again in a moment.'
+async function passwordReuseCheck(userId: string, password: string): Promise<boolean | 'unavailable'> {
+  try {
+    return await isPasswordReused(userId, password)
+  } catch {
+    return 'unavailable'
+  }
+}
+
 // ilike treats % and _ as wildcards — escape them so this is an exact,
 // case-insensitive email match.
 function escapeLikePattern(value: string): string {
@@ -243,7 +254,9 @@ export async function resetPasswordAction(
   if (!valid) return invalid('password', errors.join('\n'))
 
   // Scenario 07: password reuse prevention (last 5)
-  if (await isPasswordReused(user.id, password)) {
+  const reused = await passwordReuseCheck(user.id, password)
+  if (reused === 'unavailable') return { error: HISTORY_UNAVAILABLE }
+  if (reused) {
     return invalid('password', 'You cannot reuse one of your last 5 passwords. Please choose a different one.')
   }
 
@@ -346,7 +359,9 @@ export async function changePasswordAction(
   }
 
   // Scenario 05: reuse prevention (last 5)
-  if (await isPasswordReused(user.id, newPassword)) {
+  const reusedNew = await passwordReuseCheck(user.id, newPassword)
+  if (reusedNew === 'unavailable') return { error: HISTORY_UNAVAILABLE }
+  if (reusedNew) {
     return invalid('newPassword', 'You cannot reuse one of your last 5 passwords. Please choose a different one.')
   }
 

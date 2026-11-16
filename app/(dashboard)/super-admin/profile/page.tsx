@@ -47,14 +47,15 @@ export default async function ProfilePage() {
   // Set by Supabase while a requested email change awaits confirmation.
   const pendingEmail = user.new_email ?? null
 
-  const [{ data: profile }, { data: activeClubs }, { data: pwHistory }, { data: delegations }] = await Promise.all([
+  const [{ data: profile }, { data: activeClubs }, { data: passwordChangedAt }, { data: delegations }] = await Promise.all([
     supabase
       .from('profiles')
       .select('id, full_name, email, phone, role, title, preferred_language, office_location, created_at')
       .eq('id', user.id)
       .single(),
     supabase.from('clubs').select('id').eq('is_active', true),
-    supabase.from('password_history').select('created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1),
+    // Review Finding 13f: only the date, never the history itself.
+    supabase.rpc('my_password_changed_at'),
     supabase
       .from('role_delegations')
       .select('id, starts_at, ends_at, ended_early_at, delegate:profiles!role_delegations_delegate_id_fkey(full_name)')
@@ -70,7 +71,7 @@ export default async function ProfilePage() {
   const { data: accessRows } = await supabase.rpc('my_access_list')
   const accessGroups = groupAccessList((accessRows ?? []) as AccessRow[])
 
-  const lastPasswordChange = pwHistory?.[0]?.created_at ?? null
+  const lastPasswordChange = (passwordChangedAt as string | null) ?? null
   const daysSincePasswordChange = lastPasswordChange ? daysSince(lastPasswordChange) : null
 
   const memberSince = new Date(profile.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })

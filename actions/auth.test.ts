@@ -115,3 +115,15 @@ describe('requestEmailChangeAction: field-level errors', () => {
       .toEqual({ newEmail: 'That is already your sign-in email.' })
   })
 })
+
+describe('Review Finding 13f: password history can’t be read', () => {
+  it('Change Password and Reset Password refuse the change instead of skipping the reuse check', async () => {
+    const { isPasswordReused } = await import('@/lib/password-history.server')
+    vi.mocked(isPasswordReused).mockRejectedValueOnce(new Error('Password history unavailable'))
+    expect(await changePasswordAction(null, form({ currentPassword: 'Old-Pass-Word1!', newPassword: STRONG, confirm: STRONG })))
+      .toEqual({ error: 'We couldn’t check your password history right now. Please try again in a moment.' })
+    vi.mocked(isPasswordReused).mockRejectedValueOnce(new Error('Password history unavailable'))
+    expect(await resetPasswordAction(null, form({ password: STRONG, confirm: STRONG })))
+      .toEqual({ error: 'We couldn’t check your password history right now. Please try again in a moment.' })
+  })
+})

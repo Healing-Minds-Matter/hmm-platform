@@ -29,13 +29,14 @@ export default async function ChampionProfilePage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect(await loginPath())
 
-  const [{ data: profile }, { data: pwHistory }] = await Promise.all([
+  const [{ data: profile }, { data: passwordChangedAt }] = await Promise.all([
     supabase
       .from('profiles')
       .select('id, full_name, email, phone, role, title, preferred_language, office_location, club_id, created_at, clubs!profiles_club_id_fkey(name)')
       .eq('id', user.id)
       .single(),
-    supabase.from('password_history').select('created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1),
+    // Review Finding 13f: only the date, never the history itself.
+    supabase.rpc('my_password_changed_at'),
   ])
 
   if (!profile) redirect(await loginPath())
@@ -52,7 +53,7 @@ export default async function ChampionProfilePage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const club = profile.clubs as any
 
-  const lastPasswordChange = pwHistory?.[0]?.created_at ?? null
+  const lastPasswordChange = (passwordChangedAt as string | null) ?? null
   const daysSincePasswordChange = lastPasswordChange ? daysSince(lastPasswordChange) : null
 
   const memberSince = new Date(profile.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
