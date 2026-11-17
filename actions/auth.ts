@@ -45,6 +45,12 @@ const LOGIN_INPUT = z.object({
 })
 const RESET_REQUEST_INPUT = EMAIL
 
+/** Too many requests (429), a server error (5xx) or no answer at all (status 0 / none). */
+function isAuthOutage(error: { status?: number }): boolean {
+  const status = error.status ?? 0
+  return status === 0 || status === 429 || status >= 500
+}
+
 // ---------------------------------------------------------------------------
 // Login — Story 1.1
 // ---------------------------------------------------------------------------
@@ -74,6 +80,12 @@ export async function loginAction(
   const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
 
   if (signInError) {
+    // Supabase busy, down or unreachable: the password was never checked, so
+    // it isn't counted as a failed attempt (an outage mustn't lock people out).
+    if (isAuthOutage(signInError)) {
+      console.error('[loginAction] sign-in service unavailable', { status: signInError.status ?? null, code: signInError.code ?? null })
+      return { error: THROTTLE_UNAVAILABLE_MESSAGE }
+    }
     // Scenario 02: generic error — don't reveal which field is wrong
     const blockedUntil = await recordLoginFailure({ ...subject, portal })
     return { error: blockedUntil ? tooManyAttemptsMessage(blockedUntil) : LOGIN_FAILED_MESSAGE }

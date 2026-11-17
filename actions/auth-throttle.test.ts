@@ -16,6 +16,7 @@ const s = vi.hoisted(() => ({
   ip: '203.0.113.7' as string | null,
   spoofedForwardedFor: null as string | null,
   rpcFails: false,
+  signInOutage: null as { status?: number; code?: string } | null,
 }))
 
 function fakeRpc(fn: string, a: Record<string, unknown>) {
@@ -71,6 +72,7 @@ vi.mock('@/lib/supabase/server', () => ({
     auth: {
       signInWithPassword: async ({ email, password }: { email: string; password: string }) => {
         s.signIns.push(email)
+        if (s.signInOutage) return { error: { message: '{}', ...s.signInOutage } }
         // Supabase answers an unknown email and a wrong password the same way.
         return s.passwords.get(email) === password ? { error: null } : { error: { message: 'Invalid login credentials', status: 400 } }
       },
@@ -108,7 +110,7 @@ const requestReset = (email: string) => forgotPasswordAction(null, form({ email,
 beforeEach(() => {
   s.rows.clear(); s.signIns = []; s.resetEmails = []; s.audit = []
   s.passwords = new Map([[KNOWN, RIGHT]])
-  s.ip = '203.0.113.7'; s.spoofedForwardedFor = null; s.rpcFails = false
+  s.ip = '203.0.113.7'; s.spoofedForwardedFor = null; s.rpcFails = false; s.signInOutage = null
   vi.stubEnv('VERCEL', '1')
   vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'test-secret')
   vi.useFakeTimers()
@@ -204,6 +206,27 @@ describe('Review Finding 10: sign-in attempts per account', () => {
     s.rpcFails = true
     expect(await login(KNOWN, RIGHT)).toBe('We couldn’t sign you in right now. Please try again in a few minutes.')
     expect(s.signIns).toHaveLength(0)
+  })
+
+  it.each([
+    ['busy (429)', { status: 429, code: 'over_request_rate_limit' }],
+    ['server error (500)', { status: 500, code: 'unexpected_failure' }],
+    ['unreachable (no status)', { status: 0 }],
+  ])('Supabase %s: not counted as a wrong password, so nobody is locked out', async (_label, outage) => {
+    s.signInOutage = outage
+    for (let i = 0; i < 6; i++) {
+      expect(await login(KNOWN, RIGHT)).toBe('We couldn’t sign you in right now. Please try again in a few minutes.')
+    }
+    expect(s.rows.size).toBe(0)
+    expect(s.audit).toHaveLength(0)
+    s.signInOutage = null
+    expect(await login(KNOWN, RIGHT)).toBe('redirect:/super-admin')
+  })
+
+  it('any other sign-in error still counts towards the limit', async () => {
+    s.signInOutage = { status: 400, code: 'email_not_confirmed' }
+    for (let i = 0; i < 4; i++) expect(await login(KNOWN)).toBe('Email or password is incorrect.')
+    expect(await login(KNOWN)).toMatch(/^Too many attempts/)
   })
 })
 
