@@ -78,8 +78,8 @@ beforeEach(() => {
   db.caller = { role: 'super_admin', club_id: null }
   db.takenEmails = new Set(['asha@example.com'])
   db.clubs = new Map([
-    ['club-1', { name: 'Rotaract Club of Colombo', is_active: true }],
-    ['club-off', { name: 'Rotaract Club of Kandy', is_active: false }],
+    ['11111111-1111-4111-8111-111111111111', { name: 'Rotaract Club of Colombo', is_active: true }],
+    ['22222222-2222-4222-8222-222222222222', { name: 'Rotaract Club of Kandy', is_active: false }],
   ])
   db.takenPhones = []
   vi.mocked(createAuthAccount).mockClear()
@@ -102,7 +102,7 @@ describe('createGatekeepersBulkAction: file-level checks', () => {
     expect(await createGatekeepersBulkAction(null, csvForm(noClub))).toEqual({
       error: 'CSV header must include: full_name, email, phone, club_id.',
     })
-    db.caller = { role: 'champion', club_id: 'club-1' }
+    db.caller = { role: 'champion', club_id: '11111111-1111-4111-8111-111111111111' }
     expect(await createGatekeepersBulkAction(null, csvForm(noClub, 'check'))).toMatchObject({
       results: [{ row: 2, status: 'ready' }],
     })
@@ -110,7 +110,7 @@ describe('createGatekeepersBulkAction: file-level checks', () => {
 
   it('still rejects callers who are not Super Admins or Champions', async () => {
     db.caller = { role: 'gatekeeper', club_id: null }
-    expect(await createGatekeepersBulkAction(null, csvForm(`${HEADER}\nA,a@example.com,0771234567,club-1`))).toEqual({
+    expect(await createGatekeepersBulkAction(null, csvForm(`${HEADER}\nA,a@example.com,0771234567,11111111-1111-4111-8111-111111111111`))).toEqual({
       error: 'Only Super Admins and Champions can add Gatekeepers.',
     })
   })
@@ -119,14 +119,14 @@ describe('createGatekeepersBulkAction: file-level checks', () => {
 describe('createGatekeepersBulkAction: check step', () => {
   it('runs every check, including the database ones, without creating accounts', async () => {
     const state = await createGatekeepersBulkAction(null, csvForm(`﻿${HEADER}
-Maya Lin,maya@example.com,0771234561,club-1
-Asha Silva,asha@example.com,0771234562,club-1
-Ravi Perera,ravi@example.com,0771234563,club-off
-Kamal Dias,kamal@example.com,0771234564,no-such-club
+Maya Lin,maya@example.com,0771234561,11111111-1111-4111-8111-111111111111
+Asha Silva,asha@example.com,0771234562,11111111-1111-4111-8111-111111111111
+Ravi Perera,ravi@example.com,0771234563,22222222-2222-4222-8222-222222222222
+Kamal Dias,kamal@example.com,0771234564,33333333-3333-4333-8333-333333333333
 
-Nimal Fernando,MAYA@example.com,0771234565,club-1
-Sunil Jay,sunil@example.com,077 123 4561,club-1
-Dilani Raj,dilani@example.com,0771234567,club-1`, 'check'))
+Nimal Fernando,MAYA@example.com,0771234565,11111111-1111-4111-8111-111111111111
+Sunil Jay,sunil@example.com,077 123 4561,11111111-1111-4111-8111-111111111111
+Dilani Raj,dilani@example.com,0771234567,11111111-1111-4111-8111-111111111111`, 'check'))
 
     expect(state).toEqual({
       intent: 'check',
@@ -145,7 +145,7 @@ Dilani Raj,dilani@example.com,0771234567,club-1`, 'check'))
 
   it('refuses a file with the old certification_date column instead of dropping its dates', async () => {
     const state = await createGatekeepersBulkAction(null, csvForm(`${HEADER},certification_date
-Maya Lin,maya@example.com,0771234561,club-1,2025-01-01`, 'check'))
+Maya Lin,maya@example.com,0771234561,11111111-1111-4111-8111-111111111111,2025-01-01`, 'check'))
     expect(state).toEqual({ error: RETIRED_CERTIFICATION_DATE_MESSAGE })
     expect(createAuthAccount).not.toHaveBeenCalled()
   })
@@ -153,9 +153,9 @@ Maya Lin,maya@example.com,0771234561,club-1,2025-01-01`, 'check'))
   it('reads every user\'s phone number once per request, not once per row', async () => {
     db.takenPhones = [{ phone: '+94771234562' }]
     const state = await createGatekeepersBulkAction(null, csvForm(`${HEADER}
-Maya Lin,maya@example.com,0771234561,club-1
-Ravi Perera,ravi@example.com,0771234562,club-1
-Kamal Dias,kamal@example.com,0771234563,club-1`, 'check'))
+Maya Lin,maya@example.com,0771234561,11111111-1111-4111-8111-111111111111
+Ravi Perera,ravi@example.com,0771234562,11111111-1111-4111-8111-111111111111
+Kamal Dias,kamal@example.com,0771234563,11111111-1111-4111-8111-111111111111`, 'check'))
 
     expect(state?.results).toEqual([
       { row: 2, label: 'maya@example.com', status: 'ready' },
@@ -167,31 +167,30 @@ Kamal Dias,kamal@example.com,0771234563,club-1`, 'check'))
 })
 
 describe('createGatekeepersBulkAction: save step', () => {
-  it('leaves duplicates within the file to the database check', async () => {
-    // Rows are saved one by one, so a repeat of an earlier row meets it in
-    // the database ("already exists") instead of "same as row N", which
-    // would point at a row missing from the "failed rows" file.
+  it('names a duplicate within the file in the save step too (Review Finding 13j)', async () => {
+    // The whole file is compared in both steps, so a repeat says which row
+    // it repeats; the first row still gets the database's answer.
     const state = await createGatekeepersBulkAction(null, csvForm(`${HEADER}
-Asha Silva,asha@example.com,0771234569,club-1
-Asha S,asha@example.com,0771234570,club-1`))
+Asha Silva,asha@example.com,0771234569,11111111-1111-4111-8111-111111111111
+Asha S,asha@example.com,0771234570,11111111-1111-4111-8111-111111111111`))
     expect(state).toMatchObject({
       results: [
         { row: 2, error: 'An account with this email already exists.' },
-        { row: 3, error: 'An account with this email already exists.' },
+        { row: 3, error: 'Same email as row 2 in this file.' },
       ],
     })
   })
 
   it('checks each row again before creating any account', async () => {
     const state = await createGatekeepersBulkAction(null, csvForm(`${HEADER}
-Maya Lin,,0771234567,club-1
+Maya Lin,,0771234567,11111111-1111-4111-8111-111111111111
 
-Asha Silva,asha@example.com,0771234569,club-1`))
+Asha Silva,asha@example.com,0771234569,11111111-1111-4111-8111-111111111111`))
 
     expect(state).toEqual({
       intent: 'save',
       results: [
-        { row: 2, label: '(missing)', status: 'failed', error: 'Missing required field(s).' },
+        { row: 2, label: '(missing)', status: 'failed', error: 'Email is required.' },
         { row: 4, label: 'asha@example.com', status: 'failed', error: 'An account with this email already exists.' },
       ],
     })
@@ -200,11 +199,11 @@ Asha Silva,asha@example.com,0771234569,club-1`))
 
 describe('createGatekeepersBulkAction: in batches', () => {
   const FILE = `${HEADER}
-Maya Lin,maya@example.com,0771234561,club-1
-Ravi Perera,ravi@example.com,0771234562,club-1
-Nimal Fernando,MAYA@example.com,0771234563,club-1
-Sunil Jay,sunil@example.com,077 123 4562,club-1
-Dilani Raj,dilani@example.com,0771234565,club-1`
+Maya Lin,maya@example.com,0771234561,11111111-1111-4111-8111-111111111111
+Ravi Perera,ravi@example.com,0771234562,11111111-1111-4111-8111-111111111111
+Nimal Fernando,MAYA@example.com,0771234563,11111111-1111-4111-8111-111111111111
+Sunil Jay,sunil@example.com,077 123 4562,11111111-1111-4111-8111-111111111111
+Dilani Raj,dilani@example.com,0771234565,11111111-1111-4111-8111-111111111111`
 
   const batchForm = (intent: 'check' | 'save', lines: number[]) => {
     const form = csvForm(FILE, intent)
@@ -240,7 +239,7 @@ describe('single-Gatekeeper actions: field-level errors', () => {
     for (const [k, v] of Object.entries(fields)) f.set(k, v)
     return f
   }
-  const valid = { full_name: 'Maya Lin', email: 'maya@example.com', phone: '0771234561', club_id: 'club-1' }
+  const valid = { full_name: 'Maya Lin', email: 'maya@example.com', phone: '0771234561', club_id: '11111111-1111-4111-8111-111111111111' }
 
   it('createGatekeeperAction ties required-field errors to their field', async () => {
     expect((await createGatekeeperAction(null, form({ ...valid, full_name: '' })))?.fieldErrors)
@@ -258,7 +257,7 @@ describe('single-Gatekeeper actions: field-level errors', () => {
     expect((await createGatekeeperAction(null, form(valid)))?.fieldErrors)
       .toEqual({ phone: 'This phone number is already registered to another user. Each user needs their own phone number.' })
     db.takenPhones = []
-    expect((await createGatekeeperAction(null, form({ ...valid, club_id: 'club-off' })))?.fieldErrors)
+    expect((await createGatekeeperAction(null, form({ ...valid, club_id: '22222222-2222-4222-8222-222222222222' })))?.fieldErrors)
       .toEqual({ club_id: 'Club "Rotaract Club of Kandy" is currently inactive. Reactivate it first or choose a different club.' })
     expect(createAuthAccount).not.toHaveBeenCalled()
   })

@@ -2,7 +2,8 @@
 
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { CsvDropZone } from '@/components/csv-drop-zone'
-import { parseCsv, toCsv } from '@/lib/csv'
+import { parseCsv } from '@/lib/csv'
+import { downloadCsv } from '@/lib/csv-download'
 import {
   PROBLEM_COLUMN,
   countBulkResults,
@@ -36,17 +37,6 @@ export function BulkCsvUpload(props: Props) {
 const code = 'rounded bg-[#F1F5F9] px-1.5 py-0.5 font-mono text-[11px]'
 const plural = (n: number, noun: { one: string; many: string }) => `${n} ${n === 1 ? noun.one : noun.many}`
 const rows = (n: number) => `${n} ${n === 1 ? 'row' : 'rows'}`
-
-function downloadCsv(fileName: string, csvRows: string[][]) {
-  // The byte-order mark makes Excel read Sinhala and Tamil text correctly.
-  const blob = new Blob(['﻿', toCsv(csvRows)], { type: 'text/csv;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = fileName
-  link.click()
-  URL.revokeObjectURL(url)
-}
 
 // The uploaded file's own rows that failed, with a "problem" column saying
 // why. Both uploads ignore that column, so the fixed file can go straight back.

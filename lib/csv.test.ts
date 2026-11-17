@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { BULK_UPLOAD_MAX_ROWS, parseCsv, readCsvUpload, toCsv } from '@/lib/csv'
+import { BULK_UPLOAD_MAX_ROWS, csvCell, parseCsv, readCsvUpload, toCsv } from '@/lib/csv'
 
 const csvFile = (text: string) => new File([text], 'upload.csv', { type: 'text/csv' })
 
@@ -84,5 +84,66 @@ describe('readCsvUpload', () => {
   it('lower-cases header names', async () => {
     const upload = await readCsvUpload(csvFile('Name,CODE\nA,B'))
     expect('header' in upload && upload.header).toEqual(['name', 'code'])
+  })
+})
+
+// Review Finding 13b: spreadsheet formula injection.
+describe('csvCell / toCsv: cells can never run as a formula', () => {
+  it.each([
+    ['=HYPERLINK("http://evil.example","Click")', `"'=HYPERLINK(""http://evil.example"",""Click"")"`],
+    ['+94 77 123 4567', "'+94 77 123 4567"],
+    ['-2+3', "'-2+3"],
+    ['@SUM(A1:A2)', "'@SUM(A1:A2)"],
+    ['\t=1+1', "'\t=1+1"],
+    ['\r=1+1', `"'\r=1+1"`],
+    ['=cmd|\' /C calc\'!A0', "'=cmd|' /C calc'!A0"],
+  ])('%j → %j', (value, expected) => {
+    expect(csvCell(value)).toBe(expected)
+  })
+
+  it('ordinary values are unchanged; commas, quotes and line breaks are quoted', () => {
+    expect(csvCell('Asha Silva')).toBe('Asha Silva')
+    expect(csvCell('Colombo, 03')).toBe('"Colombo, 03"')
+    expect(csvCell('Say "hi"')).toBe('"Say ""hi"""')
+    expect(csvCell(12)).toBe('12')
+    expect(csvCell(null)).toBe('')
+    expect(csvCell("O'Neil")).toBe("O'Neil")
+  })
+
+  it('a file we produced reads back to the original values when uploaded again', () => {
+    const rows = [['full_name', 'phone'], ['=1+1', '+94 77 123 4567'], ['@x', '-5']]
+    expect(parseCsv(toCsv(rows)).map(r => r.cells)).toEqual(rows)
+  })
+})
+
+describe('every CSV export uses the safe writer', () => {
+  it('Champions export', async () => {
+    const { championsCsvRows } = await import('@/app/(dashboard)/super-admin/champions/export-champions-button')
+    const text = toCsv(championsCsvRows([{
+      full_name: '=HYPERLINK("http://evil.example")', email: 'a@example.com', phone: '+94771234567',
+      title: '@admin', club_name: '-Club', gatekeepers: 3, is_active: true,
+    }]))
+    expect(text.split('\r\n')[1]).toBe(`"'=HYPERLINK(""http://evil.example"")",a@example.com,'+94771234567,'@admin,'-Club,3,Active`)
+  })
+
+  it('Clubs export', async () => {
+    const { clubsCsvRows } = await import('@/app/(dashboard)/super-admin/clubs/export-clubs-button')
+    const text = toCsv(clubsCsvRows([{
+      name: '=1+1', club_code: '+C1', location: '@Kandy', is_active: false, gatekeepers: 0, champions: '-A', certified_pct: null,
+    }]))
+    expect(text.split('\r\n')[1]).toBe("'=1+1,'+C1,'@Kandy,Inactive,0,'-A,")
+  })
+
+  it('no other code builds a CSV file by hand', async () => {
+    const { readdirSync, readFileSync, statSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const files = (dir: string): string[] => readdirSync(dir).flatMap(n => {
+      const p = join(dir, n)
+      return statSync(p).isDirectory() ? files(p) : /\.(ts|tsx)$/.test(n) && !/\.test\./.test(n) ? [p] : []
+    })
+    const offending = ['app', 'components', 'lib', 'actions'].flatMap(files)
+      .filter(p => !/lib[\\/]csv(-download)?\.ts$/.test(p))
+      .filter(p => /text\/csv/.test(readFileSync(p, 'utf8')) && /new Blob/.test(readFileSync(p, 'utf8')))
+    expect(offending).toEqual([])
   })
 })

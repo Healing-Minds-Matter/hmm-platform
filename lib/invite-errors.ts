@@ -8,7 +8,11 @@
 export function describeInviteError(err: { message?: string; status?: number }): string {
   const msg = err.message?.trim()
   const isUseless = !msg || msg === '{}' || msg.startsWith('{')
-  if (!isUseless) return msg
+  // Review Finding 13a: Supabase Auth's own sentences (e.g. "A user with this
+  // email address has already been registered") are shown; its database
+  // errors ("Database error saving new user") never are.
+  const isDatabaseText = !!msg && /database|sql|constraint|relation|violates|unexpected/i.test(msg)
+  if (!isUseless && !isDatabaseText) return msg
   if (err.status === 500) {
     return 'Failed to create the account — Supabase returned a server error. Please try again in a moment.'
   }

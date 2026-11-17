@@ -26,7 +26,7 @@ export function parseCsv(text: string): CsvRow[] {
   const endRow = () => {
     cells.push(cell)
     if (cells.some(c => c.trim() !== '')) {
-      rows.push({ line: rowStartLine, cells: cells.map(c => c.trim()) })
+      rows.push({ line: rowStartLine, cells: cells.map(c => unprotectCell(c.trim())) })
     }
     cells = []
     cell = ''
@@ -54,11 +54,31 @@ export function parseCsv(text: string): CsvRow[] {
   return rows
 }
 
-// The reverse of parseCsv: quotes any cell containing a comma, quote or line
-// break, so the file opens correctly in Excel and can be uploaded again.
-export function toCsv(rows: string[][]): string {
-  const cell = (value: string) => (/[",\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value)
-  return rows.map(r => r.map(cell).join(',')).join('\r\n') + '\r\n'
+// Review Finding 13b: a cell that starts with = + - @ (or a tab or carriage
+// return) is run as a formula by Excel, Google Sheets and LibreOffice — a
+// name typed as =HYPERLINK(…) or =cmd|… would run on the reader's computer.
+// Such cells get a leading single quote, so they open as plain text.
+const FORMULA_START = /^[=+\-@\t\r]/
+
+/** One CSV cell: formula-safe, and quoted when it holds a comma, quote or line break. */
+export function csvCell(value: string | number | boolean | null | undefined): string {
+  let text = value === null || value === undefined ? '' : String(value)
+  if (FORMULA_START.test(text)) text = `'${text}`
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
+}
+
+// The reverse of parseCsv: every cell through csvCell, so the file opens
+// safely and correctly in Excel and can be uploaded again.
+export function toCsv(rows: (string | number | boolean | null | undefined)[][]): string {
+  return rows.map(r => r.map(csvCell).join(',')).join('\r\n') + '\r\n'
+}
+
+/**
+ * Undoes csvCell's protective quote when a file we produced is uploaded
+ * again (e.g. a fixed "failed rows" file): "'+94 77…" → "+94 77…".
+ */
+export function unprotectCell(cell: string): string {
+  return /^'[=+\-@\t\r]/.test(cell) ? cell.slice(1) : cell
 }
 
 export type CsvUpload = { header: string[]; rows: CsvRow[] }

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Sheet row 32: Reset Password, Change Password and Change Email get each
 // error back tied to the field it is about. (Login keeps its deliberately
-// generic "Invalid email or password." — it is not covered here.)
+// generic "Email or password is incorrect." — see auth-throttle.test.ts.)
 const db = vi.hoisted(() => ({
   reused: false,
   signInError: null as { message: string } | null,
@@ -11,6 +11,7 @@ const db = vi.hoisted(() => ({
   updateError: null as { message: string; code?: string } | null,
 }))
 
+vi.mock('server-only', () => ({}))
 vi.mock('@/lib/supabase/server', () => ({
   createClient: async () => ({
     auth: {
@@ -112,5 +113,17 @@ describe('requestEmailChangeAction: field-level errors', () => {
       .toEqual({ currentPassword: 'Current password is required.' })
     expect((await requestEmailChangeAction(null, form({ newEmail: 'Admin@example.com', currentPassword: 'x' })))?.fieldErrors)
       .toEqual({ newEmail: 'That is already your sign-in email.' })
+  })
+})
+
+describe('Review Finding 13f: password history can’t be read', () => {
+  it('Change Password and Reset Password refuse the change instead of skipping the reuse check', async () => {
+    const { isPasswordReused } = await import('@/lib/password-history.server')
+    vi.mocked(isPasswordReused).mockRejectedValueOnce(new Error('Password history unavailable'))
+    expect(await changePasswordAction(null, form({ currentPassword: 'Old-Pass-Word1!', newPassword: STRONG, confirm: STRONG })))
+      .toEqual({ error: 'We couldn’t check your password history right now. Please try again in a moment.' })
+    vi.mocked(isPasswordReused).mockRejectedValueOnce(new Error('Password history unavailable'))
+    expect(await resetPasswordAction(null, form({ password: STRONG, confirm: STRONG })))
+      .toEqual({ error: 'We couldn’t check your password history right now. Please try again in a moment.' })
   })
 })

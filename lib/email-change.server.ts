@@ -69,12 +69,12 @@ export async function requestAccountEmailChange(params: {
     expiresInHours: EMAIL_CHANGE_TTL_HOURS,
   })
   if (sent.error) {
-    console.error('[requestAccountEmailChange] confirmation email failed:', sent.error)
+    console.error('[requestAccountEmailChange] confirmation email failed') // the mail error can contain the address
     return { error: 'The confirmation email couldn’t be sent, so the email was not changed. Please try again.' }
   }
   // Best effort: the change still needs the new address to confirm.
   const notice = await sendEmailChangeNotice({ to: params.currentEmail, fullName: params.fullName, newEmail })
-  if (notice.error) console.error('[requestAccountEmailChange] notice to current address failed:', notice.error)
+  if (notice.error) console.error('[requestAccountEmailChange] notice to current address failed') // the mail error can contain the address
 
   await writeAuditLog({
     actorId: params.requestedBy,

@@ -96,7 +96,7 @@ export function SelfReportedList({ rows, perms, names, today, holderName, holder
                   {r.state === 'withdrawn' && r.withdrawn_at && <p className="mt-0.5 text-xs text-[#64748B]">Withdrawn on {formatCertDate(orgDay(r.withdrawn_at))}. Only you can see this.</p>}
                 </div>
                 <div className="flex flex-wrap justify-end gap-1.5">
-                  {r.attachment_path && <AttachmentButton path={r.attachment_path} />}
+                  {r.attachment_path && <AttachmentButton certificateId={r.id} />}
                   {p.self && r.state === 'unverified' && <>
                     <Small onClick={() => setPopup({ kind: 'edit', row: r })}>Edit</Small>
                     <Small onClick={() => setPopup({ kind: 'withdraw', row: r })}>Withdraw</Small>
@@ -138,13 +138,13 @@ function Small({ children, onClick, tone = 'plain' }: { children: React.ReactNod
   return <button type="button" onClick={onClick} className={`rounded-md border px-2.5 py-1 text-xs font-semibold transition-colors ${cls}`}>{children}</button>
 }
 
-function AttachmentButton({ path }: { path: string }) {
+function AttachmentButton({ certificateId }: { certificateId: string }) {
   const [state, setState] = useState<'idle' | 'busy' | 'failed'>('idle')
   return (
     <Small onClick={async () => {
       if (state === 'busy') return
       setState('busy')
-      const url = await attachmentLinkAction(path)
+      const url = await attachmentLinkAction('self', certificateId)
       setState(url ? 'idle' : 'failed')
       if (url) window.open(url, '_blank', 'noopener')
     }}>

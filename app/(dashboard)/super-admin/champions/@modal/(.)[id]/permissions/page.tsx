@@ -22,7 +22,7 @@ export default async function InterceptedChampionPermissionsPage({ params }: { p
     <ChampionPermissionsModal
       champion={champion}
       rows={(rows ?? []) as EffectiveRow[]}
-      error={error?.message}
+      error={error ? "This person’s permissions couldn’t be loaded. Please refresh the page and try again." : undefined}
     />
   )
 }

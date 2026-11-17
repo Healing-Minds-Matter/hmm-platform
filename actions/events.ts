@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { writeAuditLog } from '@/lib/audit'
 import { orgDateTimeToIso } from '@/lib/org-date'
+import { describeDbError } from '@/lib/db-errors'
 import {
   EVENT_CLUBS_EMBED,
   MSG_CANT_MANAGE,
@@ -84,11 +85,10 @@ async function loadEvent(supabase: ServerClient, eventId: string) {
 // the "all clubs or at least one club" trigger); turn those into plain words.
 function describeSaveError(error: { code?: string; message?: string }): string {
   const message = error.message ?? ''
-  if (error.code === '42501' || message.includes('row-level security')) {
-    return message.includes('row-level security') ? "You don't have permission to do that for this event or club." : message
-  }
-  if (error.code === '23514') return message // e.g. "Describe the event type."
-  return 'The event could not be saved. Please try again.'
+  if (message.includes('row-level security')) return "You don't have permission to do that for this event or club."
+  // Our own rule messages (e.g. "Describe the event type.") pass through;
+  // Postgres's own wording never does (Review Finding 13a).
+  return describeDbError(error, { fallback: 'The event could not be saved. Please try again.' }).message
 }
 
 // The database refusing a missing type description belongs next to that field.

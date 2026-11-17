@@ -46,7 +46,7 @@ export default async function EffectivePermissionsPage({
       <div className="mt-6">
         {error ? (
           <div className="rounded-xl bg-white p-12 text-center text-sm text-red-600 shadow-[0px_1px_1px_rgba(0,0,0,0.05)]">
-            Could not resolve this user&apos;s permissions: {error.message}
+            This person&apos;s permissions couldn&apos;t be loaded. Please refresh the page and try again.
           </div>
         ) : (
           <EffectivePermissionsTable rows={effectiveRows} roleName={roleLabel(user.role)} />

@@ -10,6 +10,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { checkCategoryName, type ResourceCategory } from '@/lib/resource-categories'
 import type { FieldErrors } from '@/lib/form-errors'
+import { describeDbError as describeDbErrorText, logDbError } from '@/lib/db-errors'
 
 export type CategoryActionState = { error?: string; fieldErrors?: FieldErrors; success?: boolean } | null
 
@@ -43,8 +44,8 @@ function describeDbError(error: { code?: string; message: string }, field = 'nam
     const msg = 'A category with that name already exists.'
     return { error: msg, fieldErrors: { [field]: msg } }
   }
-  if (error.code === '42501') return { error: "You don't have permission to manage resource categories." }
-  return { error: error.message }
+  logDbError('resourceCategory', error)
+  return { error: describeDbErrorText(error, { permission: "You don't have permission to manage resource categories." }).message }
 }
 
 export async function createCategoryAction(_prev: CategoryActionState, formData: FormData): Promise<CategoryActionState> {
@@ -107,7 +108,10 @@ export async function deleteCategoryAction(_prev: CategoryActionState, formData:
   // re-checks the permission and the in-use rule, hides the category,
   // records the real caller and writes the audit entry.
   const { data: deleted, error } = await auth.supabase.rpc('soft_delete_resource_category', { p_id: id })
-  if (error) return { error: error.message }
+  if (error) {
+    logDbError('deleteCategoryAction', error)
+    return { error: describeDbErrorText(error, { permission: "You don't have permission to manage resource categories." }).message }
+  }
   if (deleted !== true) return { error: 'Category not found.' }
   refresh()
   return { success: true }

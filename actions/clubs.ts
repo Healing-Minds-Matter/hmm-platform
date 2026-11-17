@@ -9,6 +9,7 @@ import { requireRole } from '@/lib/auth/guards.server'
 import { invalid, type FieldErrors } from '@/lib/form-errors'
 import { readCsvUpload } from '@/lib/csv'
 import { batchLines, bulkIntent, type BulkUploadState } from '@/lib/bulk-upload'
+import { dbErrorState, logDbError } from '@/lib/db-errors'
 import {
   createClubsFromCsv,
   describeClubInsertError,
@@ -175,7 +176,8 @@ export async function updateClubAction(
 
   if (error) {
     if (error.code === '23505') return invalid('name', 'A club with that name already exists.')
-    return { error: error.message }
+    logDbError('updateClubAction', error)
+    return dbErrorState(error, { fallback: 'The club could not be saved. Please try again.' })
   }
 
   await writeAuditLog({

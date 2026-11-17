@@ -21,6 +21,35 @@ import { isPasswordReused, recordPasswordHash } from '@/lib/password-history.ser
 import { writeAuditLog } from '@/lib/audit'
 import { invalid, type FieldErrors } from '@/lib/form-errors'
 import { fetchAccountStatus, isAllowedIn } from '@/lib/auth/account-status'
+import { z } from 'zod'
+import {
+  LOGIN_FAILED_MESSAGE,
+  THROTTLE_UNAVAILABLE_MESSAGE,
+  allowResetRequest,
+  checkLoginAllowed,
+  clearLoginFailures,
+  normaliseEmail,
+  recordLoginFailure,
+  tooManyAttemptsMessage,
+  trustedClientIp,
+} from '@/lib/auth/throttle.server'
+
+// Review Finding 10: sign-in and reset-request input, checked on the server.
+const REQUIRED = 'required'
+const EMAIL = z.string({ error: REQUIRED }).transform(normaliseEmail)
+  .pipe(z.string().min(1, REQUIRED).max(254).pipe(z.email()))
+const LOGIN_INPUT = z.object({
+  email: EMAIL,
+  password: z.string({ error: REQUIRED }).min(1, REQUIRED).max(1024),
+  portal: z.enum(['super_admin', 'champion']),
+})
+const RESET_REQUEST_INPUT = EMAIL
+
+/** Too many requests (429), a server error (5xx) or no answer at all (status 0 / none). */
+function isAuthOutage(error: { status?: number }): boolean {
+  const status = error.status ?? 0
+  return status === 0 || status === 429 || status >= 500
+}
 
 // ---------------------------------------------------------------------------
 // Login — Story 1.1
@@ -29,19 +58,39 @@ export async function loginAction(
   _prev: { error?: string } | null,
   formData: FormData
 ) {
-  const email    = (formData.get('email')    as string).trim()
-  const password = formData.get('password') as string
-  const portal   = formData.get('portal') as string | null // 'super_admin' | 'champion'
+  const parsed = LOGIN_INPUT.safeParse({
+    email: formData.get('email'),
+    password: formData.get('password'),
+    portal: formData.get('portal') ?? 'super_admin',
+  })
+  if (!parsed.success) {
+    const { email, password } = parsed.error.flatten().fieldErrors
+    if (email?.includes(REQUIRED) || password?.includes(REQUIRED)) return { error: 'Email and password are required.' }
+    return { error: LOGIN_FAILED_MESSAGE }
+  }
+  const { email, password, portal } = parsed.data
 
-  if (!email || !password) return { error: 'Email and password are required.' }
+  // Review Finding 10: per-account and per-IP limits, checked before the
+  // password ever reaches Supabase. Unknown emails are counted the same way.
+  const subject = { email, ip: await trustedClientIp() }
+  const gate = await checkLoginAllowed(subject)
+  if (!gate.ok) return { error: 'unavailable' in gate ? THROTTLE_UNAVAILABLE_MESSAGE : tooManyAttemptsMessage(gate.blockedUntil) }
 
   const supabase = await createClient()
   const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
 
   if (signInError) {
+    // Supabase busy, down or unreachable: the password was never checked, so
+    // it isn't counted as a failed attempt (an outage mustn't lock people out).
+    if (isAuthOutage(signInError)) {
+      console.error('[loginAction] sign-in service unavailable', { status: signInError.status ?? null, code: signInError.code ?? null })
+      return { error: THROTTLE_UNAVAILABLE_MESSAGE }
+    }
     // Scenario 02: generic error — don't reveal which field is wrong
-    return { error: 'Invalid email or password.' }
+    const blockedUntil = await recordLoginFailure({ ...subject, portal })
+    return { error: blockedUntil ? tooManyAttemptsMessage(blockedUntil) : LOGIN_FAILED_MESSAGE }
   }
+  await clearLoginFailures(email)
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Authentication failed. Please try again.' }
@@ -103,8 +152,13 @@ export async function forgotPasswordAction(
   _prev: { sent?: boolean } | null,
   formData: FormData
 ) {
-  const email = (formData.get('email') as string).trim()
-  if (!email) return { sent: false, error: 'Email is required.' }
+  const parsedEmail = RESET_REQUEST_INPUT.safeParse(formData.get('email'))
+  if (!parsedEmail.success) {
+    return parsedEmail.error.issues[0]?.message === REQUIRED
+      ? { sent: false, error: 'Email is required.' }
+      : { sent: false, error: 'Enter a valid email address.' }
+  }
+  const email = parsedEmail.data
 
   // Each portal's Forgot Password page only serves its own accounts: the
   // Super Admin page only emails Super Admins, the Champion page only
@@ -121,6 +175,10 @@ export async function forgotPasswordAction(
     path: '/',
     maxAge: RESET_GRANT_MAX_AGE_SECONDS,
   })
+
+  // Review Finding 10: at most 3 requests per account (and a per-IP limit)
+  // an hour. Over the limit, nothing is sent, but the answer is the same.
+  if (!(await allowResetRequest({ email, ip: await trustedClientIp() }))) return { sent: true }
 
   // Scenario 02: the response is identical whether the email is unregistered,
   // belongs to a different portal's role, or really gets a link — so this
@@ -147,9 +205,20 @@ export async function forgotPasswordAction(
   })
   // Still shown as "sent" to the user (see above), but logged so real
   // delivery failures (SMTP errors, rate limits) aren't invisible.
-  if (error) console.error('[forgotPasswordAction] resetPasswordForEmail failed:', error.message)
+  if (error) console.error('[forgotPasswordAction] reset email not sent', { status: error.status ?? null, code: error.code ?? null })
 
   return { sent: true }
+}
+
+// Review Finding 13f: the history is read by trusted server code only; if it
+// can't be read, the change is refused rather than let through unchecked.
+const HISTORY_UNAVAILABLE = 'We couldn’t check your password history right now. Please try again in a moment.'
+async function passwordReuseCheck(userId: string, password: string): Promise<boolean | 'unavailable'> {
+  try {
+    return await isPasswordReused(userId, password)
+  } catch {
+    return 'unavailable'
+  }
 }
 
 // ilike treats % and _ as wildcards — escape them so this is an exact,
@@ -197,7 +266,9 @@ export async function resetPasswordAction(
   if (!valid) return invalid('password', errors.join('\n'))
 
   // Scenario 07: password reuse prevention (last 5)
-  if (await isPasswordReused(user.id, password)) {
+  const reused = await passwordReuseCheck(user.id, password)
+  if (reused === 'unavailable') return { error: HISTORY_UNAVAILABLE }
+  if (reused) {
     return invalid('password', 'You cannot reuse one of your last 5 passwords. Please choose a different one.')
   }
 
@@ -289,22 +360,20 @@ export async function changePasswordAction(
   })
   if (!verifyError) await verifier.auth.signOut({ scope: 'local' })
   if (verifyError) {
-    // TEMP DIAGNOSTIC LOGGING — remove once the "Password change failed"
-    // root cause is confirmed. The user-facing message is intentionally
-    // generic (Scenario 01), but that means real auth failures (expired
-    // session, unconfirmed email, rate limit) get masked as "wrong
-    // password" with no way to tell them apart from server logs alone.
-    console.error('[changePasswordAction] signInWithPassword verify failed:', {
-      email: user.email,
-      status: verifyError.status,
-      code: (verifyError as { code?: string }).code,
-      message: verifyError.message,
+    // The message stays generic (Scenario 01). The log tells a wrong password
+    // apart from an expired session or a rate limit by status and code only:
+    // no email, no message text (Review Finding 13a).
+    console.error('[changePasswordAction] current-password check failed', {
+      status: verifyError.status ?? null,
+      code: (verifyError as { code?: string }).code ?? null,
     })
     return invalid('currentPassword', 'Password change failed. Please check your current password and try again.')
   }
 
   // Scenario 05: reuse prevention (last 5)
-  if (await isPasswordReused(user.id, newPassword)) {
+  const reusedNew = await passwordReuseCheck(user.id, newPassword)
+  if (reusedNew === 'unavailable') return { error: HISTORY_UNAVAILABLE }
+  if (reusedNew) {
     return invalid('newPassword', 'You cannot reuse one of your last 5 passwords. Please choose a different one.')
   }
 
@@ -406,7 +475,7 @@ export async function requestEmailChangeAction(
     { emailRedirectTo: `${siteUrl}/auth/confirm-email-change` }
   )
   if (updateError) {
-    console.error('[requestEmailChangeAction] updateUser failed:', updateError.message)
+    console.error('[requestEmailChangeAction] updateUser failed', { status: updateError.status ?? null, code: updateError.code ?? null })
     const code = (updateError as { code?: string }).code
     if (code === 'email_exists') return invalid('newEmail', 'That email is already used by another account.')
     if (code === 'over_email_send_rate_limit' || updateError.status === 429) {

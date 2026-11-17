@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans, Inter } from "next/font/google";
+import { connection } from "next/server";
 import "./globals.css";
 
 const jakarta = Plus_Jakarta_Sans({
@@ -21,11 +22,15 @@ export const metadata: Metadata = {
   description: "Healing Minds Matter — Platform Administration",
 };
 
-export default function RootLayout({
+// Review Finding 13c: every page is rendered per request, so Next.js can put
+// that request’s Content-Security-Policy nonce on its scripts (a page built
+// ahead of time has no nonce, and the policy would block its scripts).
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  await connection();
   return (
     <html
       lang="en"
