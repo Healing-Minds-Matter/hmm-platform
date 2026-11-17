@@ -154,3 +154,71 @@ describe('createGatekeepersBulkAction', () => {
     expect(h.invites).toEqual([])
   })
 })
+
+// ── Review Finding 13j: one shared schema for single and bulk create ─────────
+describe('Review Finding 13j: input checks (single and bulk)', () => {
+  const bulk = (rows: string[], intent: 'check' | 'save' = 'save', header = 'full_name,email,phone,club_id') => {
+    const d = form({ intent })
+    d.set('csv_file', new File([[header, ...rows].join('\n')], 'g.csv', { type: 'text/csv' }))
+    return d
+  }
+
+  it.each([
+    ['full_name', { full_name: 'Asha <script>' }, 'Full name can only contain letters'],
+    ['full_name', { full_name: 'x'.repeat(201) }, 'Full name must be 200 characters or fewer.'],
+    ['email', { email: 'not-an-email' }, 'Enter a valid email address'],
+    ['email', { email: '' }, 'Email is required.'],
+    ['phone', { phone: '123' }, 'Enter a valid phone number'],
+    ['phone', { phone: '' }, 'Phone number is required.'],
+    ['preferred_language', { preferred_language: 'fr' }, 'Choose English, Sinhala or Tamil.'],
+    ['club_id', { club_id: 'abc' }, 'Select a valid club'],
+  ])('single: bad %s → field error, no account', async (field, over, message) => {
+    h.me = SA
+    const r = await createGatekeeperAction(null, single(over as Record<string, string>))
+    expect(r?.fieldErrors?.[field]).toContain(message)
+    expect(createAuthAccount).not.toHaveBeenCalled()
+  })
+
+  it('single: Sinhala and Tamil names are accepted', async () => {
+    h.me = SA
+    expect(await createGatekeeperAction(null, single({ full_name: 'අසංක පෙරේරා' }))).toMatchObject({ success: true })
+  })
+
+  it('bulk: the same checks, with a reason for each row; good rows are still registered (partial import, as before)', async () => {
+    h.me = SA
+    const r = await createGatekeepersBulkAction(null, bulk([
+      `Asha Perera,asha@example.com,0771234567,${CLUB_A}`,
+      `Bad Email,nope,0771234568,${CLUB_A}`,
+      `Bad <b>Name</b>,b@example.com,0771234569,${CLUB_A}`,
+      `Bad Club,c@example.com,0771234570,not-a-club`,
+      `Dup Phone,d@example.com,077 123 4567,${CLUB_A}`,
+    ]))
+    expect(r?.results).toEqual([
+      expect.objectContaining({ row: 2, status: 'created' }),
+      expect.objectContaining({ row: 3, status: 'failed', error: expect.stringContaining('Enter a valid email address') }),
+      expect.objectContaining({ row: 4, status: 'failed', error: expect.stringContaining('Full name can only contain letters') }),
+      expect.objectContaining({ row: 5, status: 'failed', error: expect.stringContaining('Select a valid club') }),
+      expect.objectContaining({ row: 6, status: 'failed', error: expect.stringContaining('Same phone number as row 2') }),
+    ])
+    expect(createAuthAccount).toHaveBeenCalledTimes(1)
+  })
+
+  it('bulk: an optional preferred_language column is checked too', async () => {
+    h.me = SA
+    const r = await createGatekeepersBulkAction(null, bulk([`Asha Perera,asha@example.com,0771234567,${CLUB_A},xx`], 'check', 'full_name,email,phone,club_id,preferred_language'))
+    expect(r?.results?.[0]).toMatchObject({ status: 'failed', error: 'Choose English, Sinhala or Tamil.' })
+  })
+
+  it('bulk: Champion — a club_id for another club in the file is ignored (always their own club)', async () => {
+    h.me = CH_A
+    await createGatekeepersBulkAction(null, bulk([`Asha Perera,asha@example.com,0771234567,${CLUB_B}`]))
+    expect(h.db.tables.profiles.find(row => row.id === NEW_USER)?.club_id).toBe(CLUB_A)
+  })
+
+  it('bulk: not signed in → login; Gatekeeper → refused; no accounts', async () => {
+    await expect(createGatekeepersBulkAction(null, bulk([`Asha Perera,asha@example.com,0771234567,${CLUB_A}`]))).rejects.toThrow('NEXT_REDIRECT')
+    h.me = GK
+    expect((await createGatekeepersBulkAction(null, bulk([`Asha Perera,asha@example.com,0771234567,${CLUB_A}`])))?.error).toBeTruthy()
+    expect(createAuthAccount).not.toHaveBeenCalled()
+  })
+})

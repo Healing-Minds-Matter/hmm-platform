@@ -21,6 +21,7 @@ import { describeCertError, validateAward } from '@/lib/certificates'
 import { requireClubScope, requireRole, type Caller } from '@/lib/auth/guards.server'
 import { isEmailAvailable, requestAccountEmailChange } from '@/lib/email-change.server'
 import { dbErrorState, logDbError } from '@/lib/db-errors'
+import { parseNewGatekeeper } from '@/lib/validation/gatekeeper'
 
 export type GatekeeperActionState = {
   error?: string
@@ -249,11 +250,16 @@ export async function createGatekeeperAction(
   _prev: GatekeeperActionState,
   formData: FormData
 ): Promise<GatekeeperActionState> {
-  const fullName = (formData.get('full_name') as string | null)?.trim()
-  const email    = (formData.get('email') as string | null)?.trim().toLowerCase()
-  const parsedPhone = parsePhone(formData.get('phone') as string | null)
-  const preferredLanguage = (formData.get('preferred_language') as string | null) || 'en'
-  const requestedClubId = formData.get('club_id') as string | null
+  // Review Finding 13j: the same schema as every bulk-upload row.
+  const parsed = parseNewGatekeeper({
+    full_name: formData.get('full_name'),
+    email: formData.get('email'),
+    phone: formData.get('phone'),
+    club_id: formData.get('club_id'),
+    preferred_language: formData.get('preferred_language'),
+  })
+  if (!parsed.ok) return invalid(parsed.field, parsed.error)
+  const { full_name: fullName, email, phone, preferred_language: preferredLanguage, club_id: requestedClubId } = parsed.value
   // Certifications to add (Story 10.5 Sc05): repeated type + date pairs, all optional.
   const certTypeIds = formData.getAll('cert_type_id').map(v => String(v).trim())
   const certDates = formData.getAll('cert_achieved_on').map(v => String(v).trim())
@@ -261,12 +267,6 @@ export async function createGatekeeperAction(
   // checkbox on the create form, not always-on. Checkbox fields are only
   // present in FormData when checked, so absence means "off."
   const sendWelcomeEmail = formData.get('send_welcome_email') === 'on'
-
-  if (!fullName) return invalid('full_name', 'Full name is required.')
-  if (!email)    return invalid('email', 'Email is required.')
-  if (!parsedPhone.ok) return invalid('phone', parsedPhone.error)
-  if (!parsedPhone.value) return invalid('phone', 'Phone number is required.')
-  const phone = parsedPhone.value
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -327,6 +327,7 @@ export async function createGatekeepersBulkAction(
   const emailIdx = col('email')
   const phoneIdx = col('phone')
   const clubIdx = col('club_id')
+  const langIdx = col('preferred_language') // optional column; English when absent
 
   // Shared guard: signed in, active (Review Finding 3), Super Admin or Champion.
   const guard = await requireRole(['super_admin', 'champion'], 'Only Super Admins and Champions can add Gatekeepers.')
@@ -346,11 +347,11 @@ export async function createGatekeepersBulkAction(
   if (headerError) return { error: headerError }
 
   const results: BulkRowResult[] = []
-  // The check step saves nothing, so the database can't see other rows in
-  // this file: duplicates within the CSV are caught here. The save step
-  // skips this — rows are created one by one, so a later duplicate meets the
-  // earlier, now-saved row in the database check ("already exists"), which
-  // is also the reason that still makes sense in the "failed rows" file.
+  // The database can't see other rows in this file before they're saved, so
+  // duplicates within the CSV are caught here — in both steps (Review
+  // Finding 13j), over the whole file, so rows in different batches are
+  // compared too. Duplicates of existing accounts are caught by the database
+  // lookups below (check) and in inviteAndCreateGatekeeper (save).
   const phonesInFile = new Map<string, number>()
   const emailsInFile = new Map<string, number>()
   // One batch of rows per request (see lib/bulk-upload.ts). A check still
@@ -363,41 +364,46 @@ export async function createGatekeepersBulkAction(
 
   for (const { line: rowNum, cells } of dataRows) {
     const inBatch = !lines || lines.has(rowNum)
-    if (intent === 'save' && !inBatch) continue
-    const fullName = cells[nameIdx]?.trim()
-    const email = cells[emailIdx]?.trim().toLowerCase()
-    const parsedPhone = parsePhone(cells[phoneIdx])
-    const clubId = forcedClubId ?? (clubIdx !== -1 ? cells[clubIdx]?.trim() : undefined)
+    const rawEmail = cells[emailIdx]?.trim().toLowerCase() ?? ''
     const fail = (error: string) => {
-      if (inBatch) results.push({ row: rowNum, label: email || '(missing)', status: 'failed', error })
+      if (inBatch) results.push({ row: rowNum, label: rawEmail || '(missing)', status: 'failed', error })
     }
 
-    if (!fullName || !email || !clubId || (parsedPhone.ok && !parsedPhone.value)) {
-      fail('Missing required field(s).')
+    // Review Finding 13j: every row through the same schema as the single
+    // form. A Champion's rows always go to their own club.
+    const parsedRow = parseNewGatekeeper({
+      full_name: cells[nameIdx],
+      email: cells[emailIdx],
+      phone: cells[phoneIdx],
+      club_id: forcedClubId ?? (clubIdx !== -1 ? cells[clubIdx] : ''),
+      preferred_language: langIdx !== -1 ? cells[langIdx] : '',
+    })
+    if (!parsedRow.ok) { fail(parsedRow.error); continue }
+    const { full_name: fullName, email, phone, preferred_language: preferredLanguage } = parsedRow.value
+    const clubId = parsedRow.value.club_id
+    if (!clubId) { fail('Assigned club is required (club_id).'); continue }
+
+    // Duplicates within the file: checked over the whole file in both steps,
+    // so a row in a later batch is also compared with rows in earlier ones.
+    const firstEmailRow = emailsInFile.get(email)
+    if (firstEmailRow) { fail(`Same email as row ${firstEmailRow} in this file.`); continue }
+    const firstPhoneRow = phonesInFile.get(phone)
+    if (firstPhoneRow) {
+      fail(`Same phone number as row ${firstPhoneRow} in this file. Each user needs their own phone number.`)
       continue
     }
-    if (!parsedPhone.ok) { fail(parsedPhone.error); continue }
-    const phone = parsedPhone.value!
+    emailsInFile.set(email, rowNum)
+    phonesInFile.set(phone, rowNum)
+    if (!inBatch) continue
 
     if (intent === 'check') {
-      const firstEmailRow = emailsInFile.get(email)
-      if (firstEmailRow) { fail(`Same email as row ${firstEmailRow} in this file.`); continue }
-      const firstPhoneRow = phonesInFile.get(phone)
-      if (firstPhoneRow) {
-        fail(`Same phone number as row ${firstPhoneRow} in this file. Each user needs their own phone number.`)
-        continue
-      }
-      emailsInFile.set(email, rowNum)
-      phonesInFile.set(phone, rowNum)
-      if (!inBatch) continue
-
       toLookUp.push({ index: results.length, row: { email, phone, clubId } })
       results.push({ row: rowNum, label: email, status: 'ready' })
       continue
     }
 
     const result = await inviteAndCreateGatekeeper({
-      fullName, email, phone, preferredLanguage: 'en', clubId, actorId: user.id, sendWelcomeEmail,
+      fullName, email, phone, preferredLanguage, clubId, actorId: user.id, sendWelcomeEmail,
     })
     if ('error' in result) fail(result.error)
     else results.push({ row: rowNum, label: email, status: 'created', ...(result.inviteDeferred ? { note: BULK_SEND_LATER_NOTE } : {}) })
