@@ -62,7 +62,7 @@ export function CertificatesPanel(props: Props) {
   const actionsFor = (c: CertificateRow) => (
     <div className="flex flex-wrap justify-end gap-1.5">
       {c.pdf_path && <CertificateButton certId={c.id} />}
-      {c.attachment_path && <AttachmentButton path={c.attachment_path} />}
+      {c.attachment_path && <AttachmentButton certificateId={c.id} />}
       {perms.award && renewable(c, typeById.get(c.type_id), props.today) && (
         <SmallButton tone="primary" onClick={() => setPopup({ kind: 'renew', cert: c })}>Renew</SmallButton>
       )}
@@ -285,14 +285,14 @@ function SmallButton({ children, onClick, tone = 'plain' }: { children: React.Re
   )
 }
 
-function AttachmentButton({ path }: { path: string }) {
+function AttachmentButton({ certificateId }: { certificateId: string }) {
   const [state, setState] = useState<'idle' | 'busy' | 'failed'>('idle')
   return (
     <SmallButton
       onClick={async () => {
         if (state === 'busy') return
         setState('busy')
-        const url = await attachmentLinkAction(path)
+        const url = await attachmentLinkAction('official', certificateId)
         setState(url ? 'idle' : 'failed')
         if (url) window.open(url, '_blank', 'noopener')
       }}

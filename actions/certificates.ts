@@ -258,10 +258,17 @@ export async function addCertificateToManyAction(_prev: BulkAwardState, formData
 }
 
 // ── Attachments ──────────────────────────────────────────────────────────────
-// A short-lived link to an attachment. Signed with the user's own client, so
-// storage only signs files of certificates this user can see.
-export async function attachmentLinkAction(path: string): Promise<string | null> {
+// A short-lived link to a certificate's attachment. Review Finding 13h: the
+// browser names the certificate, never the file — the path is read from the
+// certificate row the user can see (RLS), and signed with the user's own
+// client, so storage checks again that the file is in that holder's folder.
+export async function attachmentLinkAction(kind: 'official' | 'self', certificateId: string): Promise<string | null> {
+  if (!UUID_RE.test(certificateId) || (kind !== 'official' && kind !== 'self')) return null
   const supabase = await createClient()
+  const table = kind === 'official' ? 'certificates' : 'self_reported_certificates'
+  const { data: row } = await supabase.from(table).select('attachment_path').eq('id', certificateId).maybeSingle()
+  const path = (row as { attachment_path: string | null } | null)?.attachment_path
+  if (!path) return null
   const { data } = await supabase.storage.from(BUCKET).createSignedUrl(path, 300)
   return data?.signedUrl ?? null
 }
