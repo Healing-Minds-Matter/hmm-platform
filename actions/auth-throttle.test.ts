@@ -17,6 +17,9 @@ const s = vi.hoisted(() => ({
   spoofedForwardedFor: null as string | null,
   rpcFails: false,
   signInOutage: null as { status?: number; code?: string } | null,
+  // Fix 1 (HMM-195): the signed-in recovery session for resetPasswordAction.
+  sessionEmail: 'a@example.com',
+  updateUserFails: false,
 }))
 
 function fakeRpc(fn: string, a: Record<string, unknown>) {
@@ -59,6 +62,7 @@ vi.mock('@/lib/supabase/admin', () => ({
   createAdminClient: () => ({
     rpc: async (fn: string, a: Record<string, unknown>) => fakeRpc(fn, a),
     from: () => ({
+      update: () => ({ eq: async () => ({ error: null }) }),
       select: () => ({
         ilike: (_c: string, email: string) => ({
           limit: async () => ({ data: s.passwords.has(email.replace(/\\/g, '')) ? [{ role: 'super_admin' }] : [], error: null }),
@@ -77,9 +81,17 @@ vi.mock('@/lib/supabase/server', () => ({
         return s.passwords.get(email) === password ? { error: null } : { error: { message: 'Invalid login credentials', status: 400 } }
       },
       resetPasswordForEmail: async (email: string) => { s.resetEmails.push(email); return { error: null } },
-      getUser: async () => ({ data: { user: { id: 'u1', email: 'a@example.com' } } }),
+      getUser: async () => ({ data: { user: { id: 'u1', email: s.sessionEmail } } }),
+      updateUser: async ({ password }: { password: string }) => {
+        if (s.updateUserFails) return { error: { message: 'expired', status: 401 } }
+        s.passwords.set(s.sessionEmail, password)
+        return { error: null }
+      },
       signOut: async () => ({}),
     },
+    from: () => ({
+      select: () => ({ eq: () => ({ single: async () => ({ data: { full_name: 'Test Champion', email: s.sessionEmail, role: 'super_admin' } }) }) }),
+    }),
     rpc: async () => ({ data: [{ role: 'super_admin', is_active: true, deactivation_reason: null, must_change_password: false }], error: null }),
   }),
 }))
@@ -91,9 +103,14 @@ vi.mock('next/headers', () => ({
     get: (name: string) => (name === 'x-real-ip' ? s.ip : name === 'x-forwarded-for' ? s.spoofedForwardedFor ?? s.ip : null),
   }),
 }))
+vi.mock('@/lib/password-reset-grant.server', async orig => ({
+  ...(await orig<typeof import('@/lib/password-reset-grant.server')>()),
+  hasResetGrant: async () => true,
+}))
+vi.mock('@/lib/password-history.server', () => ({ isPasswordReused: async () => false, recordPasswordHash: vi.fn() }))
 vi.mock('next/navigation', () => ({ redirect: (to: string) => { throw new Error(`redirect:${to}`) } }))
 
-import { forgotPasswordAction, loginAction } from '@/actions/auth'
+import { forgotPasswordAction, loginAction, resetPasswordAction } from '@/actions/auth'
 
 const KNOWN = 'champion@example.com'
 const RIGHT = 'Correct-Horse-9!'
@@ -105,12 +122,16 @@ function form(fields: Record<string, string>) {
 }
 const login = (email: string, password = 'wrong-password', portal = 'super_admin') =>
   loginAction(null, form({ email, password, portal })).then(r => r?.error, (e: Error) => e.message)
+const NEW_PASSWORD = 'Galle-Fort-Lamp-73!'
+const resetPassword = (password = NEW_PASSWORD, confirm = password) =>
+  resetPasswordAction(null, form({ password, confirm })).then(r => r?.error, (e: Error) => e.message)
 const requestReset = (email: string) => forgotPasswordAction(null, form({ email, portal: 'super_admin' }))
 
 beforeEach(() => {
   s.rows.clear(); s.signIns = []; s.resetEmails = []; s.audit = []
   s.passwords = new Map([[KNOWN, RIGHT]])
   s.ip = '203.0.113.7'; s.spoofedForwardedFor = null; s.rpcFails = false; s.signInOutage = null
+  s.sessionEmail = KNOWN; s.updateUserFails = false
   vi.stubEnv('VERCEL', '1')
   vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'test-secret')
   vi.useFakeTimers()
@@ -282,5 +303,45 @@ describe('Review Finding 10: password-reset requests', () => {
     s.passwords.set('fresh@example.com', 'x')
     expect(await requestReset('fresh@example.com')).toEqual({ sent: true })
     expect(s.resetEmails).toHaveLength(0)
+  })
+})
+
+describe('Fix 1 (HMM-195): a password reset ends the sign-in lockout', () => {
+  const lockOut = async () => { for (let i = 0; i < 5; i++) await login(KNOWN) }
+
+  it('a locked account can sign in straight after a reset', async () => {
+    await lockOut()
+    expect(await login(KNOWN, RIGHT)).toBe('Too many attempts. Try again in 15 minutes.')
+    expect(await resetPassword()).toBe('redirect:/login?reset=success')
+    expect(await login(KNOWN, NEW_PASSWORD)).toBe('redirect:/super-admin')
+  })
+
+  it('the email is matched however the account’s address is cased', async () => {
+    await lockOut()
+    s.sessionEmail = 'Champion@Example.com'
+    s.passwords.set(s.sessionEmail, RIGHT)
+    await resetPassword()
+    s.passwords.set(KNOWN, NEW_PASSWORD)
+    expect(await login(KNOWN, NEW_PASSWORD)).toBe('redirect:/super-admin')
+  })
+
+  it('only the account counter is cleared; the network counter is kept', async () => {
+    for (let i = 0; i < 19; i++) await login(`other${i}@example.com`)
+    await resetPassword()
+    expect(await login('someone@example.com')).toMatch(/^Too many attempts/)
+  })
+
+  it('a failed reset (Supabase refuses the new password) clears nothing', async () => {
+    await lockOut()
+    s.updateUserFails = true
+    expect(await resetPassword()).toMatch(/^Failed to reset password/)
+    expect(await login(KNOWN, RIGHT)).toBe('Too many attempts. Try again in 15 minutes.')
+  })
+
+  it('a reset refused before saving (passwords don’t match, weak password) clears nothing', async () => {
+    await lockOut()
+    expect(await resetPassword(NEW_PASSWORD, 'something-else')).toBe('Passwords do not match.')
+    expect(await resetPassword('weak', 'weak')).not.toMatch(/^redirect/)
+    expect(await login(KNOWN, RIGHT)).toBe('Too many attempts. Try again in 15 minutes.')
   })
 })
