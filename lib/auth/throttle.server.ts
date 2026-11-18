@@ -23,6 +23,12 @@ export function normaliseEmail(email: string): string {
   return email.normalize('NFKC').trim().toLowerCase()
 }
 
+/** Supabase busy (429), failing (5xx) or unreachable (no status): the password was never checked, so it isn't counted. */
+export function isAuthOutage(error: { status?: number }): boolean {
+  const status = error.status ?? 0
+  return status === 0 || status === 429 || status >= 500
+}
+
 /** "Too many attempts. Try again in 15 minutes." with the real time left. */
 export function tooManyAttemptsMessage(blockedUntil: Date, now: Date = new Date()): string {
   return `Too many attempts. Try again in ${describeWait(blockedUntil.getTime() - now.getTime())}.`

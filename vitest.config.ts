@@ -7,6 +7,7 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
+    setupFiles: ['./vitest.setup.ts'],
     include: ['**/*.test.ts'],
     // .claude/** — local agent scratch copies of the repo, never part of the suite.
     exclude: ['node_modules/**', '.next/**', '.claude/**'],

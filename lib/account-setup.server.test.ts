@@ -14,6 +14,11 @@ vi.mock('server-only', () => ({}))
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: () => fakeClient(h.db, 'admin') }))
 vi.mock('@/lib/audit', () => ({ writeAuditLog: vi.fn() }))
 vi.mock('@/lib/password-history.server', () => ({ seedPasswordHistoryAdmin: vi.fn() }))
+const pwned = vi.hoisted(() => new Set<string>())
+vi.mock('@/lib/pwned-password.server', async orig => ({
+  ...(await orig<typeof import('@/lib/pwned-password.server')>()),
+  isPwnedPassword: async (pw: string) => pwned.has(pw),
+}))
 vi.mock('@/lib/send-email', () => ({
   sendAccountSetupEmail: vi.fn(async (p: Record<string, unknown>) => { h.emails.push({ kind: 'plain', ...p }); return {} }),
   // Gatekeepers get the branded welcome email (Review Finding 3).
@@ -155,6 +160,14 @@ describe('completeAccountSetup', () => {
     expect(await completeAccountSetup(token, 'short', 'short')).toMatchObject({ fieldErrors: { password: expect.any(String) } })
     expect(await completeAccountSetup(token, 'AshaPerera-2026!', 'AshaPerera-2026!')).toMatchObject({ fieldErrors: { password: expect.stringMatching(/name/) } })
     expect(passwordWrites()).toEqual([])
+    expect(await completeAccountSetup(token, GOOD, GOOD)).toMatchObject({ done: true })
+  })
+  it('Fix 3: a password known from data breaches → field error, nothing set, link still usable', async () => {
+    const token = await linkToken()
+    pwned.add(GOOD)
+    expect(await completeAccountSetup(token, GOOD, GOOD)).toMatchObject({ fieldErrors: { password: expect.stringMatching(/data breach/) } })
+    expect(passwordWrites()).toEqual([])
+    pwned.clear()
     expect(await completeAccountSetup(token, GOOD, GOOD)).toMatchObject({ done: true })
   })
   it('refused by the database at claim time (account signed in since) → invalid, no password set', async () => {

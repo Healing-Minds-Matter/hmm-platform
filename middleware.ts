@@ -8,8 +8,9 @@ import { SECURITY_HEADERS, buildCsp, newNonce } from '@/lib/security-headers'
 
 // '/.well-known/' (app-link files) and '/mobile/' (the reset-link fallback page)
 // must be reachable signed out — Security Finding 9. /api/cron/ routes check
-// their own secret (CRON_SECRET) instead of a session.
-const PUBLIC_PREFIXES = ['/login', '/champion/login', '/forgot-password', '/champion/forgot-password', '/reset-password', '/auth/', '/.well-known/', '/mobile/', '/api/cron/']
+// their own secret (CRON_SECRET) instead of a session. /api/mobile/ routes
+// (Fix 3) check the app's own access token, or need none (sign-in, forgot).
+const PUBLIC_PREFIXES = ['/login', '/champion/login', '/forgot-password', '/champion/forgot-password', '/reset-password', '/auth/', '/.well-known/', '/mobile/', '/api/cron/', '/api/mobile/']
 
 // Sign-in pages an already-authenticated user gets bounced away from.
 const AUTH_PAGES = ['/login', '/champion/login', '/forgot-password', '/champion/forgot-password']

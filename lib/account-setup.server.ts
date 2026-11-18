@@ -6,6 +6,7 @@ import { sendAccountSetupEmail, sendGatekeeperWelcomeEmail } from '@/lib/send-em
 import { validatePassword } from '@/lib/password-validation'
 import { seedPasswordHistoryAdmin } from '@/lib/password-history.server'
 import type { FieldErrors } from '@/lib/form-errors'
+import { PWNED_PASSWORD_MESSAGE, isPwnedPassword } from '@/lib/pwned-password.server'
 
 // Review Finding 2: set-password links. An account that has never been
 // signed into gets a single-use link, emailed to the account's own sign-in
@@ -180,6 +181,8 @@ export async function completeAccountSetup(token: string, password: string, conf
   if (password !== confirm) return { error: 'Passwords do not match.', fieldErrors: { confirm: 'Passwords do not match.' } }
   const { valid, errors } = validatePassword(password, { name: invite.full_name, email: invite.email })
   if (!valid) return { error: errors.join('\n'), fieldErrors: { password: errors.join('\n') } }
+  // Fix 3: refuse a password known from data breaches.
+  if (await isPwnedPassword(password)) return { error: PWNED_PASSWORD_MESSAGE, fieldErrors: { password: PWNED_PASSWORD_MESSAGE } }
 
   const admin = createAdminClient()
   // Claim it first so the link can only ever be used once. The database also
