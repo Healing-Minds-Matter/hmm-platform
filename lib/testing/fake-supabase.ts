@@ -105,7 +105,11 @@ export function fakeClient(db: FakeDb, client: string, userId: string | null = n
       getUser: async () => ({ data: { user: userId ? { id: userId } : null } }),
       mfa: { getAuthenticatorAssuranceLevel: async () => ({ data: { currentLevel: db.aal ?? 'aal2', nextLevel: 'aal2' }, error: null }) },
       admin: {
-        updateUserById: async (id: string, attrs: Row) => { db.writes.push({ client, table: 'auth.users', op: 'update', values: { id, ...attrs }, filters: [] }); return { error: null } },
+        updateUserById: async (id: string, attrs: Row) => {
+          if (db.writeErrors['auth.users']) return { error: db.writeErrors['auth.users'] }
+          db.writes.push({ client, table: 'auth.users', op: 'update', values: { id, ...attrs }, filters: [] })
+          return { error: null }
+        },
         deleteUser: async () => ({ error: null }),
         getUserById: async (id: string) => ({ data: { user: (db.tables['auth.users'] ?? []).find(u => u.id === id) ?? null }, error: null }),
       },
