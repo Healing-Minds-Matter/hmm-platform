@@ -19,6 +19,7 @@ vi.mock('@/lib/pwned-password.server', async orig => ({
   ...(await orig<typeof import('@/lib/pwned-password.server')>()),
   isPwnedPassword: async (pw: string) => pwned.has(pw),
 }))
+vi.mock('@/lib/auth/throttle.server', () => ({ clearLoginFailures: vi.fn() }))
 vi.mock('@/lib/send-email', () => ({
   sendAccountSetupEmail: vi.fn(async (p: Record<string, unknown>) => { h.emails.push({ kind: 'plain', ...p }); return {} }),
   // Gatekeepers get the branded welcome email (Review Finding 3).
@@ -30,6 +31,7 @@ import {
 } from '@/lib/account-setup.server'
 import { writeAuditLog } from '@/lib/audit'
 import { seedPasswordHistoryAdmin } from '@/lib/password-history.server'
+import { clearLoginFailures } from '@/lib/auth/throttle.server'
 import { sendAccountSetupEmail, sendGatekeeperWelcomeEmail } from '@/lib/send-email'
 
 const invites = () => h.db.tables.account_setup_invites ?? []
@@ -40,6 +42,7 @@ beforeEach(() => {
   h.emails = []
   vi.mocked(writeAuditLog).mockClear()
   vi.mocked(seedPasswordHistoryAdmin).mockClear()
+  vi.mocked(clearLoginFailures).mockClear()
   vi.mocked(sendAccountSetupEmail).mockClear()
   vi.mocked(sendGatekeeperWelcomeEmail).mockClear()
   h.db = createFakeDb({
@@ -175,6 +178,22 @@ describe('completeAccountSetup', () => {
     h.db.writeErrors.account_setup_invites = { code: '42501', message: 'refused' }
     expect(await completeAccountSetup(token, GOOD, GOOD)).toEqual({ invalid: true })
     expect(passwordWrites()).toEqual([])
+  })
+
+  // Fix 1 (HMM-195): setting a password from the link ends any sign-in lockout.
+  it('a saved password clears the account’s sign-in lockout', async () => {
+    const token = await linkToken()
+    await completeAccountSetup(token, GOOD, GOOD)
+    expect(clearLoginFailures).toHaveBeenCalledTimes(1)
+    expect(clearLoginFailures).toHaveBeenCalledWith('asha@example.com')
+  })
+  it('nothing is cleared when the password isn’t saved', async () => {
+    const token = await linkToken()
+    await completeAccountSetup(token, GOOD, 'other')
+    await completeAccountSetup('nope', GOOD, GOOD)
+    h.db.writeErrors['auth.users'] = { message: 'down' }
+    expect(await completeAccountSetup(token, GOOD, GOOD)).toMatchObject({ error: expect.any(String) })
+    expect(clearLoginFailures).not.toHaveBeenCalled()
   })
 })
 

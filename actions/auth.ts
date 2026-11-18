@@ -280,6 +280,9 @@ export async function resetPasswordAction(
 
   // Scenario 08: record new hash, log the event; Supabase invalidates the reset link automatically
   await recordPasswordHash(user.id, password)
+  // HMM-195: a reset ends any sign-in lockout on this account (only the
+  // account counter; the network counter is kept).
+  if (user.email) await clearLoginFailures(user.email)
   await writeAuditLog({
     actorId: user.id,
     action: 'auth.password_reset',

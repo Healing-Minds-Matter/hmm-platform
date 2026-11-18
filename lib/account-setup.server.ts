@@ -5,6 +5,7 @@ import { writeAuditLog } from '@/lib/audit'
 import { sendAccountSetupEmail, sendGatekeeperWelcomeEmail } from '@/lib/send-email'
 import { validatePassword } from '@/lib/password-validation'
 import { seedPasswordHistoryAdmin } from '@/lib/password-history.server'
+import { clearLoginFailures } from '@/lib/auth/throttle.server'
 import type { FieldErrors } from '@/lib/form-errors'
 import { PWNED_PASSWORD_MESSAGE, isPwnedPassword } from '@/lib/pwned-password.server'
 
@@ -201,6 +202,8 @@ export async function completeAccountSetup(token: string, password: string, conf
     return { error: 'Your password couldn’t be saved. Please try again.' }
   }
   await seedPasswordHistoryAdmin(invite.user_id, password)
+  // HMM-195: a new password ends any sign-in lockout on this account (account counter only).
+  await clearLoginFailures(invite.email)
   await admin.from('profiles').update({ must_change_password: false }).eq('id', invite.user_id)
 
   await writeAuditLog({
