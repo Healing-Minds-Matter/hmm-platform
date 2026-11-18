@@ -28,12 +28,25 @@ password reuse rules).
 
 ## Branching & deployments (since 2026-11-18)
 
-**Flow — everything passes through `preview`:**
-feature branch → PR into `preview` → PR `preview` → `develop` → PR
-`develop` → `main` (production releases only).
+**Two lanes — app work and UI-only work are kept separate:**
 
-- Start new work from a fresh `origin/preview` (the GitHub default branch),
-  and keep the branch up to date by merging `origin/preview` into it.
+| Lane | Cut from | PR into | Tested on |
+|---|---|---|---|
+| App work (features, fixes, logic) | `develop` | `develop` | develop site |
+| UI-only work | `preview` | `preview`, then PR `preview` → `develop` once the UI is approved | preview site |
+
+- **Releases:** PR `develop` → `main` (production releases only — `main` is
+  not updated day to day).
+- **Keep the UI lane current:** regularly open a PR `develop` → `preview` so
+  UI work always sits on top of the latest app changes, and the eventual
+  `preview` → `develop` merge stays small. Before cutting a UI branch, make
+  sure `preview` has the latest `develop`.
+- **Keep your own branch current** by merging its base (`origin/develop` or
+  `origin/preview`) into it.
+- **Urgent production fix:** branch from `main`, PR into `main`, then bring
+  it back down with PRs `main` → `develop` and `develop` → `preview`.
+- `develop` is the GitHub default branch (new PRs target it); pick
+  `preview` as the base for UI PRs.
 - `main`, `develop` and `preview` are protected: changes arrive only through
   pull requests (no direct pushes, admins included; no force-push/delete).
 - **Open the PR (a draft is fine) before or right after the first push.**
@@ -52,8 +65,12 @@ feature branch → PR into `preview` → PR `preview` → `develop` → PR
 - Vercel is on the **Hobby** plan, which has no custom environments (and
   Vercel's built-in "Development" environment can't receive deployments), so
   `develop`/`preview` are Preview deployments with their own branch domain
-  and branch-scoped env vars (`NEXT_PUBLIC_SITE_URL`). Hobby runs one build
-  at a time.
+  and branch-scoped env vars (`NEXT_PUBLIC_SITE_URL`, `SENDGRID_API_KEY`,
+  `NEXT_PUBLIC_SUPPORT_EMAIL`). PR previews get none of those, so app-sent
+  emails (welcome/account-setup/email-change) fail there by design. Hobby
+  runs one build at a time.
+- Vercel's login wall (Deployment Protection) is **off**: every preview URL,
+  PRs included, is public and shows the app's own login page.
 - **All environments use the same live Supabase project.** Data created on
   `develop`/`preview`/PR sites is real — use clearly named `ZZ` test
   records. Don't apply a migration ahead of its release to `main` unless it's
