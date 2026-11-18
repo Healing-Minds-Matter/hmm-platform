@@ -26,6 +26,40 @@ password reuse rules).
 - Every new table needs a Row Level Security policy before it ships.
 - Run and pass relevant tests before marking a story done.
 
+## Branching & deployments (since 2026-11-18)
+
+**Flow — everything passes through `preview`:**
+feature branch → PR into `preview` → PR `preview` → `develop` → PR
+`develop` → `main` (production releases only).
+
+- Start new work from a fresh `origin/preview` (the GitHub default branch),
+  and keep the branch up to date by merging `origin/preview` into it.
+- `main`, `develop` and `preview` are protected: changes arrive only through
+  pull requests (no direct pushes, admins included; no force-push/delete).
+- **Open the PR (a draft is fine) before or right after the first push.**
+  Vercel only builds pushes to `main`/`develop`/`preview` and pushes that
+  belong to an open PR (Ignored Build Step on `VERCEL_GIT_COMMIT_REF` /
+  `VERCEL_GIT_PULL_REQUEST_ID`). A branch pushed before its PR exists is
+  skipped, and opening the PR doesn't rebuild it — push again.
+
+| Branch | Vercel | URL |
+|---|---|---|
+| `main` | Production | https://hmm-platform.vercel.app |
+| `develop` | Preview (branch domain) | https://hmm-platform-develop.vercel.app |
+| `preview` | Preview (branch domain) | https://hmm-platform-preview.vercel.app |
+| PR branches | Preview | per-PR URL |
+
+- Vercel is on the **Hobby** plan, which has no custom environments (and
+  Vercel's built-in "Development" environment can't receive deployments), so
+  `develop`/`preview` are Preview deployments with their own branch domain
+  and branch-scoped env vars (`NEXT_PUBLIC_SITE_URL`). Hobby runs one build
+  at a time.
+- **All environments use the same live Supabase project.** Data created on
+  `develop`/`preview`/PR sites is real — use clearly named `ZZ` test
+  records. Don't apply a migration ahead of its release to `main` unless it's
+  safe for the code currently live. Both new domains are in Supabase Auth's
+  redirect allow-list.
+
 ## Email delivery — live via SendGrid (switched from Resend 2026-09-16)
 
 Supabase Auth emails (Champion/Gatekeeper invites, password reset, etc.) go
