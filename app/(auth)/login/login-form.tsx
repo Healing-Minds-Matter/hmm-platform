@@ -44,7 +44,7 @@ export function LoginForm({ portal }: { portal: 'super_admin' | 'champion' }) {
             globally is a much bigger, unreviewed change than what was
             asked for here). */}
         <h1 className="font-[family-name:var(--font-inter)]! text-[28px] font-black! leading-none tracking-[0.28px]! text-[#012C51] sm:text-[34px] sm:tracking-[0.34px]!">
-          Login
+          Loginnnnnnn
         </h1>
         <p className="text-[15px] leading-[1.56] tracking-[0.15px] text-[#67707F] sm:text-[18px] sm:tracking-[0.18px]">
           {PORTAL_SUBTITLE[portal]}
