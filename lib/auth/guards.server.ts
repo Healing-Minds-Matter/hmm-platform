@@ -1,5 +1,7 @@
 import 'server-only'
 import { createClient } from '@/lib/supabase/server'
+import { fetchAccountStatus } from '@/lib/auth/account-status'
+import { currentAssuranceLevel, roleNeedsMfa } from '@/lib/auth/mfa'
 
 // Shared server-side guards (security go-live plan, "two locks"). Every server
 // action and route handler checks the caller here first; the database rules
@@ -22,13 +24,16 @@ export type Caller = {
   supabase: ServerClient
 }
 
-export type GuardFailureReason = 'unauthenticated' | 'inactive' | 'forbidden' | 'out_of_scope'
+export type GuardFailureReason = 'unauthenticated' | 'inactive' | 'club_inactive' | 'mfa_required' | 'password_change_required' | 'forbidden' | 'out_of_scope'
 export type GuardFailure = { ok: false; reason: GuardFailureReason; message: string }
 export type GuardResult = { ok: true; caller: Caller } | GuardFailure
 
 export const GUARD_MESSAGES: Record<GuardFailureReason, string> = {
   unauthenticated: 'Please sign in again.',
   inactive: 'Your account has been deactivated. Please contact your administrator.',
+  club_inactive: 'Your club is currently inactive. Please contact your administrator.',
+  mfa_required: 'Please enter the code from your authenticator app to continue.',
+  password_change_required: 'Please set a new password before continuing.',
   forbidden: 'You don’t have permission to do this.',
   out_of_scope: 'You can only do this for your own club.',
 }
@@ -37,7 +42,7 @@ function fail(reason: GuardFailureReason, message = GUARD_MESSAGES[reason]): Gua
   return { ok: false, reason, message }
 }
 
-/** Signed in, with a profile, and active. */
+/** Signed in, with a profile, active, and not waiting to replace a temporary password (Review Finding 3). */
 export async function requireUser(): Promise<GuardResult> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -45,12 +50,24 @@ export async function requireUser(): Promise<GuardResult> {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, club_id, is_active')
+    .select('role, club_id, is_active, must_change_password')
     .eq('id', user.id)
     .maybeSingle()
 
   // No profile row means no role: treat it like a deactivated account.
-  if (!profile || profile.is_active !== true) return fail('inactive')
+  // (The database also hides the profile of a member of an inactive club —
+  // Review Finding 6 — so ask my_account_status() which message applies.)
+  if (!profile || profile.is_active !== true) {
+    const status = await fetchAccountStatus(supabase).catch(() => ({ ok: false as const }))
+    // Review Finding 8: the database also hides a Super Admin's profile until
+    // their session has passed two-step verification.
+    if (status.ok && status.status?.is_active && roleNeedsMfa(status.status.role)) return fail('mfa_required')
+    return status.ok && status.status?.deactivation_reason === 'club_deactivated' ? fail('club_inactive') : fail('inactive')
+  }
+  if (roleNeedsMfa(profile.role) && (await currentAssuranceLevel(supabase)) !== 'aal2') return fail('mfa_required')
+  // Until the temporary password is replaced, only the change-password
+  // screen (which doesn't use these guards) is available.
+  if (profile.must_change_password === true) return fail('password_change_required')
 
   return { ok: true, caller: { id: user.id, role: profile.role as Role, clubId: profile.club_id ?? null, supabase } }
 }
@@ -61,6 +78,15 @@ export async function requireRole(roles: readonly Role[], message?: string): Pro
   if (!result.ok) return result
   if (!roles.includes(result.caller.role)) return fail('forbidden', message)
   return result
+}
+
+/**
+ * Review Finding 9: managing permissions (role defaults, individual
+ * exceptions, groups, delegations) is Super-Admin-only (Epic 9) — there is no
+ * permission key that grants it to anyone else.
+ */
+export async function requirePermissionManager(): Promise<GuardResult> {
+  return requireRole(['super_admin'], 'Only Super Admins can manage permissions.')
 }
 
 /**

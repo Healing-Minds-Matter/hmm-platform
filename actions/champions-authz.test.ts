@@ -37,7 +37,11 @@ function table(client: 'user' | 'admin', name: string) {
 vi.mock('server-only', () => ({}))
 vi.mock('@/lib/supabase/server', () => ({
   createClient: async () => ({
-    auth: { getUser: async () => ({ data: { user: db.userId ? { id: db.userId } : null } }) },
+    auth: {
+      getUser: async () => ({ data: { user: db.userId ? { id: db.userId } : null } }),
+      // A verified (aal2) session, as a Super Admin has after two-step verification (Review Finding 8).
+      mfa: { getAuthenticatorAssuranceLevel: async () => ({ data: { currentLevel: 'aal2', nextLevel: 'aal2' }, error: null }) },
+    },
     from: (name: string) => table('user', name),
   }),
 }))
@@ -48,7 +52,8 @@ vi.mock('@/lib/supabase/admin', () => ({
   }),
 }))
 vi.mock('@/lib/audit', () => ({ writeAuditLog: vi.fn() }))
-vi.mock('@/lib/create-invited-user', () => ({ createInvitedUser: vi.fn(async () => ({ userId: 'new-champion' })) }))
+vi.mock('@/lib/create-invited-user', () => ({ createAuthAccount: vi.fn(async () => ({ userId: 'new-champion' })) }))
+vi.mock('@/lib/account-setup.server', () => ({ issueAccountSetupInvite: vi.fn(async () => ({ ok: true })) }))
 vi.mock('@/lib/delegations.server', () => ({ endDelegationsForDeactivatedUser: vi.fn() }))
 vi.mock('@/lib/phone-uniqueness.server', () => ({
   checkPhoneAvailable: vi.fn(async () => null),
@@ -60,7 +65,8 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 vi.mock('next/navigation', () => ({ redirect: vi.fn(() => { throw new Error('NEXT_REDIRECT') }) }))
 
 import { createChampionAction } from '@/actions/champions'
-import { createInvitedUser } from '@/lib/create-invited-user'
+import { createAuthAccount } from '@/lib/create-invited-user'
+import { issueAccountSetupInvite } from '@/lib/account-setup.server'
 import { writeAuditLog } from '@/lib/audit'
 
 function form(fields: Record<string, string>) {
@@ -85,12 +91,12 @@ beforeEach(() => {
     { id: 'champ-a', role: 'champion', club_id: CLUB_A, is_active: true, email: 'ca@example.com' },
     { id: 'gk-a', role: 'gatekeeper', club_id: CLUB_A, is_active: true, email: 'gk@example.com' },
   ]
-  vi.mocked(createInvitedUser).mockClear()
+  vi.mocked(createAuthAccount).mockClear()
   vi.mocked(writeAuditLog).mockClear()
 })
 
 const noAccountCreated = () => {
-  expect(createInvitedUser).not.toHaveBeenCalled()
+  expect(createAuthAccount).not.toHaveBeenCalled()
   expect(db.inserts).toEqual([])
   expect(writeAuditLog).not.toHaveBeenCalled()
 }
@@ -134,7 +140,9 @@ describe('createChampionAction: who may call it', () => {
   it('active Super Admin → Champion created, profile written with the caller’s own client (RLS applies)', async () => {
     db.userId = 'sa'
     expect(await createChampionAction(null, form(valid))).toEqual({ success: true })
-    expect(createInvitedUser).toHaveBeenCalledOnce()
+    expect(createAuthAccount).toHaveBeenCalledOnce()
+    // Review Finding 3: a set-password link, never a temporary password.
+    expect(issueAccountSetupInvite).toHaveBeenCalledWith({ userId: 'new-champion', requestedBy: 'sa' })
     expect(db.inserts).toHaveLength(1)
     expect(db.inserts[0].client).toBe('user')
     expect(db.inserts[0].row).toMatchObject({ id: 'new-champion', role: 'champion', club_id: CLUB_A, is_active: true })

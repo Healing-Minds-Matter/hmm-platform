@@ -5,13 +5,13 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { changePasswordAction, signOutToForgotPasswordAction } from '@/actions/auth'
-import { checkPasswordRules } from '@/lib/password-validation'
+import { PASSWORD_MIN_LENGTH, checkPasswordRules } from '@/lib/password-validation'
 import { FormErrorsProvider, useFormErrors } from '@/hooks/use-form-errors'
 import { FieldError } from '@/components/field-error'
 import { formLevelError } from '@/lib/form-errors'
 
 const RULES = [
-  { key: 'minLength',    label: 'Minimum 8 characters in length' },
+  { key: 'minLength',    label: `Minimum ${PASSWORD_MIN_LENGTH} characters in length` },
   { key: 'hasUppercase', label: 'At least one uppercase letter (A-Z)' },
   { key: 'hasLowercase', label: 'At least one lowercase letter (a-z)' },
   { key: 'hasNumber',    label: 'At least one numeric digit (0-9)' },

@@ -15,6 +15,7 @@ import { BulkTabLabel, ModeTabs } from '@/components/mode-tabs'
 import { FormErrorsProvider, useFormErrors } from '@/hooks/use-form-errors'
 import { FieldError } from '@/components/field-error'
 import { formLevelError } from '@/lib/form-errors'
+import { SEND_LATER_DONE } from '@/lib/account-sign-in'
 
 interface Club { id: string; name: string; club_code: string | null }
 interface Champion { id: string; full_name: string; club_id: string | null }
@@ -70,16 +71,13 @@ export function CreateGatekeeperForm({
   const linkedChampion = scope.mode === 'select' ? scope.champions.find(c => c.club_id === clubId) ?? null : null
 
   useEffect(() => {
-    // When the welcome email was skipped, tempPassword comes back so it
-    // can be shown once on screen — the account only ever has that
-    // temp password shared this one way in that case, so this can't
-    // auto-close like the emailed path does.
-    if (singleState?.success && !singleState.tempPassword && !singleState.warning) close()
+    // "Send later" (no welcome email yet) and certificate warnings stay open
+    // so the creator can read what to do next.
+    if (singleState?.success && !singleState.inviteDeferred && !singleState.warning) close()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [singleState])
 
-  // Bulk has no auto-close at all — the per-row results (including any
-  // skipped-email temp passwords) are the useful output to review, not
+  // Bulk has no auto-close at all — the per-row results are the useful output to review, not
   // something to dismiss immediately on success. See BulkCsvUpload.
 
   return (
@@ -120,23 +118,14 @@ export function CreateGatekeeperForm({
         aria-labelledby={`add-gatekeeper-tab-${mode}`}
         className="flex flex-1 flex-col overflow-hidden"
       >
-      {mode === 'single' && singleState?.success && (singleState.tempPassword || singleState.warning) ? (
+      {mode === 'single' && singleState?.success && (singleState.inviteDeferred || singleState.warning) ? (
         <div className="flex flex-1 flex-col overflow-hidden">
           <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-6">
             {singleState.warning && (
               <div className="rounded-lg bg-[#FFFBEB] p-3 text-[13px] text-[#B45309]" role="alert">{singleState.warning}</div>
             )}
-            {singleState.tempPassword && (
-              <>
-                <p className="text-[13px] text-[#0F172A]">
-                  Gatekeeper registered. Share these credentials with them yourself — this password is shown only
-                  once and isn&apos;t emailed.
-                </p>
-                <div className="flex flex-col gap-2 rounded-xl bg-[#F8FAFC] p-4 text-[13px]">
-                  <div><span className="text-[#64748B]">Email: </span><span className="font-mono">{email}</span></div>
-                  <div><span className="text-[#64748B]">Temporary password: </span><span className="font-mono font-semibold">{singleState.tempPassword}</span></div>
-                </div>
-              </>
+            {singleState.inviteDeferred && (
+              <p className="text-[13px] text-[#0F172A]" role="status">{SEND_LATER_DONE}</p>
             )}
           </div>
           <div className="flex items-center justify-end gap-2.5 border-t border-[#E2E8F0] px-6 py-4">
@@ -347,8 +336,8 @@ export function CreateGatekeeperForm({
             <label className="flex items-start gap-2.5 rounded-xl bg-[rgba(220,233,255,0.6)] p-3">
               <input type="checkbox" name="send_welcome_email" defaultChecked className="mt-0.5 h-4 w-4 flex-shrink-0 rounded border-[#D4D7E3]" />
               <span className="text-[12px] leading-[16.5px] text-[#475569]">
-                Send a welcome email now, with real login credentials. Uncheck this to share the temporary password
-                with the Gatekeeper yourself instead — it’ll be shown once on screen after you register them.
+                Email the welcome message now, with a link for them to set their own password. Untick to send it
+                later from the Gatekeeper’s page (press “Send Welcome Email” when they’re ready).
               </span>
             </label>
           </div>
@@ -398,7 +387,7 @@ function BulkGatekeeperUpload({ scope, onClose }: { scope: ClubScope; onClose: (
       options={
         <label className="flex items-center gap-2 rounded-xl bg-white p-4 text-[13px] text-[#0F172A]">
           <input type="checkbox" name="send_welcome_email" defaultChecked className="h-4 w-4 rounded border-[#D4D7E3]" />
-          Send welcome email now (applies to every row) — uncheck to share each temp password manually instead
+          Email the welcome message now (every row) — untick to send it later from each Gatekeeper’s page
         </label>
       }
       formatHelp={scope.mode === 'select' ? (

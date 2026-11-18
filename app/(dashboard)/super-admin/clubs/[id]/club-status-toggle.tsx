@@ -6,6 +6,7 @@ import { deactivateClubAction, reactivateClubAction } from '@/actions/clubs'
 export function ClubStatusToggle({ clubId, isActive }: { clubId: string; isActive: boolean }) {
   const [confirm, setConfirm] = useState(false)
   const [isPending, startTransition] = useTransition()
+  const [error, setError] = useState<string | null>(null)
 
   if (!confirm) {
     return (
@@ -30,8 +31,19 @@ export function ClubStatusToggle({ clubId, isActive }: { clubId: string; isActiv
 
   return (
     <div className="flex items-center gap-3 rounded-lg border border-[#E2E8F0] bg-white p-3 shadow-sm">
-      <p className="max-w-xs text-xs text-[#475569]">{warning}</p>
-      <form action={(fd) => startTransition(() => action(fd))} className="flex gap-2">
+      <div className="max-w-xs space-y-1">
+        <p className="text-xs text-[#475569]">{warning}</p>
+        {error && <p role="alert" className="text-xs font-semibold text-[#DC2626]">{error}</p>}
+      </div>
+      <form
+        action={(fd) => startTransition(async () => {
+          setError(null)
+          const result = await action(fd)
+          if (result && 'error' in result) setError(result.error)
+          else setConfirm(false)
+        })}
+        className="flex gap-2"
+      >
         <input type="hidden" name="club_id" value={clubId} />
         <button
           type="submit"

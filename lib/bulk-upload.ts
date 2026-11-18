@@ -13,8 +13,8 @@ export type BulkRowResult = {
   label: string // what the row is called on screen (club name, email)
   status: 'ready' | 'created' | 'failed'
   error?: string
-  // Gatekeepers registered without a welcome email: shown once, never stored.
-  tempPassword?: string
+  // Extra information about a saved row (e.g. Gatekeepers registered with "send later").
+  note?: string
 }
 
 export type BulkUploadState = {

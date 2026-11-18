@@ -8,6 +8,7 @@ import { FormErrorsProvider, useFormErrors } from '@/hooks/use-form-errors'
 import { FieldError } from '@/components/field-error'
 import { formLevelError } from '@/lib/form-errors'
 import { EMAIL_CHANGE_HINT, EmailPendingNotice } from '@/components/email-pending-notice'
+import { CHAMPION_EMAIL_LOCKED } from '@/lib/account-sign-in'
 
 interface Gatekeeper {
   id: string
@@ -29,10 +30,13 @@ export function GatekeeperEditForm({
   gatekeeper,
   clubName,
   onClose,
+  emailLocked = true,
 }: {
   gatekeeper: Gatekeeper
   clubName: string
   onClose?: () => void
+  /** Review Finding 2: once the Gatekeeper has signed in, only a Super Admin can change the email. */
+  emailLocked?: boolean
 }) {
   const router = useRouter()
   const close = onClose ?? (() => router.push(`/champion/gatekeepers/${gatekeeper.id}`))
@@ -107,10 +111,11 @@ export function GatekeeperEditForm({
                 </label>
                 <input
                   id="email" name="email" type="email" required defaultValue={gatekeeper.email}
+                  readOnly={emailLocked} aria-describedby="email-hint"
                   className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                 />
                 <FieldError name="email" />
-                <p className="mt-1.5 text-[11px] text-[#94A3B8]">{EMAIL_CHANGE_HINT}</p>
+                <p id="email-hint" className="mt-1.5 text-[11px] text-[#64748B]">{emailLocked ? CHAMPION_EMAIL_LOCKED : EMAIL_CHANGE_HINT}</p>
               </div>
               <div>
                 <label htmlFor="phone" className="mb-1.5 block text-[13px] font-medium text-[#0F172A]">

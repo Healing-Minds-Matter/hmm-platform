@@ -3,6 +3,7 @@ import crypto from 'crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { writeAuditLog } from '@/lib/audit'
 import { sendEmailChangeConfirmation, sendEmailChangeNotice } from '@/lib/send-email'
+import { cancelAccountSetupInvites, hasSignedIn, issueAccountSetupInvite, revokeUserSessions } from '@/lib/account-setup.server'
 
 // Security Finding 3: a Super Admin or Champion changing SOMEONE ELSE's
 // sign-in email. Nothing changes until the new address confirms a one-time
@@ -85,7 +86,7 @@ export async function requestAccountEmailChange(params: {
   return { ok: true }
 }
 
-export type ConfirmEmailChangeResult = 'done' | 'invalid' | 'taken' | 'error'
+export type ConfirmEmailChangeResult = 'done' | 'invalid' | 'taken' | 'not_allowed' | 'error'
 
 /** Applies a pending change if the token is valid, unused, unexpired and the latest one. */
 export async function confirmAccountEmailChange(token: string): Promise<ConfirmEmailChangeResult> {
@@ -98,12 +99,15 @@ export async function confirmAccountEmailChange(token: string): Promise<ConfirmE
     .maybeSingle()
   if (!req || req.confirmed_at || req.cancelled_at || new Date(req.expires_at).getTime() <= Date.now()) return 'invalid'
 
-  // Claim it first so the link can only ever be used once.
-  const { data: claimed } = await admin
+  // Claim it first so the link can only ever be used once. The database checks
+  // again that the requester may still make this change (Review Finding 2: a
+  // Champion's request stops working once the Gatekeeper has signed in).
+  const { data: claimed, error: claimError } = await admin
     .from('email_change_requests')
     .update({ confirmed_at: new Date().toISOString() })
     .eq('id', req.id).is('confirmed_at', null).is('cancelled_at', null)
     .select('id')
+  if (claimError?.code === '42501') return 'not_allowed'
   if (!claimed?.length) return 'invalid'
 
   if (await emailTaken(admin, req.new_email, req.user_id)) return 'taken'
@@ -111,18 +115,30 @@ export async function confirmAccountEmailChange(token: string): Promise<ConfirmE
   const { data: profile } = await admin.from('profiles').select('email').eq('id', req.user_id).maybeSingle()
   const { error: authError } = await admin.auth.admin.updateUserById(req.user_id, { email: req.new_email, email_confirm: true })
   if (authError) {
-    console.error('[confirmAccountEmailChange] auth update failed:', authError.message)
+    console.error('[confirmAccountEmailChange] auth update failed:', authError.code ?? authError.status ?? 'unknown')
     return authError.message.toLowerCase().includes('already') ? 'taken' : 'error'
   }
   const { error: profileError } = await admin.from('profiles').update({ email: req.new_email }).eq('id', req.user_id)
-  if (profileError) console.error('[confirmAccountEmailChange] profile update failed:', profileError.message)
+  if (profileError) console.error('[confirmAccountEmailChange] profile update failed:', profileError.code ?? 'unknown')
+
+  // Review Finding 2: a new sign-in email ends every existing session, and
+  // set-password links sent to the old address stop working.
+  const sessionsRevoked = await revokeUserSessions(req.user_id)
+  await cancelAccountSetupInvites(req.user_id)
 
   await writeAuditLog({
     actorId: req.requested_by ?? undefined,
     action: 'profile.email_changed',
     entityType: 'profile',
     entityId: req.user_id,
-    details: { from: profile?.email ?? null, to: req.new_email, confirmed_by: 'new address link' },
+    details: { from: profile?.email ?? null, to: req.new_email, confirmed_by: 'new address link', sessions_revoked: sessionsRevoked },
   })
+
+  // A typo fixed before first sign-in: the corrected address gets a fresh
+  // set-password link (the old one went to the wrong address).
+  if (req.requested_by && !(await hasSignedIn(req.user_id).catch(() => true))) {
+    const invited = await issueAccountSetupInvite({ userId: req.user_id, requestedBy: req.requested_by })
+    if ('error' in invited) console.error('[confirmAccountEmailChange] set-password link not sent')
+  }
   return 'done'
 }

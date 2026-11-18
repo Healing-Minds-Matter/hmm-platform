@@ -29,6 +29,11 @@ function normalizeForWeaknessCheck(password: string): string {
     .replace(/[^a-z]/g, '')
 }
 
+// Review Finding 8: the same minimum as Supabase (config.toml / dashboard)
+// and the mobile app. Existing passwords keep working; the new minimum
+// applies the next time a password is set.
+export const PASSWORD_MIN_LENGTH = 12
+
 export interface UserContext {
   name?: string | null
   email?: string | null
@@ -45,8 +50,8 @@ export function validatePassword(
 ): PasswordValidationResult {
   const errors: string[] = []
 
-  if (password.length < 8)
-    errors.push('At least 8 characters long')
+  if (password.length < PASSWORD_MIN_LENGTH)
+    errors.push(`At least ${PASSWORD_MIN_LENGTH} characters long`)
   if (!/[A-Z]/.test(password))
     errors.push('At least one uppercase letter')
   if (!/[a-z]/.test(password))
@@ -88,7 +93,7 @@ export function validatePassword(
 // For real-time UI feedback — checks rules only (no name/email context needed)
 export function checkPasswordRules(password: string) {
   return {
-    minLength:    password.length >= 8,
+    minLength:    password.length >= PASSWORD_MIN_LENGTH,
     hasUppercase: /[A-Z]/.test(password),
     hasLowercase: /[a-z]/.test(password),
     hasNumber:    /[0-9]/.test(password),

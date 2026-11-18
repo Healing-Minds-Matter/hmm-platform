@@ -20,8 +20,8 @@ export const RESET_GRANT_COOKIE = 'hmm_pw_reset_grant'
 // isn't security-sensitive and doesn't need signing.
 export const RESET_PORTAL_COOKIE = 'hmm_pw_reset_portal'
 
-// Matches the "The reset link expires in 30 minutes" copy on the Forgot
-// Password page.
+// How long a session that came from a reset link may set a new password
+// (the link itself expires after 15 minutes — Supabase otp_expiry 900).
 export const RESET_GRANT_MAX_AGE_SECONDS = 30 * 60
 
 function sign(payload: string): string {

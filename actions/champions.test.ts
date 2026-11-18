@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Sheet row 32: Champion form errors come back tied to the field they are
 // about, so the form can show each one next to its input. Accounts are never
-// really created here — every case stops before createInvitedUser().
+// really created here — every case stops before createAuthAccount().
 const db = vi.hoisted(() => ({
   takenEmails: new Set<string>(),
   clubs: new Map<string, { name: string; is_active: boolean }>(),
@@ -10,7 +10,11 @@ const db = vi.hoisted(() => ({
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: async () => ({
-    auth: { getUser: async () => ({ data: { user: { id: 'user-1' } } }) },
+    auth: {
+      getUser: async () => ({ data: { user: { id: 'user-1' } } }),
+      // A verified (aal2) session, as a Super Admin has after two-step verification (Review Finding 8).
+      mfa: { getAuthenticatorAssuranceLevel: async () => ({ data: { currentLevel: 'aal2', nextLevel: 'aal2' }, error: null }) },
+    },
     from: (table: string) => ({
       select: () => ({
         eq: (column: string, value: string) => ({
@@ -29,7 +33,7 @@ vi.mock('@/lib/supabase/server', () => ({
 vi.mock('server-only', () => ({}))
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: () => ({}) }))
 vi.mock('@/lib/audit', () => ({ writeAuditLog: vi.fn() }))
-vi.mock('@/lib/create-invited-user', () => ({ createInvitedUser: vi.fn() }))
+vi.mock('@/lib/create-invited-user', () => ({ createAuthAccount: vi.fn() }))
 vi.mock('@/lib/delegations.server', () => ({ endDelegationsForDeactivatedUser: vi.fn() }))
 vi.mock('@/lib/phone-uniqueness.server', () => ({
   checkPhoneAvailable: vi.fn(async (phone: string) =>
@@ -41,7 +45,7 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 vi.mock('next/navigation', () => ({ redirect: vi.fn(() => { throw new Error('redirect') }) }))
 
 import { createChampionAction, reactivateChampionAction } from '@/actions/champions'
-import { createInvitedUser } from '@/lib/create-invited-user'
+import { createAuthAccount } from '@/lib/create-invited-user'
 
 function form(fields: Record<string, string>) {
   const f = new FormData()
@@ -60,7 +64,7 @@ beforeEach(() => {
     [CLUB_1, { name: 'Rotaract Club of Colombo', is_active: true }],
     [CLUB_OFF, { name: 'Rotaract Club of Kandy', is_active: false }],
   ])
-  vi.mocked(createInvitedUser).mockClear()
+  vi.mocked(createAuthAccount).mockClear()
 })
 
 describe('createChampionAction: field-level errors', () => {
@@ -80,7 +84,7 @@ describe('createChampionAction: field-level errors', () => {
       .toEqual({ email: 'An account with this email already exists.' })
     expect((await createChampionAction(null, form({ ...valid, phone: '077 123 4567' })))?.fieldErrors)
       .toEqual({ phone: 'This phone number is already registered to another user. Each user needs their own phone number.' })
-    expect(createInvitedUser).not.toHaveBeenCalled()
+    expect(createAuthAccount).not.toHaveBeenCalled()
   })
 })
 

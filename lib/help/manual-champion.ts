@@ -16,7 +16,7 @@ export const CHAMPION_MANUAL: HelpManual = {
           title: 'Sign in',
           steps: [
             'Go to the Champion login page and enter your email and password.',
-            'The first time, sign in with the temporary password from your welcome email, then set your own.',
+            'The first time, use the “Set your password” link in your welcome email to choose your password, then sign in with it. The link works once and expires after 72 hours; if it has expired, use “Forgot password?” on the sign-in page to get a new link.',
             'Forgot your password? Choose “Forgot Password?” on the Champion login page.',
           ],
         },

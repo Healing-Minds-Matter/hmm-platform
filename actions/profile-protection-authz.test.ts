@@ -10,7 +10,7 @@ const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')
 const CLUB_A = id(901), CLUB_B = id(902), CLUB_OFF = id(903)
 const SA = id(1), SA_OFF = id(2), CH_A = id(3), CH_B = id(4), GK_A = id(5), GK_B = id(6), GK_A_SELF = GK_A
 
-const h = vi.hoisted(() => ({ db: null as unknown as FakeDb, me: null as string | null, emailRequests: [] as unknown[] }))
+const h = vi.hoisted(() => ({ db: null as unknown as FakeDb, me: null as string | null, emailRequests: [] as unknown[], clubFnError: false }))
 
 vi.mock('server-only', () => ({}))
 vi.mock('@/lib/supabase/server', () => ({ createClient: async () => fakeClient(h.db, 'user', h.me) }))
@@ -24,8 +24,7 @@ vi.mock('@/lib/phone-uniqueness.server', () => ({
   checkPhoneAvailable: vi.fn(async () => null), describePhoneDbError: vi.fn(() => null), phoneChanged: vi.fn(() => false),
   findPhoneClash: vi.fn(), loadPhoneOwners: vi.fn(),
 }))
-vi.mock('@/lib/invite-gatekeeper', () => ({ createGatekeeperWithTempPassword: vi.fn(), resendGatekeeperWelcomeEmail: vi.fn() }))
-vi.mock('@/lib/create-invited-user', () => ({ createInvitedUser: vi.fn() }))
+vi.mock('@/lib/create-invited-user', () => ({ createAuthAccount: vi.fn() }))
 vi.mock('@/lib/delegations.server', () => ({ endDelegationsForDeactivatedUser: vi.fn() }))
 vi.mock('@/lib/login-redirect.server', () => ({ loginPath: async () => '/login' }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
@@ -43,6 +42,7 @@ const profileWrites = () => h.db.writes.filter(w => w.table === 'profiles' || w.
 beforeEach(() => {
   h.me = null
   h.emailRequests = []
+  h.clubFnError = false
   vi.mocked(writeAuditLog).mockClear()
   const p = (pid: string, role: string, club_id: string | null, extra: Record<string, unknown> = {}) =>
     ({ id: pid, role, club_id, is_active: true, email: `${pid}@example.com`, phone: '+94771234567', version: 1, full_name: 'X', ...extra })
@@ -53,6 +53,26 @@ beforeEach(() => {
       p(CH_A, 'champion', CLUB_A), p(CH_B, 'champion', CLUB_B),
       p(GK_A, 'gatekeeper', CLUB_A), p(GK_B, 'gatekeeper', CLUB_B),
     ],
+  }, {
+    // Review Finding 2: these Gatekeepers have never signed in, so a Champion
+    // may still correct their email (see gatekeeper-takeover-authz.test.ts).
+    account_has_signed_in: () => ({ data: false, error: null }),
+    // Review Finding 6: stands in for the database function, which checks the
+    // caller itself and changes club + members + audit in one transaction.
+    set_club_active: (args, { db, userId }) => {
+      const me = db.tables.profiles.find(r => r.id === userId)
+      if (!me || me.role !== 'super_admin' || !me.is_active) return { data: null, error: { code: '42501', message: 'refused' } }
+      if (h.clubFnError) return { data: null, error: { code: 'XX000', message: 'boom' } }
+      const club = db.tables.clubs.find(c => c.id === args.p_club_id)
+      if (!club) return { data: null, error: { code: 'P0002', message: 'Club not found.' } }
+      if (club.is_active === args.p_active) return { data: { changed: false, users: [] }, error: null }
+      club.is_active = args.p_active
+      for (const m of db.tables.profiles) {
+        if (!args.p_active && m.club_id === club.id && m.is_active) Object.assign(m, { is_active: false, deactivation_reason: 'club_deactivated', deactivated_club_id: club.id })
+        if (args.p_active && m.deactivated_club_id === club.id && m.deactivation_reason === 'club_deactivated') Object.assign(m, { is_active: true, deactivation_reason: null, deactivated_club_id: null })
+      }
+      return { data: { changed: true, users: [] }, error: null }
+    },
   })
 })
 
@@ -157,17 +177,42 @@ describe('Champion account actions (Super Admin only)', () => {
 })
 
 describe('club deactivate / reactivate (Super Admin only)', () => {
-  it.each([['Champion', CH_A], ['Gatekeeper', GK_A], ['deactivated Super Admin', SA_OFF]])('%s → nothing changes', async (_l, who) => {
+  const clubCalls = () => h.db.writes.filter(w => w.table === 'rpc:set_club_active')
+  it.each([['not signed in', null], ['Champion', CH_A], ['Gatekeeper', GK_A], ['deactivated Super Admin', SA_OFF]])('%s → nothing changes, database not even asked', async (_l, who) => {
     h.me = who
-    await deactivateClubAction(form({ club_id: CLUB_A }))
-    await reactivateClubAction(form({ club_id: CLUB_OFF }))
+    await deactivateClubAction(form({ club_id: CLUB_A })).catch(() => undefined)
+    await reactivateClubAction(form({ club_id: CLUB_OFF })).catch(() => undefined)
     expect(profileWrites()).toEqual([])
+    expect(clubCalls()).toEqual([])
     expect(writeAuditLog).not.toHaveBeenCalled()
   })
-  it('Super Admin → club and its members deactivated', async () => {
+  it('Super Admin → one database call (club, members, sessions and audit together, in one transaction)', async () => {
     h.me = SA
-    await deactivateClubAction(form({ club_id: CLUB_A }))
+    expect(await deactivateClubAction(form({ club_id: CLUB_A }))).toEqual({ success: true })
+    expect(clubCalls()).toEqual([expect.objectContaining({ client: 'user', values: { p_club_id: CLUB_A, p_active: false } })])
+    // No separate writes from the server: nothing can be left half-done.
+    expect(profileWrites()).toEqual([])
+    expect(writeAuditLog).not.toHaveBeenCalled() // the database writes the audit entry, as the real caller
     expect(h.db.tables.clubs.find(c => c.id === CLUB_A)!.is_active).toBe(false)
     expect(profile(GK_A)).toMatchObject({ is_active: false, deactivation_reason: 'club_deactivated' })
+  })
+  it('Super Admin reactivates → one database call; members restored', async () => {
+    h.me = SA
+    await deactivateClubAction(form({ club_id: CLUB_A }))
+    expect(await reactivateClubAction(form({ club_id: CLUB_A }))).toEqual({ success: true })
+    expect(clubCalls().at(-1)?.values).toEqual({ p_club_id: CLUB_A, p_active: true })
+    expect(profile(GK_A)).toMatchObject({ is_active: true, deactivation_reason: null })
+  })
+  it('the database fails → the Super Admin is told, nothing changed', async () => {
+    h.me = SA
+    h.clubFnError = true
+    expect(((await deactivateClubAction(form({ club_id: CLUB_A }))) as { error?: string })?.error).toMatch(/couldn’t be deactivated/i)
+    expect(h.db.tables.clubs.find(c => c.id === CLUB_A)!.is_active).toBe(true)
+    expect(profile(GK_A).is_active).toBe(true)
+  })
+  it('a forged, malformed club id → refused before the database is asked', async () => {
+    h.me = SA
+    expect(((await deactivateClubAction(form({ club_id: 'not-a-uuid' }))) as { error?: string })?.error).toBeTruthy()
+    expect(clubCalls()).toEqual([])
   })
 })

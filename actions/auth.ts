@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { MFA_PATH } from '@/lib/auth/mfa'
 import { createClient } from '@/lib/supabase/server'
 import { syncProfileEmail } from '@/lib/email-sync.server'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -202,6 +203,9 @@ export async function resetPasswordAction(
 
   const { error: updateError } = await supabase.auth.updateUser({ password })
   if (updateError) {
+    // Review Finding 8: Supabase asks an account with two-step verification
+    // to enter its authenticator code before a new password is set.
+    if ((updateError as { code?: string }).code === 'insufficient_aal') redirect(`${MFA_PATH}?next=/reset-password`)
     return { error: 'Failed to reset password. The link may have expired — please request a new one.' }
   }
 
@@ -270,11 +274,20 @@ export async function changePasswordAction(
   })
   if (!valid) return invalid('newPassword', errors.join('\n'))
 
-  // Scenario 01: verify current password — generic error per story
-  const { error: verifyError } = await supabase.auth.signInWithPassword({
+  // Scenario 01: verify current password — generic error per story.
+  // Review Finding 8: with a throwaway client, so this session isn't replaced
+  // by a fresh password-only one (a Super Admin would lose their two-step
+  // verification and be sent back to enter a code).
+  const verifier = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { auth: { persistSession: false, autoRefreshToken: false } }
+  )
+  const { error: verifyError } = await verifier.auth.signInWithPassword({
     email:    user.email!,
     password: currentPassword,
   })
+  if (!verifyError) await verifier.auth.signOut({ scope: 'local' })
   if (verifyError) {
     // TEMP DIAGNOSTIC LOGGING — remove once the "Password change failed"
     // root cause is confirmed. The user-facing message is intentionally

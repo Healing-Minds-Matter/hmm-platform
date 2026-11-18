@@ -4,7 +4,7 @@ import { useActionState, useState } from 'react'
 import Link from 'next/link'
 import { resetPasswordAction } from '@/actions/auth'
 import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
-import { checkPasswordRules } from '@/lib/password-validation'
+import { PASSWORD_MIN_LENGTH, checkPasswordRules } from '@/lib/password-validation'
 import { FormErrorsProvider, useFormErrors } from '@/hooks/use-form-errors'
 import { FieldError } from '@/components/field-error'
 import { formLevelError } from '@/lib/form-errors'
@@ -12,7 +12,7 @@ import { formLevelError } from '@/lib/form-errors'
 type RuleKey = 'minLength' | 'case' | 'hasNumber' | 'hasSpecial'
 
 const RULES: { key: RuleKey; label: string }[] = [
-  { key: 'minLength', label: '8+ characters' },
+  { key: 'minLength', label: `${PASSWORD_MIN_LENGTH}+ characters` },
   { key: 'case',     label: 'Upper & lowercase' },
   { key: 'hasNumber', label: 'One number' },
   { key: 'hasSpecial', label: 'One symbol' },
@@ -36,8 +36,31 @@ function strengthLevel(checks: Record<RuleKey, boolean>): { segs: number; label:
   return { segs: 3, label: 'Strong' }
 }
 
-export function ResetPasswordForm({ email, loginPath }: { email: string; loginPath: string }) {
-  const [state, formAction, isPending] = useActionState(resetPasswordAction, null)
+type PasswordFormAction = typeof resetPasswordAction
+
+// Also used for a set-password link (Review Finding 2, /auth/set-up-account):
+// same fields and rules, different wording, and the link token sent along.
+export function ResetPasswordForm({
+  email,
+  loginPath,
+  action = resetPasswordAction,
+  token,
+  heading = 'Reset password',
+  intro = 'Choose a strong password for your account.',
+  accountLabel = 'Resetting password for',
+  submitLabel = 'Update password',
+}: {
+  email: string
+  /** Shown as "Back to sign in" when set. */
+  loginPath?: string
+  action?: PasswordFormAction
+  token?: string
+  heading?: string
+  intro?: string
+  accountLabel?: string
+  submitLabel?: string
+}) {
+  const [state, formAction, isPending] = useActionState(action, null)
   const fe = useFormErrors(state)
   const { bindForm, onSubmit: checkThen } = fe
   // Submitted without React's automatic reset, so a refused save keeps what was typed.
@@ -51,14 +74,14 @@ export function ResetPasswordForm({ email, loginPath }: { email: string; loginPa
 
   return (
     <div className="rounded-3xl bg-white p-10 shadow-md">
-      <h1 className="mb-1 text-3xl font-bold text-[#1B2B4A]">Reset password</h1>
+      <h1 className="mb-1 text-3xl font-bold text-[#1B2B4A]">{heading}</h1>
       <p className="mb-8 text-sm text-gray-500">
-        Choose a strong password for your account.
+        {intro}
       </p>
       {/* Makes it obvious which account this link belongs to — a reset link
           signs the browser in as that account, whoever was signed in before. */}
       <p className="-mt-6 mb-8 rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-600">
-        Resetting password for <span className="font-semibold text-[#1B2B4A]">{email}</span>
+        {accountLabel} <span className="font-semibold text-[#1B2B4A]">{email}</span>
       </p>
 
       {formLevelError(state) && (
@@ -69,6 +92,7 @@ export function ResetPasswordForm({ email, loginPath }: { email: string; loginPa
 
       <form ref={bindForm} noValidate onSubmit={checkThen(submit)} className="space-y-5">
       <FormErrorsProvider value={fe}>
+        {token && <input type="hidden" name="token" value={token} />}
         {/* New password */}
         <div>
           <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-gray-700">
@@ -173,12 +197,12 @@ export function ResetPasswordForm({ email, loginPath }: { email: string; loginPa
           disabled={isPending}
           className="w-full rounded-xl bg-[#F5A623] px-4 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#E8941A] disabled:opacity-60"
         >
-          {isPending ? 'Saving…' : 'Update password'}
+          {isPending ? 'Saving…' : submitLabel}
         </button>
       </FormErrorsProvider>
       </form>
 
-      <p className="mt-5 text-center text-sm text-gray-400">
+      {loginPath && <p className="mt-5 text-center text-sm text-gray-400">
         Remembered it?{' '}
         <Link
           href={loginPath}
@@ -186,7 +210,7 @@ export function ResetPasswordForm({ email, loginPath }: { email: string; loginPa
         >
           Back to sign in
         </Link>
-      </p>
+      </p>}
     </div>
   )
 }

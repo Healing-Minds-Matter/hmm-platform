@@ -6,7 +6,7 @@ import { confirmAccountEmailAction } from '@/actions/email-change'
 const CARD = 'w-full max-w-[480px] rounded-2xl bg-white p-8 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.15)] ring-1 ring-[#E5E7EB]'
 const PRIMARY = 'flex h-10 w-full items-center justify-center rounded-lg bg-[#F4AC1E] px-5 text-[14px] font-semibold text-white transition-colors hover:bg-[#E09B0F] disabled:opacity-60'
 
-function Result({ title, body, ok }: { title: string; body: string; ok: boolean }) {
+export function Result({ title, body, ok }: { title: string; body: string; ok: boolean }) {
   return (
     <div className={`${CARD} text-center`}>
       <div className={`mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full text-xl ${ok ? 'bg-green-100 text-green-700' : 'bg-red-50 text-[#DC2626]'}`}>
@@ -26,6 +26,9 @@ export function ConfirmAccountEmailForm({ token }: { token: string | null }) {
   }
   if (state?.status === 'taken') {
     return <Result ok={false} title="Email already in use" body="This address already belongs to another Healing Minds Matter account, so the change wasn't made. Please contact your administrator." />
+  }
+  if (state?.status === 'not_allowed') {
+    return <Result ok={false} title="This change can’t be made" body="This account has been signed into since the change was requested, so only a Super Admin can change its sign-in email now. Your sign-in email has not been changed." />
   }
   if (state?.status === 'error') {
     return <Result ok={false} title="Something went wrong" body="The email couldn't be changed. Please ask your administrator to send a new link." />

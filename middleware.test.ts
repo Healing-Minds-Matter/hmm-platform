@@ -11,6 +11,7 @@ const s = vi.hoisted(() => ({
   rpcError: false,
   fallbackProfile: null as Status | null,
   signOuts: 0,
+  aal: 'aal2' as 'aal1' | 'aal2',
 }))
 
 vi.mock('@supabase/ssr', () => ({
@@ -19,6 +20,7 @@ vi.mock('@supabase/ssr', () => ({
       getUser: async () => ({ data: { user: s.signedIn ? { id: 'u1' } : null } }),
       getSession: async () => ({ data: { session: null } }),
       signOut: async () => { s.signOuts++ },
+      mfa: { getAuthenticatorAssuranceLevel: async () => ({ data: { currentLevel: s.aal, nextLevel: 'aal2' }, error: null }) },
     },
     rpc: async (name: string) => {
       expect(name).toBe('my_account_status')
@@ -38,7 +40,7 @@ function req(path: string, init?: { method?: string; headers?: Record<string, st
 }
 const location = (res: Response) => res.headers.get('location')?.replace('http://localhost:3000', '') ?? null
 
-beforeEach(() => { s.signedIn = true; s.status = null; s.rpcError = false; s.fallbackProfile = null; s.signOuts = 0 })
+beforeEach(() => { s.signedIn = true; s.status = null; s.rpcError = false; s.fallbackProfile = null; s.signOuts = 0; s.aal = 'aal2' })
 
 describe('middleware: account status on every request', () => {
   it('active Champion → page served', async () => {
@@ -103,5 +105,44 @@ describe('middleware: account status on every request', () => {
     s.status = inactive('gatekeeper', 'manual')
     expect(location(await middleware(req('/reset-password')))).toBeNull()
     expect(s.signOuts).toBe(0)
+  })
+})
+
+describe('middleware: Super Admins need two-step verification (Review Finding 8)', () => {
+  it('Super Admin with a password-only session → sent to the verification page', async () => {
+    s.status = active('super_admin'); s.aal = 'aal1'
+    expect(location(await middleware(req('/super-admin/clubs')))).toBe('/mfa')
+  })
+  it('…from a sign-in page too', async () => {
+    s.status = active('super_admin'); s.aal = 'aal1'
+    expect(location(await middleware(req('/login')))).toBe('/mfa')
+  })
+  it('…but not signed out (they only need the code)', async () => {
+    s.status = active('super_admin'); s.aal = 'aal1'
+    await middleware(req('/super-admin'))
+    expect(s.signOuts).toBe(0)
+  })
+  it('…and a server action is not served a redirect (its guard refuses it)', async () => {
+    s.status = active('super_admin'); s.aal = 'aal1'
+    const res = await middleware(req('/super-admin/clubs', { method: 'POST', headers: { 'next-action': 'abc' } }))
+    expect(location(res)).toBeNull()
+  })
+  it('Super Admin, password-only, on the verification page → served', async () => {
+    s.status = active('super_admin'); s.aal = 'aal1'
+    expect(location(await middleware(req('/mfa')))).toBeNull()
+  })
+  it('Super Admin, verified → Super Admin pages served; the verification page sends them on', async () => {
+    s.status = active('super_admin'); s.aal = 'aal2'
+    expect(location(await middleware(req('/super-admin/clubs')))).toBeNull()
+    expect(location(await middleware(req('/mfa')))).toBe('/super-admin')
+  })
+  it('Champion → no verification needed; the page sends them to their dashboard', async () => {
+    s.status = active('champion'); s.aal = 'aal1'
+    expect(location(await middleware(req('/champion/gatekeepers')))).toBeNull()
+    expect(location(await middleware(req('/mfa')))).toBe('/champion')
+  })
+  it('signed out → the verification page needs a sign-in', async () => {
+    s.signedIn = false
+    expect(location(await middleware(req('/mfa')))).toBe('/login')
   })
 })
