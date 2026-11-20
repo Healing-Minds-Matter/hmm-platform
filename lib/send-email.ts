@@ -10,6 +10,9 @@ import path from 'path'
 // goes through Supabase's existing SMTP config unchanged; this is a
 // separate, narrow path for the account emails below. No email here ever
 // contains a password.
+/** status / reason: SendGrid's HTTP status and error text, for the server log. */
+export type SendResult = { error?: string; status?: number; reason?: string }
+
 async function sendEmail({
   to,
   subject,
@@ -20,9 +23,9 @@ async function sendEmail({
   subject: string
   html: string
   text: string
-}): Promise<{ error?: string }> {
+}): Promise<SendResult> {
   const apiKey = process.env.SENDGRID_API_KEY
-  if (!apiKey) return { error: 'SENDGRID_API_KEY is not configured.' }
+  if (!apiKey) return { error: 'SENDGRID_API_KEY is not configured.', reason: 'SENDGRID_API_KEY is not set on this deployment' }
 
   const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
     method: 'POST',
@@ -46,10 +49,26 @@ async function sendEmail({
 
   if (!res.ok) {
     const body = await res.text().catch(() => '')
-    return { error: `SendGrid returned ${res.status}: ${body.slice(0, 500)}` }
+    return { error: `SendGrid returned ${res.status}: ${body.slice(0, 500)}`, status: res.status, reason: sendGridReason(body) }
   }
 
   return {}
+}
+
+/**
+ * SendGrid's own error text (e.g. "Maximum credits exceeded"), safe for the
+ * server log: email addresses are removed, since a mail error can echo one.
+ */
+export function sendGridReason(body: string): string {
+  let reason = body
+  try {
+    const parsed = JSON.parse(body) as { errors?: { message?: unknown }[] }
+    const messages = (parsed.errors ?? []).map(e => (typeof e.message === 'string' ? e.message : '')).filter(Boolean)
+    if (messages.length) reason = messages.join('; ')
+  } catch {
+    // Not JSON: keep the raw text.
+  }
+  return reason.replace(/[^\s"'<>(),;:]+@[^\s"'<>(),;:]+/g, '[email]').slice(0, 300)
 }
 
 // Review Finding 3: the branded Gatekeeper welcome email. Carries a
@@ -63,13 +82,13 @@ export async function sendGatekeeperWelcomeEmail(params: {
   clubName: string
   setPasswordLink: string
   expiresInHours: number
-}): Promise<{ error?: string }> {
+}): Promise<SendResult> {
   const templatePath = path.join(process.cwd(), 'emails', 'templates', 'hmm_gatekeeper_welcome_email_v2.html')
   let template: string
   try {
     template = fs.readFileSync(templatePath, 'utf-8')
   } catch {
-    return { error: 'Email template not found.' }
+    return { error: 'Email template not found.', reason: 'email template file missing from the deployment' }
   }
 
   const values: Record<string, string> = {
@@ -116,7 +135,7 @@ export async function sendEmailChangeConfirmation(params: {
   fullName: string
   confirmUrl: string
   expiresInHours: number
-}): Promise<{ error?: string }> {
+}): Promise<SendResult> {
   const name = escapeHtml(params.fullName)
   const html = `<p>Hi ${name},</p>
 <p>Your Healing Minds Matter administrator asked to change the sign-in email of your account to this address.</p>
@@ -133,7 +152,7 @@ The link works once and expires in ${params.expiresInHours} hours. If you weren'
 }
 
 /** Tells the current address that a change was requested, so it can't happen unnoticed. */
-export async function sendEmailChangeNotice(params: { to: string; fullName: string; newEmail: string }): Promise<{ error?: string }> {
+export async function sendEmailChangeNotice(params: { to: string; fullName: string; newEmail: string }): Promise<SendResult> {
   const html = `<p>Hi ${escapeHtml(params.fullName)},</p>
 <p>A request was made to change the sign-in email of your Healing Minds Matter account to <strong>${escapeHtml(params.newEmail)}</strong>. It will only change once that address confirms.</p>
 <p>If you didn't expect this, contact your Club Champion or administrator. Until then you can keep signing in with this address.</p>`
@@ -154,7 +173,7 @@ export async function sendAccountSetupEmail(params: {
   expiresInHours: number
   /** Gatekeepers: where to get the app. */
   appLink?: string
-}): Promise<{ error?: string }> {
+}): Promise<SendResult> {
   const name = escapeHtml(params.fullName)
   const appHtml = params.appLink
     ? `<p>Then sign in to the Healing Minds Matter app with this email address and your new password. <a href="${escapeHtml(params.appLink)}">Get the app</a></p>`
