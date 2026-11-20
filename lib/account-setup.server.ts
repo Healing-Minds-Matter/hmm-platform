@@ -132,7 +132,8 @@ export async function issueAccountSetupInvite(params: {
       expiresInHours: ACCOUNT_SETUP_TTL_HOURS,
     })
   if (sent.error) {
-    console.error('[issueAccountSetupInvite] email failed')
+    // Status and SendGrid's reason only (addresses removed) — e.g. "Maximum credits exceeded".
+    console.error('[issueAccountSetupInvite] email failed', { status: sent.status ?? null, reason: sent.reason ?? null })
     await admin.from('account_setup_invites').update({ cancelled_at: new Date().toISOString() }).eq('id', invite.id)
     return { error: 'The invite email couldn’t be sent. Please try again.' }
   }
