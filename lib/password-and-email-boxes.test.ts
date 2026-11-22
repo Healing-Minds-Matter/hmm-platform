@@ -24,6 +24,16 @@ describe('change-password boxes do not trigger iPhone zoom', () => {
     expect(className).not.toMatch(/(^|\s)text-(xs|sm|\[1[0-5]px\])(\s|$)/)
   })
 
+  it('the Change Email form boxes (new email + password) render at 16px', () => {
+    const src = read('app/(dashboard)/super-admin/profile/change-email-form.tsx')
+    const inputs = [...src.matchAll(/<input[\s\S]*?className="([^"]*)"/g)].map(m => m[1])
+    expect(inputs.length).toBeGreaterThanOrEqual(2)
+    for (const className of inputs) {
+      expect(className).toContain('text-[16px]')
+      expect(className).not.toMatch(/(^|\s)text-(xs|sm|\[1[0-5]px\])(\s|$)/)
+    }
+  })
+
   it('shows the password rules before the confirm box', () => {
     const src = read(CHANGE_PASSWORD_FORM)
     const rules = src.indexOf('Password Requirements')

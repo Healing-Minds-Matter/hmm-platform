@@ -126,7 +126,7 @@ export function ChangeEmailForm({
                   required
                   autoComplete="email"
                   placeholder="you@healingmindsmatter.org"
-                  className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-[13px] text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
+                  className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-[16px] text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                 />
                 <FieldError name="newEmail" />
               </div>
@@ -142,7 +142,7 @@ export function ChangeEmailForm({
                     type={showPassword ? 'text' : 'password'}
                     required
                     autoComplete="current-password"
-                    className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] pl-3 pr-10 text-[13px] text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
+                    className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] pl-3 pr-10 text-[16px] text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                   />
                   <button
                     type="button"
