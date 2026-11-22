@@ -88,7 +88,7 @@ export function LoginForm({ portal }: { portal: 'super_admin' | 'champion' }) {
                 id="email"
                 name="email"
                 type="email"
-                autoComplete="email"
+                autoComplete="username"
                 required
                 placeholder="you@healingmindsmatter.org"
                 className="h-12 w-full rounded-lg border border-[#D4D7E3] bg-[#FCFDFF] px-4 text-[16px] tracking-[0.16px] text-[#0C1421] outline-none transition placeholder:text-[#8897AD] focus:border-[#F4AC1E] focus:ring-2 focus:ring-[#F4AC1E]/20"
