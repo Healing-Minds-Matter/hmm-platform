@@ -84,6 +84,19 @@ describe('middleware responses carry the headers', () => {
     expect(h['X-Content-Type-Options']).toBe('nosniff')
     expect(h['Referrer-Policy']).toBe('strict-origin-when-cross-origin')
     expect(h['Permissions-Policy']).toMatch(/camera=\(\).*geolocation=\(\).*microphone=\(\)/)
+    expect(h['Cross-Origin-Opener-Policy']).toBe('same-origin')
+  })
+
+  it.each(['/login', '/champion/login', '/super-admin', '/api/anything'])(
+    'Cross-Origin-Opener-Policy: same-origin on %s', async (path) => {
+      const res = await middleware(req(path))
+      expect(res.headers.get('cross-origin-opener-policy')).toBe('same-origin')
+    })
+
+  it('next.config sends Cross-Origin-Opener-Policy on every path', async () => {
+    const [rule] = await nextConfig.headers!()
+    expect(rule.source).toBe('/:path*')
+    expect(rule.headers).toContainEqual({ key: 'Cross-Origin-Opener-Policy', value: 'same-origin' })
   })
 
   it('next.config sends the fixed headers on every path, static files included', async () => {
