@@ -373,7 +373,7 @@ function BulkGatekeeperUpload({ scope, onClose }: { scope: ClubScope; onClose: (
     full_name: 'Maya Lin',
     email: 'maya.lin@example.com',
     phone: '077 123 4567',
-    club_id: scope.mode === 'select' ? scope.clubs[0]?.id ?? '' : '',
+    club_id: scope.mode === 'select' ? scope.clubs[0]?.club_code || scope.clubs[0]?.id || '' : '',
   }
 
   return (
@@ -395,13 +395,13 @@ function BulkGatekeeperUpload({ scope, onClose }: { scope: ClubScope; onClose: (
           <p className="text-[12px] leading-[18px] text-[#475569]">
             Header row required, exactly: <code className={code}>{columns.join(',')}</code>
             <br />
-            <code className={code}>club_id</code> must be a real club&apos;s internal ID. Every row needs its own <code className={code}>phone</code> number. Add certifications afterwards, from each person&apos;s Certifications section.
+            <code className={code}>club_id</code> can be the club&apos;s code (e.g. PAN-CA) or its ID. Every row needs its own <code className={code}>phone</code> number. Add certifications afterwards, from each person&apos;s Certifications section.
           </p>
           <details className="text-[12px] text-[#475569]">
-            <summary className="cursor-pointer font-semibold text-[#003495]">Active club IDs</summary>
+            <summary className="cursor-pointer font-semibold text-[#003495]">Active club codes and IDs</summary>
             <ul className="mt-1.5 flex flex-col gap-0.5">
               {scope.clubs.map(c => (
-                <li key={c.id} className="font-mono text-[11px]">{c.id} — {c.name}</li>
+                <li key={c.id} className="font-mono text-[11px]">{c.club_code ? `${c.club_code} · ` : ''}{c.id} — {c.name}</li>
               ))}
             </ul>
           </details>

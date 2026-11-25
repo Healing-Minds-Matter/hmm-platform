@@ -24,3 +24,32 @@ export function gatekeeperCsvHeaderError(header: string[], uploader: GatekeeperU
     ? `CSV header must include: ${required.join(', ')}.`
     : `CSV header must include: ${required.join(', ')} (club_id is optional and ignored).`
 }
+
+// A Super Admin's club_id cell may hold the club's ID or its club code
+// (e.g. PAN-CA) — nobody knows a club's internal ID offhand. Codes match
+// ignoring case. Returns the club ID to use, or an error for the row.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+export function isClubId(cell: string): boolean {
+  return UUID_RE.test(cell.trim())
+}
+
+/** Club codes (lower-cased) → the IDs of the clubs that have them. */
+export function indexClubCodes(clubs: { id: string; club_code: string | null }[]): Map<string, string[]> {
+  const index = new Map<string, string[]>()
+  for (const club of clubs) {
+    const code = club.club_code?.trim().toLowerCase()
+    if (!code) continue
+    index.set(code, [...(index.get(code) ?? []), club.id])
+  }
+  return index
+}
+
+export function resolveClubCell(cell: string | undefined, codes: Map<string, string[]>): { clubId: string } | { error: string } {
+  const value = (cell ?? '').trim()
+  if (!value || isClubId(value)) return { clubId: value }
+  const matches = codes.get(value.toLowerCase()) ?? []
+  if (matches.length === 1) return { clubId: matches[0] }
+  if (matches.length > 1) return { error: `More than one club has the code "${value}". Use the club's ID instead.` }
+  return { error: `No club has the code "${value}". Check the club code (e.g. PAN-CA) or use the club's ID.` }
+}
