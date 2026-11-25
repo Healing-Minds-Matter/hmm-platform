@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { formatOrgDate } from '@/lib/org-date'
 import { DelegationEndButton } from './delegation-end-button'
 
 function statusOf(startsAt: string, endsAt: string, endedEarlyAt: string | null, endedReason: string | null, delegatorActive: boolean) {
@@ -76,10 +77,10 @@ export default async function DelegationsPage() {
                     <td className="px-6 py-4 text-[13px] font-semibold text-[#0F172A]">{d.delegator?.full_name ?? '—'}</td>
                     <td className="px-6 py-4 text-[13px] text-[#475569]">{d.delegate?.full_name ?? '—'}</td>
                     <td className="px-6 py-4 text-[13px] text-[#475569]">
-                      {new Date(d.starts_at).toLocaleDateString('en-AU', { dateStyle: 'medium' })}
+                      {formatOrgDate(d.starts_at, { dateStyle: 'medium' })}
                     </td>
                     <td className="px-6 py-4 text-[13px] text-[#475569]">
-                      {new Date(d.ends_at).toLocaleDateString('en-AU', { dateStyle: 'medium' })}
+                      {formatOrgDate(d.ends_at, { dateStyle: 'medium' })}
                     </td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold tracking-[0.44px] ${status.cls}`}>

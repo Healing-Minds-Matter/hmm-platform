@@ -31,6 +31,25 @@ export function orgDateTimeToIso(date: string, time: string): string {
   return new Date(`${date}T${time}:00${ORG_OFFSET}`).toISOString()
 }
 
+// Fix M: a whole-day period picked with date inputs (YYYY-MM-DD), e.g. a
+// role delegation. The start date begins at 00:00 Sri Lanka time and the end
+// date runs to 23:59:59 Sri Lanka time, so the last day counts in full.
+// Returns null for anything that isn't a real YYYY-MM-DD date.
+export function orgDayStartIso(date: string): string | null {
+  return isDateString(date) ? new Date(`${date}T00:00:00${ORG_OFFSET}`).toISOString() : null
+}
+
+export function orgDayEndIso(date: string): string | null {
+  return isDateString(date) ? new Date(`${date}T23:59:59${ORG_OFFSET}`).toISOString() : null
+}
+
+function isDateString(date: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false
+  const d = new Date(`${date}T00:00:00Z`)
+  // Rejects dates that roll over, such as 2030-02-30.
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === date
+}
+
 // A stored moment → the Sri Lanka date and time, in the forms a date input
 // (YYYY-MM-DD) and time input (HH:MM) use — e.g. to pre-fill an edit form.
 export function isoToOrgDateTime(iso: string): { date: string; time: string } {
