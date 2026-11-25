@@ -6,6 +6,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { helpHrefFor } from '@/lib/help/topics'
+import { SHOW_HEADER_SEARCH } from '@/lib/header-search'
 import { SUPER_ADMIN_MANUAL } from '@/lib/help/manual-super-admin'
 import { CHAMPION_MANUAL } from '@/lib/help/manual-champion'
 import { useSessionTimeout } from '@/hooks/use-session-timeout'
@@ -375,8 +376,11 @@ export function DashboardClientLayout({
         {/* Top header */}
         <header className="flex flex-shrink-0 items-center justify-between gap-6 border-b border-gray-100 bg-white/95 px-8 py-4 backdrop-blur font-[family-name:var(--font-inter)]">
           {/* Left: global search (presentational — not wired to a search backend yet).
+              Hidden until search is built (Fix O); flip SHOW_HEADER_SEARCH in
+              lib/header-search.ts to bring it back.
               No page title here — matches Figma exactly; each page is expected to carry
               its own heading going forward, the way Dashboard's "Executive Overview" does. */}
+          {SHOW_HEADER_SEARCH && (
           <div className="flex min-w-0 max-w-lg flex-1 items-center gap-2 rounded-lg border border-[#E2E8F0] bg-[#F9F9F9] px-4 py-2.5">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="flex-shrink-0" aria-hidden="true">
               <circle cx="6" cy="6" r="5" stroke="#64748B" strokeWidth="1.3" />
@@ -389,9 +393,11 @@ export function DashboardClientLayout({
               className="w-full min-w-0 bg-transparent text-[13px] text-[#0F172A] placeholder:text-[#64748B] focus:outline-none"
             />
           </div>
+          )}
 
-          {/* Right: help + notifications + divider + name/role/avatar */}
-          <div className="flex flex-shrink-0 items-center gap-3">
+          {/* Right: help + notifications + divider + name/role/avatar.
+              ml-auto keeps it on the right while the search box is hidden. */}
+          <div className="ml-auto flex flex-shrink-0 items-center gap-3">
             <div className="flex items-center gap-1">
               {/* Sheet row 55: Help opens the user manual for this role, at the
                   section about the current page. */}
