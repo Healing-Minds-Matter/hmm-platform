@@ -123,3 +123,38 @@ describe('searchAssignableUsersAction (read-only)', () => {
     expect(await searchAssignableUsersAction('X X')).toEqual([])
   })
 })
+
+// Fix L: the role-default switch needs to know when a save failed so it can
+// flip back and show why. null = saved (or already set); { error } = not saved.
+describe('updateRoleDefaultAction tells the switch whether it saved (Fix L)', () => {
+  const toggle = (is_enabled: string) => updateRoleDefaultAction(form({ role: 'gatekeeper', permission: 'view_event_calendar', is_enabled }))
+
+  it('saved → null', async () => {
+    h.me = SA
+    expect(await toggle('false')).toBeNull()
+    expect(permWrites()).toHaveLength(1)
+  })
+  it('already at that value → null, nothing written', async () => {
+    h.me = SA
+    expect(await toggle('true')).toBeNull()
+    expect(permWrites()).toEqual([])
+  })
+  it('database refuses the write → an error message', async () => {
+    h.me = SA
+    h.db.writeErrors.permissions = { code: '42501', message: 'refused' }
+    const result = await toggle('false')
+    expect(result?.error).toMatch(/couldn.t save/i)
+    expect(result?.error).not.toContain('refused') // no raw database text
+  })
+  it.each([['Gatekeeper', GK], ['Champion', CH], ['deactivated Super Admin', SA_OFF]] as const)('%s → an error message, nothing written', async (_l, who) => {
+    h.me = who
+    expect((await toggle('false'))?.error).toBeTruthy()
+    expect(permWrites()).toEqual([])
+  })
+  it('forged role or permission → an error message, nothing written', async () => {
+    h.me = SA
+    expect((await updateRoleDefaultAction(form({ role: 'super_admin', permission: 'view_event_calendar', is_enabled: 'true' })))?.error).toBeTruthy()
+    expect((await updateRoleDefaultAction(form({ role: 'gatekeeper', permission: 'DROP TABLE', is_enabled: 'true' })))?.error).toBeTruthy()
+    expect(permWrites()).toEqual([])
+  })
+})
