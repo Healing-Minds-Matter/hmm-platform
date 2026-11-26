@@ -60,7 +60,7 @@ describe('Content-Security-Policy', () => {
 describe('middleware responses carry the headers', () => {
   const req = (path: string) => new NextRequest(new URL(path, 'http://localhost:3000'))
 
-  it.each(['/login', '/super-admin', '/champion/login'])('%s (page or redirect)', async (path) => {
+  it.each(['/login', '/super-admin', '/champion/login', '/api/anything'])('%s (page or redirect)', async (path) => {
     const res = await middleware(req(path))
     const csp = res.headers.get('content-security-policy')!
     expect(csp).toMatch(/script-src 'self' 'nonce-[A-Za-z0-9+/=]+' 'strict-dynamic'/)
@@ -86,12 +86,6 @@ describe('middleware responses carry the headers', () => {
     expect(h['Permissions-Policy']).toMatch(/camera=\(\).*geolocation=\(\).*microphone=\(\)/)
     expect(h['Cross-Origin-Opener-Policy']).toBe('same-origin')
   })
-
-  it.each(['/login', '/champion/login', '/super-admin', '/api/anything'])(
-    'Cross-Origin-Opener-Policy: same-origin on %s', async (path) => {
-      const res = await middleware(req(path))
-      expect(res.headers.get('cross-origin-opener-policy')).toBe('same-origin')
-    })
 
   it('next.config sends Cross-Origin-Opener-Policy on every path', async () => {
     const [rule] = await nextConfig.headers!()
