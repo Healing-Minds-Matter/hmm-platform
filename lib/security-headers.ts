@@ -82,4 +82,9 @@ export const SECURITY_HEADERS: { key: string; value: string }[] = [
   { key: 'Permissions-Policy', value: PERMISSIONS_POLICY },
   // Older browsers that don't know frame-ancestors.
   { key: 'X-Frame-Options', value: 'DENY' },
+  // Fix U: a page from another site that opens the portal (or that the portal
+  // opens) can't reach this window through window.opener. Safe here: every new
+  // tab the portal opens already uses noopener, and sign-in uses redirects,
+  // not popups.
+  { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
 ]
