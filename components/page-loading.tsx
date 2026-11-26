@@ -12,7 +12,6 @@ export function PageLoading() {
     <div
       role="status"
       aria-live="polite"
-      aria-busy="true"
       className="flex flex-col gap-6 p-8 font-[family-name:var(--font-inter)]"
     >
       <span className="sr-only">Loading page…</span>

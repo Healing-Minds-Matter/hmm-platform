@@ -27,9 +27,11 @@ function allFoldersUnder(dir: string): string[] {
 describe('PageLoading', () => {
   const html = renderToStaticMarkup(createElement(PageLoading))
 
-  it('is announced to screen readers as a busy status', () => {
+  it('is announced to screen readers as a status (not held back by aria-busy)', () => {
     expect(html).toContain('role="status"')
-    expect(html).toContain('aria-busy="true"')
+    // No aria-busy: it makes screen readers hold the message, and this element
+    // is removed before aria-busy would ever be cleared.
+    expect(html).not.toContain('aria-busy')
     expect(html).toContain('aria-live="polite"')
     expect(html).toMatch(/<span class="sr-only">Loading page…<\/span>/)
   })
