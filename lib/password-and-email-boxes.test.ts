@@ -34,6 +34,19 @@ describe('change-password boxes do not trigger iPhone zoom', () => {
     }
   })
 
+  it('the Reset Password form boxes (new + confirm) render at 16px and keep new-password autofill', () => {
+    const src = read('app/(auth)/reset-password/reset-password-form.tsx')
+    const inputs = [...src.matchAll(/<input[\s\S]*?\/>/g)].map(m => m[0])
+      .filter(tag => /id="(password|confirm)"/.test(tag))
+    expect(inputs).toHaveLength(2)
+    for (const tag of inputs) {
+      const className = tag.match(/className="([^"]*)"/)?.[1] ?? ''
+      expect(className).toContain('text-[16px]')
+      expect(className).not.toMatch(/(^|\s)text-(xs|sm|\[1[0-5]px\])(\s|$)/)
+      expect(tag).toContain('autoComplete="new-password"')
+    }
+  })
+
   it('shows the password rules before the confirm box', () => {
     const src = read(CHANGE_PASSWORD_FORM)
     const rules = src.indexOf('Password Requirements')

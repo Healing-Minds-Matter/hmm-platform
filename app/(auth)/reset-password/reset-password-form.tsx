@@ -108,7 +108,7 @@ export function ResetPasswordForm({
               value={password}
               onChange={e => setPassword(e.target.value)}
               placeholder="••••••••••"
-              className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 pr-11 text-sm outline-none transition focus:border-[#F5A623] focus:ring-2 focus:ring-[#F5A623]/20"
+              className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 pr-11 text-[16px] outline-none transition focus:border-[#F5A623] focus:ring-2 focus:ring-[#F5A623]/20"
             />
             <button
               type="button"
@@ -155,7 +155,7 @@ export function ResetPasswordForm({
               autoComplete="new-password"
               required
               placeholder="••••••••••"
-              className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 pr-11 text-sm outline-none transition focus:border-[#F5A623] focus:ring-2 focus:ring-[#F5A623]/20"
+              className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 pr-11 text-[16px] outline-none transition focus:border-[#F5A623] focus:ring-2 focus:ring-[#F5A623]/20"
             />
             <button
               type="button"
