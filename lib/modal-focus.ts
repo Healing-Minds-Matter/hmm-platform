@@ -47,6 +47,29 @@ export function nextTrapTarget(count: number, current: number, shift: boolean): 
   return null
 }
 
+// Where focus goes when a pop-up closes: the element that opened it, else
+// the optional returnFocusRef target, else <main>, else nowhere (null).
+// Each candidate counts only while it is still on the page.
+export function pickReturnFocus<T extends { isConnected: boolean }>(
+  opener: T | null | undefined,
+  fallback: T | null | undefined,
+  main: T | null | undefined,
+): T | null {
+  for (const el of [opener, fallback, main]) if (el && el.isConnected) return el
+  return null
+}
+
+// How the dialog is named: its first heading when there is one, else the
+// ariaLabel prop, else unnamed (the component warns in development).
+export type DialogName = { labelledBy: string } | { label: string } | null
+
+export function dialogName(headingId: string | null | undefined, ariaLabel: string | undefined): DialogName {
+  if (headingId) return { labelledBy: headingId }
+  const label = ariaLabel?.trim()
+  if (label) return { label }
+  return null
+}
+
 // Only the most recently opened pop-up reacts to Tab and Esc, so a pop-up
 // opened on top of another closes on its own.
 const openStack: symbol[] = []

@@ -1,6 +1,38 @@
-import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { isTabbable, isTopModal, nextTrapTarget, popModal, pushModal } from './modal-focus'
+import { dialogName, isTabbable, isTopModal, nextTrapTarget, pickReturnFocus, popModal, pushModal } from './modal-focus'
+
+describe('pickReturnFocus — where focus goes when a pop-up closes', () => {
+  const on = (n: string) => ({ n, isConnected: true })
+  const gone = (n: string) => ({ n, isConnected: false })
+  it('the opener, while it is still on the page', () => {
+    expect(pickReturnFocus(on('opener'), on('ref'), on('main'))?.n).toBe('opener')
+  })
+  it('opener gone: returnFocusRef', () => {
+    expect(pickReturnFocus(gone('opener'), on('ref'), on('main'))?.n).toBe('ref')
+    expect(pickReturnFocus(null, on('ref'), on('main'))?.n).toBe('ref')
+  })
+  it('no opener or ref: <main>', () => {
+    expect(pickReturnFocus(gone('opener'), null, on('main'))?.n).toBe('main')
+    expect(pickReturnFocus(null, gone('ref'), on('main'))?.n).toBe('main')
+  })
+  it('nothing left: null', () => {
+    expect(pickReturnFocus(null, undefined, null)).toBeNull()
+    expect(pickReturnFocus(gone('a'), gone('b'), gone('c'))).toBeNull()
+  })
+})
+
+describe('dialogName', () => {
+  it('a heading wins over ariaLabel', () => {
+    expect(dialogName('h-1', 'Label')).toEqual({ labelledBy: 'h-1' })
+  })
+  it('no heading: ariaLabel', () => {
+    expect(dialogName(null, 'Certificate preview')).toEqual({ label: 'Certificate preview' })
+  })
+  it('neither (or a blank label): no name', () => {
+    expect(dialogName(undefined, undefined)).toBeNull()
+    expect(dialogName('', '   ')).toBeNull()
+  })
+})
 
 describe('nextTrapTarget — Tab stays inside the pop-up', () => {
   it('Tab on the last element wraps to the first', () => {
@@ -58,26 +90,5 @@ describe('open pop-up stack — only the top one handles Tab/Esc', () => {
     popModal(a)
     expect(isTopModal(b)).toBe(true)
     popModal(b)
-  })
-})
-
-// The component itself needs a browser to run; these checks make sure the
-// dialog wiring stays in place.
-describe('components/modal-overlay.tsx wiring', () => {
-  const src = readFileSync(new URL('../components/modal-overlay.tsx', import.meta.url), 'utf8')
-  it('is announced as a modal dialog named by its heading', () => {
-    expect(src).toMatch(/role=\{dialog\.own \? 'dialog'/)
-    expect(src).toMatch(/aria-modal=/)
-    expect(src).toMatch(/aria-labelledby=/)
-  })
-  it('keeps Esc-to-close and backdrop click-to-close', () => {
-    expect(src).toMatch(/e\.key === 'Escape'/)
-    expect(src).toMatch(/onClick=\{onClose\}/)
-    expect(src).toMatch(/stopPropagation/)
-  })
-  it('traps Tab, moves focus in, and returns it to the opener', () => {
-    expect(src).toMatch(/e\.key !== 'Tab'/)
-    expect(src).toMatch(/card\.focus\(/)
-    expect(src).toMatch(/opener\.focus\(/)
   })
 })

@@ -176,6 +176,8 @@ function ProfileMenu({ fullName, roleLabel, initials, profileHref }: { fullName:
   const [confirmLogout, setConfirmLogout] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const cancelRef = useRef<HTMLButtonElement>(null)
+  // Focus returns here after the logout confirm closes (its Log out menu item is gone by then).
+  const menuButtonRef = useRef<HTMLButtonElement>(null)
   // Focus the safe choice when the confirmation opens.
   useEffect(() => { if (confirmLogout) cancelRef.current?.focus() }, [confirmLogout])
 
@@ -198,6 +200,7 @@ function ProfileMenu({ fullName, roleLabel, initials, profileHref }: { fullName:
   return (
     <div ref={containerRef} className="relative">
       <button
+        ref={menuButtonRef}
         type="button"
         onClick={() => setOpen(v => !v)}
         aria-haspopup="menu"
@@ -245,7 +248,7 @@ function ProfileMenu({ fullName, roleLabel, initials, profileHref }: { fullName:
           Rendered into <body>: the header's backdrop blur would otherwise trap
           the fixed overlay inside the header. */}
       {confirmLogout && createPortal(
-        <ModalOverlay onClose={() => { if (!isPending) setConfirmLogout(false) }}>
+        <ModalOverlay onClose={() => { if (!isPending) setConfirmLogout(false) }} returnFocusRef={menuButtonRef}>
           <div
             role="alertdialog"
             aria-modal="true"
@@ -417,7 +420,7 @@ export function DashboardClientLayout({
         </header>
 
         {/* Content */}
-        <main className="flex-1 overflow-auto bg-[#F5F7FA]">
+        <main tabIndex={-1} className="flex-1 overflow-auto bg-[#F5F7FA] outline-none">
           {children}
         </main>
       </div>
