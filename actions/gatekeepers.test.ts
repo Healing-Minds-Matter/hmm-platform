@@ -9,6 +9,8 @@ const db = vi.hoisted(() => ({
   takenEmails: new Set<string>(),
   clubs: new Map<string, { name: string; is_active: boolean }>(),
   takenPhones: [] as { phone: string }[],
+  // What the club-code lookup (a select on clubs with no filter) returns.
+  clubCodes: { data: [] as { id: string; club_code: string; is_active: boolean }[] | null, error: null as { message: string } | null },
 }))
 
 vi.mock('server-only', () => ({}))
@@ -30,6 +32,8 @@ vi.mock('@/lib/supabase/admin', () => ({
   createAdminClient: () => ({
     from: (table: string) => ({
       select: () => ({
+        // Awaiting select() directly is the club-code lookup.
+        then: (resolve: (v: unknown) => unknown) => resolve(table === 'clubs' ? db.clubCodes : { data: [], error: null }),
         in: async (_column: string, values: string[]) => ({
           data: values.filter(email => db.takenEmails.has(email)).map(email => ({ email })),
           error: null,
@@ -82,6 +86,7 @@ beforeEach(() => {
     ['22222222-2222-4222-8222-222222222222', { name: 'Rotaract Club of Kandy', is_active: false }],
   ])
   db.takenPhones = []
+  db.clubCodes = { data: [], error: null }
   vi.mocked(createAuthAccount).mockClear()
   vi.mocked(loadPhoneOwners).mockClear()
 })
@@ -196,6 +201,39 @@ Asha Silva,asha@example.com,0771234569,11111111-1111-4111-8111-111111111111`))
     })
     expect(createAuthAccount).not.toHaveBeenCalled()
   })
+
+describe('createGatekeepersBulkAction: club codes', () => {
+  it('stops the request with one message when the club codes can\'t be loaded', async () => {
+    db.clubCodes = { data: null, error: { message: 'connection reset' } }
+    const state = await createGatekeepersBulkAction(null, csvForm(`${HEADER}
+Maya Lin,maya@example.com,0771234561,COL-CA
+Ravi Perera,ravi@example.com,0771234562,KAN-CA`, 'check'))
+    expect(state).toEqual({ error: "Couldn't check club codes right now. Please try again." })
+    expect(createAuthAccount).not.toHaveBeenCalled()
+  })
+
+  it('uses the active club when an inactive club shares its code, and refuses a code two active clubs share', async () => {
+    db.clubCodes = {
+      data: [
+        { id: '22222222-2222-4222-8222-222222222222', club_code: 'COL-CA', is_active: false },
+        { id: '11111111-1111-4111-8111-111111111111', club_code: 'col-ca', is_active: true },
+        { id: '33333333-3333-4333-8333-333333333333', club_code: 'DUP', is_active: true },
+        { id: '44444444-4444-4444-8444-444444444444', club_code: 'DUP', is_active: true },
+      ],
+      error: null,
+    }
+    const state = await createGatekeepersBulkAction(null, csvForm(`${HEADER}
+Maya Lin,maya@example.com,0771234561,COL-CA
+Ravi Perera,ravi@example.com,0771234562,DUP`, 'check'))
+    expect(state).toEqual({
+      intent: 'check',
+      results: [
+        { row: 2, label: 'maya@example.com', status: 'ready' },
+        { row: 3, label: 'ravi@example.com', status: 'failed', error: 'More than one club has the code "DUP". Use the club\'s ID instead.' },
+      ],
+    })
+  })
+})
 
 describe('createGatekeepersBulkAction: in batches', () => {
   const FILE = `${HEADER}

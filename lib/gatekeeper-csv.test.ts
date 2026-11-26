@@ -29,7 +29,13 @@ describe('resolveClubCell', () => {
     { id: id2, club_code: 'DUP' },
     { id: 'x', club_code: 'dup' },
     { id: 'y', club_code: null },
-  ])
+  ].map(club => ({ ...club, is_active: true })).concat([
+    { id: 'old-1', club_code: 'KAN-CA', is_active: false },
+    { id: 'new-1', club_code: 'kan-ca', is_active: true },
+    { id: 'old-2', club_code: 'GAL-CA', is_active: false },
+    { id: 'old-3', club_code: 'GAL-CA', is_active: false },
+    { id: 'gone', club_code: 'MAT-CA', is_active: false },
+  ]))
 
   it('passes a club ID through unchanged', () => {
     expect(resolveClubCell(` ${id2} `, codes)).toEqual({ clubId: id2 })
@@ -49,7 +55,16 @@ describe('resolveClubCell', () => {
     expect(resolveClubCell('NOPE', codes)).toEqual({ error: 'No club has the code "NOPE". Check the club code (e.g. PAN-CA) or use the club\'s ID.' })
   })
 
-  it('refuses a code two clubs share (differing only in case)', () => {
+  it('refuses a code two active clubs share (differing only in case)', () => {
     expect(resolveClubCell('Dup', codes)).toEqual({ error: 'More than one club has the code "Dup". Use the club\'s ID instead.' })
+  })
+
+  it('prefers the one active club when an inactive club shares its code', () => {
+    expect(resolveClubCell('KAN-CA', codes)).toEqual({ clubId: 'new-1' })
+  })
+
+  it('uses an inactive match when no active club has the code (the club check then reports it inactive)', () => {
+    expect(resolveClubCell('MAT-CA', codes)).toEqual({ clubId: 'gone' })
+    expect(resolveClubCell('GAL-CA', codes)).toEqual({ clubId: 'old-2' })
   })
 })

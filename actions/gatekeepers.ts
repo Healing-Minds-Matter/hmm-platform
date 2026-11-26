@@ -14,7 +14,7 @@ import { parsePhone } from '@/lib/phone'
 import { checkPhoneAvailable, describePhoneDbError, findPhoneClash, loadPhoneOwners, phoneChanged, type PhoneOwner } from '@/lib/phone-uniqueness.server'
 import { readCsvUpload } from '@/lib/csv'
 import { batchLines, bulkIntent, type BulkRowResult, type BulkUploadState } from '@/lib/bulk-upload'
-import { gatekeeperCsvHeaderError, indexClubCodes, isClubId, resolveClubCell } from '@/lib/gatekeeper-csv'
+import { type ClubCodeMatch, gatekeeperCsvHeaderError, indexClubCodes, isClubId, resolveClubCell } from '@/lib/gatekeeper-csv'
 import { todayDateString } from '@/lib/org-date'
 import { TYPE_COLUMNS, type CertificationTypeRow } from '@/lib/certification-types'
 import { describeCertError, validateAward } from '@/lib/certificates'
@@ -347,11 +347,16 @@ export async function createGatekeepersBulkAction(
   if (headerError) return { error: headerError }
 
   // club_id cells may hold a club code instead of the ID: load the codes
-  // once, and only when some row actually uses one.
-  const clubCodes = !forcedClubId && clubIdx !== -1
-    && dataRows.some(({ cells }) => (cells[clubIdx] ?? '').trim() && !isClubId(cells[clubIdx]))
-    ? indexClubCodes((await createAdminClient().from('clubs').select('id, club_code')).data ?? [])
-    : new Map<string, string[]>()
+  // once, and only when some row actually uses one. If the lookup fails, stop
+  // the whole request: otherwise every code row would wrongly say "No club
+  // has the code".
+  let clubCodes = new Map<string, ClubCodeMatch[]>()
+  if (!forcedClubId && clubIdx !== -1
+    && dataRows.some(({ cells }) => (cells[clubIdx] ?? '').trim() && !isClubId(cells[clubIdx]))) {
+    const { data: clubs, error: clubsError } = await createAdminClient().from('clubs').select('id, club_code, is_active')
+    if (clubsError) return { error: "Couldn't check club codes right now. Please try again." }
+    clubCodes = indexClubCodes(clubs ?? [])
+  }
 
   const results: BulkRowResult[] = []
   // The database can't see other rows in this file before they're saved, so
