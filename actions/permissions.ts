@@ -40,25 +40,28 @@ async function permissionManagerOrError(): Promise<Caller | { error: string }> {
 
 // ── Story 9.1: Role-Based Default Permissions ──────────────────────────────
 
-export async function updateRoleDefaultAction(formData: FormData) {
+// Fix L: returns null when saved (or already set), or { error } so the switch
+// can flip back and say why. Same checks as before; only the answer is new.
+export async function updateRoleDefaultAction(formData: FormData): Promise<PermissionActionState> {
   const role = formData.get('role') as string
   const permission = formData.get('permission') as string
   const isEnabled = formData.get('is_enabled') === 'true'
 
-  if (role !== 'champion' && role !== 'gatekeeper') return
-  if (!isPermissionKey(permission)) return
+  if (role !== 'champion' && role !== 'gatekeeper') return { error: 'This role can’t be changed here.' }
+  if (!isPermissionKey(permission)) return { error: 'Unknown permission.' }
 
-  const caller = await permissionManager()
-  if (!caller) return
+  const caller = await permissionManagerOrError()
+  if ('error' in caller) return caller
   const supabase = caller.supabase
 
-  const { data: existing } = await supabase
+  const { data: existing, error: readError } = await supabase
     .from('permissions')
     .select('id, is_enabled')
     .eq('role', role)
     .eq('permission', permission)
     .maybeSingle()
-  if (existing && existing.is_enabled === isEnabled) return // nothing to change
+  if (readError) return { error: SAVE_FAILED }
+  if (existing && existing.is_enabled === isEnabled) return null // nothing to change
 
   const { error } = await supabase
     .from('permissions')
@@ -66,10 +69,13 @@ export async function updateRoleDefaultAction(formData: FormData) {
       { role, permission, is_enabled: isEnabled, updated_by: caller.id },
       { onConflict: 'role,permission' }
     )
-  if (error) return
+  if (error) return { error: SAVE_FAILED }
 
   revalidatePath('/super-admin/permissions')
+  return null
 }
+
+const SAVE_FAILED = 'Couldn’t save the change. Please try again.'
 
 // ── Story 9.2: Individual Permission Exception ─────────────────────────────
 
