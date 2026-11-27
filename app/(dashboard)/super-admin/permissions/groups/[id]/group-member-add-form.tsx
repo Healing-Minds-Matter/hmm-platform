@@ -35,7 +35,7 @@ export function GroupMemberAddForm({ groupId, availableUsers }: { groupId: strin
       <button
         type="submit"
         disabled={isPending}
-        className="rounded-lg bg-[#F4AC1E] px-4 text-[13px] font-semibold text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
+        className="rounded-lg bg-[#F4AC1E] px-4 text-[13px] font-semibold text-on-amber shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
       >
         {isPending ? 'Adding…' : 'Add'}
       </button>

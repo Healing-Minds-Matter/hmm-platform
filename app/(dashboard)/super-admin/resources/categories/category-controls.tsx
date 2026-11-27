@@ -36,7 +36,7 @@ export function CategoryCreateForm() {
             <input id="new-category-name" name="name" required maxLength={CATEGORY_NAME_MAX} autoComplete="off" className={input} />
             <FieldError name="name" />
           </div>
-          <button type="submit" disabled={isPending} className={`${btn} h-10 bg-[#F4AC1E] px-5 text-white hover:bg-[#E09B0F]`}>
+          <button type="submit" disabled={isPending} className={`${btn} h-10 bg-[#F4AC1E] px-5 text-on-amber hover:bg-[#E09B0F]`}>
             {isPending ? 'Adding…' : 'Add category'}
           </button>
         </div>

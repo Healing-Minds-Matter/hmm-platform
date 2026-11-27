@@ -58,7 +58,7 @@ export default async function CertificationTypePage({ params, searchParams }: {
         <div className="flex flex-shrink-0 items-center gap-2">
           <SecondaryLink href={`${base}/edit`}>Edit</SecondaryLink>
           {retired
-            ? <Link href={`${base}/reactivate`} className="flex h-10 items-center rounded-lg bg-[#F4AC1E] px-4 text-[13px] font-semibold text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] hover:bg-[#E09B0F]">Reactivate type</Link>
+            ? <Link href={`${base}/reactivate`} className="flex h-10 items-center rounded-lg bg-[#F4AC1E] px-4 text-[13px] font-semibold text-on-amber shadow-[0_1px_1px_rgba(0,0,0,0.05)] hover:bg-[#E09B0F]">Reactivate type</Link>
             : !open && <SecondaryLink href={`${base}/retire`} danger>Retire type</SecondaryLink>}
         </div>
       </div>

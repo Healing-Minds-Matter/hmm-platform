@@ -19,7 +19,7 @@ export function PrimaryLink({ href, children }: { href: string; children: React.
   return (
     <Link
       href={href}
-      className="flex flex-shrink-0 items-center gap-2 rounded-lg bg-[#F4AC1E] px-4 py-2 text-[12px] font-semibold tracking-[0.24px] text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F]"
+      className="flex flex-shrink-0 items-center gap-2 rounded-lg bg-[#F4AC1E] px-4 py-2 text-[12px] font-semibold tracking-[0.24px] text-on-amber shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F]"
     >
       {children}
     </Link>
@@ -157,6 +157,6 @@ export const HINT = 'mt-1.5 text-[11px] text-[#64748B]'
 export const SECTION = 'flex flex-col gap-4 rounded-xl bg-white p-5'
 export const SECTION_TITLE = 'border-b border-[#E2E8F0] pb-2 text-[11px] font-bold uppercase tracking-[0.05em] text-[#64748B]'
 export const CANCEL_BTN = 'flex h-10 items-center rounded-lg bg-[#F1F5F9] px-4 text-[13px] font-medium text-[#0F172A] transition-colors hover:bg-[#E2E8F0]'
-export const PRIMARY_BTN = 'flex h-10 items-center gap-2 rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60'
+export const PRIMARY_BTN = 'flex h-10 items-center gap-2 rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-on-amber shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60'
 export const DANGER_BTN = 'flex h-10 items-center gap-2 rounded-lg bg-[#DC2626] px-5 text-[13px] font-semibold text-white transition-colors hover:bg-[#B91C1C] disabled:opacity-60'
 export const OPTION = 'flex cursor-pointer items-start gap-3 rounded-xl border border-[#E2E8F0] bg-white p-3.5 text-[13px] font-medium text-[#0F172A] has-[:checked]:border-[#022C51] has-[:checked]:bg-[#F8FAFC] has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50'

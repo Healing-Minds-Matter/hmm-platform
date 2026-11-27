@@ -129,7 +129,7 @@ export function CreateGatekeeperForm({
             )}
           </div>
           <div className="flex items-center justify-end gap-2.5 border-t border-[#E2E8F0] px-6 py-4">
-            <button type="button" onClick={close} className="flex h-10 items-center rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] hover:bg-[#E09B0F]">
+            <button type="button" onClick={close} className="flex h-10 items-center rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-on-amber shadow-[0_1px_1px_rgba(0,0,0,0.05)] hover:bg-[#E09B0F]">
               Done
             </button>
           </div>
@@ -348,7 +348,7 @@ export function CreateGatekeeperForm({
             </button>
             <button
               type="submit" disabled={singlePending || (scope.mode === 'select' && scope.clubs.length === 0)}
-              className="flex h-10 items-center gap-1.5 rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
+              className="flex h-10 items-center gap-1.5 rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-on-amber shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
             >
               {!singlePending && <img src="/icons/plus.svg" alt="" width={10.5} height={10.5} />}
               {singlePending ? 'Registering…' : 'Register Gatekeeper'}

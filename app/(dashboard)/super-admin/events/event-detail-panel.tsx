@@ -139,7 +139,7 @@ export function EventDetailPanel({ event, closeHref, editHref }: { event: EventD
                 </button>
                 <Link
                   href={editHref}
-                  className="flex h-9 items-center gap-1.5 rounded-lg bg-[#F4AC1E] px-4 text-[13px] font-semibold text-white transition-colors hover:bg-[#E09B0F]"
+                  className="flex h-9 items-center gap-1.5 rounded-lg bg-[#F4AC1E] px-4 text-[13px] font-semibold text-on-amber transition-colors hover:bg-[#E09B0F]"
                 >
                   Edit Event
                 </Link>
