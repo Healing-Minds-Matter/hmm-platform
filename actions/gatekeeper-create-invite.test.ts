@@ -197,7 +197,7 @@ describe('Review Finding 13j: input checks (single and bulk)', () => {
       expect.objectContaining({ row: 2, status: 'created' }),
       expect.objectContaining({ row: 3, status: 'failed', error: expect.stringContaining('Enter a valid email address') }),
       expect.objectContaining({ row: 4, status: 'failed', error: expect.stringContaining('Full name can only contain letters') }),
-      expect.objectContaining({ row: 5, status: 'failed', error: expect.stringContaining('Select a valid club') }),
+      expect.objectContaining({ row: 5, status: 'failed', error: expect.stringContaining('No club has the code "not-a-club"') }),
       expect.objectContaining({ row: 6, status: 'failed', error: expect.stringContaining('Same phone number as row 2') }),
     ])
     expect(createAuthAccount).toHaveBeenCalledTimes(1)

@@ -32,7 +32,7 @@ export const newGatekeeperSchema = z.object({
       return parsed.value!
     }),
   // Empty for a Champion (their own club is used); a Super Admin must give one.
-  club_id: z.preprocess(v => text(v) || null, z.uuid('Select a valid club (club_id must be the club’s ID).').nullable()),
+  club_id: z.preprocess(v => text(v) || null, z.uuid('Select a valid club (club_id must be the club’s ID or club code).').nullable()),
   preferred_language: z.preprocess(v => text(v) || 'en', z.enum(LANGUAGES, 'Choose English, Sinhala or Tamil.')),
 })
 
