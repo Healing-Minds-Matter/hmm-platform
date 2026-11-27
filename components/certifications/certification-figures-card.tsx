@@ -63,7 +63,7 @@ export async function CertificationFiguresCard({ scope }: { scope: { kind: 'all'
   const noneHref = link(null)
 
   return (
-    <section className="rounded-2xl bg-white p-6">
+    <section className="rounded-2xl bg-white p-6 max-sm:p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div>
           <h2 className="font-[family-name:var(--font-jakarta)] text-base font-bold text-[#0F172A]">Certifications</h2>

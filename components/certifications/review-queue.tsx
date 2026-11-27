@@ -84,7 +84,7 @@ export async function ReviewQueue({ portal, filter }: { portal: 'super_admin' | 
           </Link>
         ))}
       </nav>
-      <div className="rounded-2xl bg-white p-6">
+      <div className="rounded-2xl bg-white p-6 max-sm:p-4">
         <SelfReportedList
           rows={rows.map(withoutHolder)}
           perms={{ self: false, verify, reviewRemove }}

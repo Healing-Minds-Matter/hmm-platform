@@ -13,7 +13,7 @@ export function NewAnnouncementModal({ ownClub, canPublish }: { ownClub: { id: s
     <ModalOverlay onClose={close}>
       {canPublish
         ? <CreateAnnouncementForm clubs={[]} ownClub={ownClub} backHref="/champion/announcements" onClose={close} />
-        : <p role="alert" className="mx-auto max-w-[560px] rounded-2xl bg-white p-6 text-[14px] text-[#475569]">{NO_PERMISSION_MESSAGE}</p>}
+        : <p role="alert" className="mx-auto max-w-[560px] rounded-2xl bg-white p-6 max-sm:p-4 text-[14px] text-[#475569]">{NO_PERMISSION_MESSAGE}</p>}
     </ModalOverlay>
   )
 }

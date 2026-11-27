@@ -57,8 +57,8 @@ export function ClubEventsSummary({
   completed: EventSummary[]
 }) {
   return (
-    <div className="rounded-2xl bg-white p-6">
-      <div className="flex items-center justify-between pb-4">
+    <div className="rounded-2xl bg-white p-6 max-sm:p-4">
+      <div className="flex items-center justify-between pb-4 max-sm:flex-wrap max-sm:gap-3">
         <div>
           <h2 className="font-[family-name:var(--font-jakarta)] text-lg font-semibold text-[#0F172A]">
             Awareness Programs &amp; Club Events Summary

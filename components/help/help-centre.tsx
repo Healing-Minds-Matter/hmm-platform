@@ -22,7 +22,7 @@ export function HelpCentre({ manual, supportEmail }: { manual: HelpManual; suppo
   }, [])
 
   return (
-    <div className="flex flex-col gap-6 p-8 font-[family-name:var(--font-inter)]">
+    <div className="flex flex-col gap-6 p-8 max-sm:p-4 font-[family-name:var(--font-inter)]">
       <div className="flex flex-col gap-1">
         <h1 className="text-[24px] font-bold tracking-[-0.7px] text-[#0F172A]">Help</h1>
         <p className="max-w-[720px] text-[14px] leading-5 text-[#475569]">
@@ -84,7 +84,7 @@ export function HelpCentre({ manual, supportEmail }: { manual: HelpManual; suppo
               key={section.id}
               id={section.id}
               aria-labelledby={`${section.id}-title`}
-              className={`scroll-mt-4 rounded-xl bg-white p-6 shadow-[0px_1px_1px_rgba(0,0,0,0.05)] ${current === section.id && !query ? 'ring-2 ring-[#F4AC1E]' : ''}`}
+              className={`scroll-mt-4 rounded-xl bg-white p-6 max-sm:p-4 shadow-[0px_1px_1px_rgba(0,0,0,0.05)] ${current === section.id && !query ? 'ring-2 ring-[#F4AC1E]' : ''}`}
             >
               <h2 id={`${section.id}-title`} className="text-[18px] font-bold text-[#0F172A]">{section.title}</h2>
               <p className="mt-1 text-[13px] text-[#64748B]">{section.summary}</p>

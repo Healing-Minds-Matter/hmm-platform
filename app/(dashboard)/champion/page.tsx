@@ -25,7 +25,7 @@ function KpiTile({
   iconSrc: string
 }) {
   return (
-    <div className="flex flex-1 flex-col justify-between rounded-2xl bg-white p-6 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]">
+    <div className="flex flex-1 flex-col justify-between rounded-2xl bg-white p-6 max-sm:p-4 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]">
       <div className="flex items-center justify-between pb-3">
         <span className="text-[11px] font-semibold uppercase tracking-wide text-[#64748B]">{label}</span>
         <div className="flex h-[30px] w-[30px] flex-shrink-0 items-center justify-center rounded-lg bg-[#F1F5F9]">
@@ -104,7 +104,7 @@ export default async function ChampionDashboard() {
   const data = await getChampionDashboardData()
 
   return (
-    <div className="flex flex-col gap-5 p-6">
+    <div className="flex flex-col gap-5 p-6 max-sm:p-4">
       <div className="rounded-2xl bg-white p-5">
         <div className="flex items-center gap-2">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-[rgba(13,130,117,0.1)] px-2.5 py-0.5 text-[11px] font-semibold text-[#0D8275]">
@@ -143,7 +143,7 @@ export default async function ChampionDashboard() {
       </div>
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <div className="rounded-2xl bg-white p-6">
+        <div className="rounded-2xl bg-white p-6 max-sm:p-4">
           <h2 className="font-[family-name:var(--font-jakarta)] text-base font-bold text-[#0F172A]">Gatekeepers Overview</h2>
           <p className="mt-1 text-[11px] text-[#64748B]">Active vs. inactive Gatekeepers at a glance</p>
           <div className="mt-5 flex justify-center">

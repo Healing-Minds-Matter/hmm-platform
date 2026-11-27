@@ -77,7 +77,7 @@ export function GatekeeperEditForm({
         <input type="hidden" name="version" value={gatekeeper.version} />
         <input type="hidden" name="club_id" value={gatekeeper.club_id} />
 
-        <div className="flex flex-1 flex-col gap-4 overflow-y-auto bg-[#F8FAFC] p-6">
+        <div className="flex flex-1 flex-col gap-4 overflow-y-auto bg-[#F8FAFC] p-6 max-sm:p-4">
           {state?.conflict && (
             <div className="rounded-lg bg-yellow-50 p-3 text-sm text-yellow-800" role="alert">
               This record was updated by another user while you were editing. Please{' '}
@@ -104,7 +104,7 @@ export function GatekeeperEditForm({
               />
               <FieldError name="full_name" />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
               <div>
                 <label htmlFor="email" className="mb-1.5 block text-[13px] font-medium text-[#0F172A]">
                   Email Address <span className="text-[#DC2626]">*</span>
@@ -128,7 +128,7 @@ export function GatekeeperEditForm({
                 <FieldError name="phone" />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
               <div>
                 <label className="mb-1.5 block text-[13px] font-medium text-[#0F172A]">Assigned Club</label>
                 <div className="flex h-10 items-center rounded-lg border border-[#E2E8F0] bg-[#EFF4FF] px-3.5 text-sm font-semibold text-[#0F172A]">

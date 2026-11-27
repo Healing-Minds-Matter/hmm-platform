@@ -60,8 +60,7 @@ describe('ScrollTable (wide tables on phones)', () => {
 })
 
 // Fix Q2: every table on a Super Admin page sits inside <ScrollTable>.
-// Shared tables that Champion pages also use, and that already scroll in
-// their own box, are left for Q3 (listed here so a new one is not missed).
+// Shared tables that Champion pages also use are checked in the Q3 block below.
 const SUPER_ADMIN_TABLE_FILES = [
   'app/(dashboard)/super-admin/certifications/audit/page.tsx',
   'app/(dashboard)/super-admin/champions/page.tsx',
@@ -127,5 +126,32 @@ describe('Super Admin tables on phones (Fix Q2)', () => {
   it('spots a table left outside the wrapper', () => {
     expect(unwrappedTables('<ScrollTable label="A"><table></table></ScrollTable><table></table>')).toBe(1)
     expect(unwrappedTables('<div><table className="w-full"></table></div>')).toBe(1)
+  })
+})
+
+// Fix Q3: Champion pages. The Gatekeepers list is the only table in the
+// Champion folder; the 3 certification tables are shared components.
+const CHAMPION_TABLE_FILES = ['app/(dashboard)/champion/gatekeepers/page.tsx']
+
+describe('Champion tables and pages on phones (Fix Q3)', () => {
+  it.each([...CHAMPION_TABLE_FILES, ...SHARED_WITH_CHAMPION])('%s: every table is inside ScrollTable', file => {
+    const src = readFileSync(file, 'utf8')
+    expect(src).toMatch(/<table[\s>]/)
+    expect(unwrappedTables(src)).toBe(0)
+  })
+
+  it('the list above covers every Champion file with a table', () => {
+    const withTables = filesUnder('app/(dashboard)/champion').filter(f => /<table[\s>]/.test(readFileSync(f, 'utf8')))
+    expect(withTables.sort()).toEqual([...CHAMPION_TABLE_FILES].sort())
+  })
+
+  it('no Champion page keeps its wide desktop edges (p-6 / p-8) on a phone', () => {
+    const wide: string[] = []
+    for (const file of filesUnder('app/(dashboard)/champion')) {
+      for (const m of readFileSync(file, 'utf8').matchAll(/className="([^"]*)"/g)) {
+        if (/(^|\s)p-(6|8)(\s|$)/.test(m[1]) && !/max-sm:p-4/.test(m[1])) wide.push(`${file}: ${m[1]}`)
+      }
+    }
+    expect(wide).toEqual([])
   })
 })
