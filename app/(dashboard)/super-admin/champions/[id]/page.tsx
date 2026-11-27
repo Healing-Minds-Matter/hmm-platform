@@ -252,7 +252,7 @@ export default async function ChampionDetailPage({
             </div>
           </div>
         </div>
-        <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
+        <div className="flex flex-shrink-0 flex-wrap items-center gap-2 max-sm:w-full">
           <Link
             href={`/super-admin/champions/${id}/permissions`}
             className="flex items-center gap-1.5 rounded-lg border border-[#E2E8F0] bg-white px-4 py-2.5 text-xs font-semibold text-[#475569] shadow-sm hover:bg-gray-50"

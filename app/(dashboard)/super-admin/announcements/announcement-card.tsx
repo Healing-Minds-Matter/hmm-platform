@@ -64,7 +64,7 @@ export function AnnouncementCard({
             {status.label}
           </span>
         </div>
-        <span className="whitespace-nowrap text-[12px] text-[#64748B]">
+        <span className="whitespace-nowrap text-[12px] text-[#64748B] max-sm:whitespace-normal">
           Published {formatDate(a.publish_date)}
           {a.expiry_date ? ` · Expires ${formatDate(a.expiry_date)}` : ''}
         </span>

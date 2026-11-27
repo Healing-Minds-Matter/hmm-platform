@@ -47,12 +47,12 @@ export function ResourceFilters({
         />
       </div>
 
-      <div className="flex flex-shrink-0 items-center gap-2">
-        <div className="relative">
+      <div className="flex flex-shrink-0 items-center gap-2 max-sm:w-full max-sm:flex-col max-sm:items-stretch">
+        <div className="relative max-sm:w-full">
           <select
             defaultValue={category ?? ''}
             onChange={e => update('category', e.target.value)}
-            className="min-w-[170px] appearance-none rounded-lg border border-transparent bg-[#F1F5F9] py-2.5 pl-3 pr-8 text-[13px] text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#F4AC1E]/40"
+            className="min-w-[170px] appearance-none max-sm:w-full max-sm:min-w-0 rounded-lg border border-transparent bg-[#F1F5F9] py-2.5 pl-3 pr-8 text-[13px] text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#F4AC1E]/40"
           >
             <option value="">All Categories</option>
             {categories.map(c => (
@@ -63,11 +63,11 @@ export function ResourceFilters({
           <img src="/icons/chevron-down.svg" alt="" className="pointer-events-none absolute right-3 top-1/2 h-[6px] w-[9px] -translate-y-1/2" />
         </div>
 
-        <div className="relative">
+        <div className="relative max-sm:w-full">
           <select
             defaultValue={sort ?? 'newest'}
             onChange={e => update('sort', e.target.value)}
-            className="min-w-[160px] appearance-none rounded-lg border border-transparent bg-[#F1F5F9] py-2.5 pl-3 pr-8 text-[13px] text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#F4AC1E]/40"
+            className="min-w-[160px] appearance-none max-sm:w-full max-sm:min-w-0 rounded-lg border border-transparent bg-[#F1F5F9] py-2.5 pl-3 pr-8 text-[13px] text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#F4AC1E]/40"
           >
             <option value="newest">Newest First</option>
             <option value="oldest">Oldest First</option>

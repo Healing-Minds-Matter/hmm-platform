@@ -216,12 +216,12 @@ export default async function GatekeepersPage({
             </table>
             </ScrollTable>
 
-            <div className="flex items-center justify-between border-t border-[rgba(226,232,240,0.8)] bg-white py-[16px] pl-[25px] pr-[16px]">
+            <div className="flex items-center justify-between border-t border-[rgba(226,232,240,0.8)] bg-white py-[16px] pl-[25px] pr-[16px] max-sm:flex-wrap max-sm:gap-3 max-sm:pl-[16px]">
               <p className="text-[10px] text-[#8492A6]">
                 Showing <span className="font-bold text-[#5D626E]">{showingFrom} to {showingTo}</span> of{' '}
                 <span className="font-bold text-[#5D626E]">{total}</span> Gatekeepers
               </p>
-              <div className="flex items-center gap-[6px]">
+              <div className="flex flex-wrap items-center gap-[6px]">
                 {page <= 1 ? (
                   <span className="flex h-[22px] cursor-default items-center justify-center rounded-[4px] bg-[#F1F5F9] px-[12px] py-[6px] text-[10px] font-semibold tracking-[0.24px] text-[#475569] opacity-50">
                     Previous

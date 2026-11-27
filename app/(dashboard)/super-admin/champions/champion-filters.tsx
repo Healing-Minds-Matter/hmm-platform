@@ -47,11 +47,11 @@ export function ChampionFilters({
         />
       </div>
 
-      <div className="flex flex-shrink-0 items-center gap-2">
+      <div className="flex flex-shrink-0 items-center gap-2 max-sm:w-full max-sm:flex-col max-sm:items-stretch">
         <select
           defaultValue={clubFilter ?? ''}
           onChange={e => update('club', e.target.value)}
-          className="rounded-lg border border-transparent bg-[#F9F9F9] py-2 pl-4 pr-8 text-[13px] text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#F4AC1E]/40"
+          className="min-w-0 rounded-lg border border-transparent bg-[#F9F9F9] py-2 pl-4 pr-8 max-sm:w-full text-[13px] text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#F4AC1E]/40"
         >
           <option value="">All Clubs</option>
           {clubs.map(c => (
@@ -61,7 +61,7 @@ export function ChampionFilters({
         <select
           defaultValue={status ?? ''}
           onChange={e => update('status', e.target.value)}
-          className="rounded-lg border border-transparent bg-[#F9F9F9] py-2 pl-4 pr-8 text-[13px] text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#F4AC1E]/40"
+          className="min-w-0 rounded-lg border border-transparent bg-[#F9F9F9] py-2 pl-4 pr-8 max-sm:w-full text-[13px] text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#F4AC1E]/40"
         >
           <option value="">All Statuses</option>
           <option value="active">Active</option>

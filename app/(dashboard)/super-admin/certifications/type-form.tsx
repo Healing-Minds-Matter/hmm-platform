@@ -126,7 +126,7 @@ export function TypeForm({ type, issued, today, inModal = false }: {
                   <input id="validity_value" name="validity_value" type="number" min={1} max={120} required defaultValue={v?.validity_value ?? type?.validity_value ?? 2} className={INPUT} />
                   <FieldError name="validity_value" />
                 </div>
-                <div className="w-40">
+                <div className="w-40 max-sm:min-w-0 max-sm:flex-1">
                   <label htmlFor="validity_unit" className={LABEL}>Unit</label>
                   <select id="validity_unit" name="validity_unit" defaultValue={v?.validity_unit ?? type?.validity_unit ?? 'years'} className={INPUT}>
                     <option value="months">months</option>

@@ -118,7 +118,7 @@ export default async function ProfilePage() {
                   </span>
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 max-sm:flex-wrap">
                     <h2 className="text-[22px] font-bold tracking-[-0.55px] text-[#0F172A] font-[family-name:var(--font-jakarta)]">
                       {profile.full_name}
                     </h2>
