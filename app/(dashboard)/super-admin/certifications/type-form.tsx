@@ -104,7 +104,7 @@ export function TypeForm({ type, issued, today, inModal = false }: {
             </div>
           </div>
 
-          <fieldset className={SECTION} aria-describedby="validity-hint">
+          <fieldset className={`${SECTION} min-w-0`} aria-describedby="validity-hint">
             <legend className="sr-only">{TYPE_TEXT.validityLabel}</legend>
             <h2 className={SECTION_TITLE} aria-hidden="true">{TYPE_TEXT.validityLabel} <span className="text-[#DC2626]">*</span></h2>
             <p id="validity-hint" className={`${HINT} -mt-1`}>{TYPE_TEXT.validityHint}</p>
@@ -138,7 +138,7 @@ export function TypeForm({ type, issued, today, inModal = false }: {
             )}
           </fieldset>
 
-          <fieldset className={SECTION} aria-describedby="period-hint">
+          <fieldset className={`${SECTION} min-w-0`} aria-describedby="period-hint">
             <legend className="sr-only">{TYPE_TEXT.periodLabel}</legend>
             <h2 className={SECTION_TITLE} aria-hidden="true">{TYPE_TEXT.periodLabel}</h2>
             <p id="period-hint" className={`${HINT} -mt-1`}>{TYPE_TEXT.periodHint}</p>
