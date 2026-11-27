@@ -41,9 +41,9 @@ export async function ResourceView({ id, basePath, canManage, publishedOnly }: {
   }
 
   return (
-    <div className="flex flex-col gap-6 p-8 font-[family-name:var(--font-inter)]">
+    <div className="flex flex-col gap-6 p-8 max-sm:p-4 font-[family-name:var(--font-inter)]">
       <Link href={basePath} className="text-[13px] font-semibold text-[#003495] hover:underline">← Learning Resources</Link>
-      <article className="flex max-w-[860px] flex-col gap-4 rounded-xl bg-white p-8 shadow-[0px_1px_1px_rgba(0,0,0,0.05)]">
+      <article className="flex max-w-[860px] flex-col gap-4 rounded-xl bg-white p-8 max-sm:p-5 shadow-[0px_1px_1px_rgba(0,0,0,0.05)]">
         <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold tracking-[0.44px]">
           {r.category && <span className="rounded-full bg-[#EFF4FF] px-2.5 py-0.5 text-[#1E4BB8]">{r.category}</span>}
           <span className="rounded-full bg-[#F1F5F9] px-2 py-0.5 text-[#475569]">{RESOURCE_TYPE_LABEL[r.type] ?? r.type}</span>

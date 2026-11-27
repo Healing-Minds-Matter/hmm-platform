@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { ScrollTable } from '@/components/scroll-table'
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 import { eventTypeLabel, eventTypeStyle } from './event-type'
@@ -162,7 +163,7 @@ function Registrations({ list, scope }: { list: Registrant[]; scope: 'all' | 'ow
       {list.length === 0 ? (
         <p className="mt-2 text-[13px] text-[#64748B]">{scope === 'own_club' ? 'No one from your club has registered yet.' : 'No one has registered yet.'}</p>
       ) : (
-        <div className="mt-2 max-h-56 overflow-y-auto rounded-lg border border-[#E2E8F0]">
+        <ScrollTable label="Registrations" minWidth={420} className="mt-2 max-h-56 overflow-y-auto rounded-lg border border-[#E2E8F0]">
           <table className="w-full text-left text-[13px]">
             <caption className="sr-only">People registered for this event</caption>
             <thead className="sticky top-0 bg-[#F8FAFC] text-[11px] font-semibold uppercase tracking-[0.44px] text-[#475569]">
@@ -182,7 +183,7 @@ function Registrations({ list, scope }: { list: Registrant[]; scope: 'all' | 'ow
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollTable>
       )}
     </section>
   )

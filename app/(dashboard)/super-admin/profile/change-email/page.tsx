@@ -11,7 +11,7 @@ export default async function ChangeEmailFallbackPage() {
   if (!user?.email) redirect(await loginPath())
 
   return (
-    <div className="flex justify-center p-8">
+    <div className="flex justify-center p-8 max-sm:p-4">
       <ChangeEmailForm currentEmail={user.email} pendingEmail={user.new_email ?? null} />
     </div>
   )

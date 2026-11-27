@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { ScrollTable } from '@/components/scroll-table'
 import type { BarItem, OnboardingFilter } from '@/actions/dashboard'
 import { getOnboardingProgress } from '@/actions/dashboard'
 
@@ -46,7 +47,7 @@ function ViewAllModal({
             ✕
           </button>
         </div>
-        <div className="overflow-auto">
+        <ScrollTable label="All clubs" minWidth={360} className="overflow-auto">
           <table className="min-w-full divide-y divide-gray-100">
             <thead className="sticky top-0 bg-gray-50">
               <tr>
@@ -63,7 +64,7 @@ function ViewAllModal({
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollTable>
       </div>
     </div>
   )

@@ -79,7 +79,7 @@ export function CreateClubForm({ onClose }: { onClose?: () => void }) {
             <h2 className="border-b border-[#E2E8F0] pb-2 text-[11px] font-bold uppercase tracking-[0.05em] text-[#64748B]">
               Club Identification
             </h2>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
               <div>
                 <label htmlFor="name" className="mb-1.5 block text-[13px] font-medium text-[#0F172A]">
                   Club Name <span className="text-[#DC2626]">*</span>
@@ -143,7 +143,7 @@ export function CreateClubForm({ onClose }: { onClose?: () => void }) {
               <FieldError name="location" />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
               <div>
                 <label htmlFor="contact_email" className="mb-1.5 block text-[13px] font-medium text-[#0F172A]">
                   Contact Email

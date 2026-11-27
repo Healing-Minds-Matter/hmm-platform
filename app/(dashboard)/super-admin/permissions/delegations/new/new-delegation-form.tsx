@@ -91,7 +91,7 @@ export function NewDelegationForm({ users, onClose }: { users: UserOption[]; onC
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
             <div>
               <label htmlFor="starts_at" className="mb-1.5 block text-[13px] font-medium text-[#0F172A]">
                 Start Date <span className="text-[#DC2626]">*</span>

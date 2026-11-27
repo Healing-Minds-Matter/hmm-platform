@@ -119,7 +119,7 @@ export function ClubEditForm({ club, onClose }: { club: Club; onClose?: () => vo
               <FieldError name="location" />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
               <div>
                 <label htmlFor="contact_email" className="mb-1.5 block text-[13px] font-medium text-[#0F172A]">
                   Contact Email

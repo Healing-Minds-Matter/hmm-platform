@@ -248,7 +248,7 @@ export function ChangePasswordForm({
 
             <div className="rounded-xl border border-[rgba(226,232,240,0.8)] bg-[rgba(239,244,255,0.6)] p-[15px]">
               <h3 className="mb-2 text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">Password Requirements</h3>
-              <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 max-sm:grid-cols-1">
                 {RULES.map(r => (
                   <div key={r.key} className="flex items-center gap-1.5">
                     {/* eslint-disable-next-line @next/next/no-img-element */}

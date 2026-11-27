@@ -25,7 +25,7 @@ export function GroupMemberAddForm({ groupId, availableUsers }: { groupId: strin
       <select
         name="user_id"
         required
-        className="h-10 flex-1 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
+        className="h-10 min-w-0 flex-1 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 text-sm text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
       >
         <option value="">Add a member…</option>
         {availableUsers.map(u => (
@@ -35,7 +35,7 @@ export function GroupMemberAddForm({ groupId, availableUsers }: { groupId: strin
       <button
         type="submit"
         disabled={isPending}
-        className="rounded-lg bg-[#F4AC1E] px-4 text-[13px] font-semibold text-on-amber shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
+        className="flex-shrink-0 rounded-lg bg-[#F4AC1E] px-4 text-[13px] font-semibold text-on-amber shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
       >
         {isPending ? 'Adding…' : 'Add'}
       </button>

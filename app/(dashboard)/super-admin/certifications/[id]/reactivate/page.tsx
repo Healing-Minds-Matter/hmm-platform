@@ -9,5 +9,5 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const { id } = await params
   const { type, impact } = await loadTypeForForm(id)
   if (type.status !== 'retired') redirect(`/super-admin/certifications/${id}`)
-  return <div className="flex justify-center p-8"><ReactivateForm type={type} stopped={impact.stopped} today={todayDateString()} /></div>
+  return <div className="flex justify-center p-8 max-sm:p-4"><ReactivateForm type={type} stopped={impact.stopped} today={todayDateString()} /></div>
 }

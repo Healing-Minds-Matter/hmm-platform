@@ -60,7 +60,7 @@ export default async function ChampionProfilePage() {
   const initials = getInitials(profile.full_name)
 
   return (
-    <div className="p-8 font-[family-name:var(--font-inter)]">
+    <div className="p-8 max-sm:p-4 font-[family-name:var(--font-inter)]">
       <div className="mb-8">
         <h1 className="text-[24px] font-bold tracking-[-0.7px] text-[#0F172A]">
           My Profile &amp; Account Settings
@@ -166,7 +166,7 @@ export default async function ChampionProfilePage() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between rounded-xl bg-[#F8FAFC] p-[13px] ring-1 ring-[#E5E7EB]">
+            <div className="flex items-center justify-between rounded-xl bg-[#F8FAFC] p-[13px] ring-1 ring-[#E5E7EB] max-sm:flex-wrap max-sm:gap-3">
               <div className="flex items-center gap-3">
                 <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -194,7 +194,7 @@ export default async function ChampionProfilePage() {
 
           {/* Card 4: Role & Access */}
           <div className="rounded-2xl bg-white p-[25px] shadow-[0px_1px_1px_rgba(0,0,0,0.05)] ring-1 ring-[#E5E7EB]">
-            <div className="mb-3 flex items-center justify-between">
+            <div className="mb-3 flex items-center justify-between max-sm:flex-wrap max-sm:gap-2">
               <div className="flex items-center gap-2.5">
                 <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#EFF4FF]">
                   {/* eslint-disable-next-line @next/next/no-img-element */}

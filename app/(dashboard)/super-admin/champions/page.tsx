@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { ScrollTable } from '@/components/scroll-table'
 import { createClient } from '@/lib/supabase/server'
 import { ChampionFilters } from './champion-filters'
 import { ExportChampionsButton, type ExportRow } from './export-champions-button'
@@ -134,8 +135,8 @@ export default async function ChampionsPage({
   })
 
   return (
-    <div className="flex flex-col gap-4 p-8 font-[family-name:var(--font-inter)]">
-      <div className="flex items-center justify-between gap-4">
+    <div className="flex flex-col gap-4 p-8 max-sm:p-4 font-[family-name:var(--font-inter)]">
+      <div className="flex items-center justify-between gap-4 max-lg:flex-wrap">
         <div>
           <h1 className="text-[24px] font-bold tracking-[-0.7px] text-[#0F172A]">Champion Management</h1>
           <p className="mt-1 text-sm text-[#475569]">
@@ -176,6 +177,8 @@ export default async function ChampionsPage({
           </div>
         ) : (
           <>
+            {/* Phones/tablets: scrolls sideways, first column stays visible (Fix Q2). */}
+            <ScrollTable label="Champions" minWidth={980}>
             <table className="w-full">
               <thead>
                 <tr className="h-[46px] border-b border-[rgba(226,232,240,0.8)] bg-[#F9F9F9]">
@@ -290,6 +293,7 @@ export default async function ChampionsPage({
                 })}
               </tbody>
             </table>
+            </ScrollTable>
 
             {/* Footer */}
             <div className="flex items-center justify-between border-t border-[rgba(226,232,240,0.8)] bg-white py-[16px] pl-[25px] pr-[16px]">

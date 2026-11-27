@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { ScrollTable } from '@/components/scroll-table'
 import { createClient } from '@/lib/supabase/server'
 import { auditPageHref, auditPageWindow, formatAuditWhen, parseAuditPage } from '@/lib/permission-audit'
 
@@ -94,6 +95,7 @@ export default async function PermissionAuditHistoryPage({
         </div>
       ) : (
         <div className="overflow-hidden rounded-xl bg-white shadow-[0px_1px_1px_rgba(0,0,0,0.05)]">
+          <ScrollTable label="Permission changes" minWidth={760}>
           <table className="w-full">
             <thead>
               <tr className="border-b border-[#F1F5F9] bg-[#F8FAFC] text-left text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">
@@ -122,6 +124,7 @@ export default async function PermissionAuditHistoryPage({
               ))}
             </tbody>
           </table>
+          </ScrollTable>
           <nav
             aria-label="Audit history pages"
             className="flex flex-wrap items-center justify-between gap-3 border-t border-[#F1F5F9] px-6 py-4"

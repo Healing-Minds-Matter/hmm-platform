@@ -194,7 +194,7 @@ export function AnnouncementForm({
               <FieldError name="body" />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
               <div>
                 <label className="mb-1.5 block text-[13px] font-medium tracking-[0.24px] text-[#0F172A]">
                   Status

@@ -26,7 +26,7 @@ export default async function EffectivePermissionsPage({
   const backHref = user.role === 'champion' ? `/super-admin/champions/${userId}` : '/super-admin/champions'
 
   return (
-    <div className="p-8 font-[family-name:var(--font-inter)]">
+    <div className="p-8 max-sm:p-4 font-[family-name:var(--font-inter)]">
       <Link href={backHref} className="text-[13px] font-semibold text-[#1E4BB8] hover:underline">
         ← Back to {user.role === 'champion' ? user.full_name : 'Champions'}
       </Link>

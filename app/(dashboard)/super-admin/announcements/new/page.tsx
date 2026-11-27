@@ -8,7 +8,7 @@ export default async function NewAnnouncementPage() {
   const { data } = await supabase.from('clubs').select('id, name').eq('is_active', true).order('name')
 
   return (
-    <div className="flex justify-center p-8">
+    <div className="flex justify-center p-8 max-sm:p-4">
       <CreateAnnouncementForm clubs={data ?? []} />
     </div>
   )

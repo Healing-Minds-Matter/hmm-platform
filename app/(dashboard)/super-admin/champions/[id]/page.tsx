@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { ScrollTable } from '@/components/scroll-table'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { CertificatesSection } from '@/components/certifications/certificates-section'
@@ -185,7 +186,7 @@ export default async function ChampionDetailPage({
   const gkKpiLabel = club ? `Gatekeepers in ${club.name}` : 'Gatekeepers in Club'
 
   return (
-    <div className="flex flex-col gap-6 p-6 font-[family-name:var(--font-inter)]">
+    <div className="flex flex-col gap-6 p-6 max-sm:p-4 font-[family-name:var(--font-inter)]">
 
       {/* Breadcrumb */}
       <nav className="flex items-center gap-2 text-xs">
@@ -196,7 +197,7 @@ export default async function ChampionDetailPage({
       </nav>
 
       {/* Header identity */}
-      <div className="flex flex-wrap items-center justify-between gap-6 rounded-2xl bg-white p-6">
+      <div className="flex flex-wrap items-center justify-between gap-6 rounded-2xl bg-white p-6 max-sm:p-4">
         <div className="flex min-w-0 flex-1 items-center gap-4">
           <div className="flex h-20 w-20 flex-shrink-0 items-center justify-center rounded-full bg-[#012C51] text-2xl font-bold text-white">
             {getInitials(champion.full_name)}
@@ -251,7 +252,7 @@ export default async function ChampionDetailPage({
             </div>
           </div>
         </div>
-        <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
+        <div className="flex flex-shrink-0 flex-wrap items-center gap-2 max-sm:w-full">
           <Link
             href={`/super-admin/champions/${id}/permissions`}
             className="flex items-center gap-1.5 rounded-lg border border-[#E2E8F0] bg-white px-4 py-2.5 text-xs font-semibold text-[#475569] shadow-sm hover:bg-gray-50"
@@ -377,7 +378,7 @@ export default async function ChampionDetailPage({
               {!club ? 'This champion has no assigned club.' : gkQ ? 'No gatekeepers match your search.' : 'No gatekeepers in this club.'}
             </p>
           ) : (
-            <div className="overflow-x-auto">
+            <ScrollTable label="Gatekeepers" minWidth={640} className="overflow-x-auto">
               <table className="min-w-full divide-y divide-[#F1F5F9]">
                 <thead>
                   <tr className="bg-[#F9F9F9] text-left text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">
@@ -419,7 +420,7 @@ export default async function ChampionDetailPage({
                   })}
                 </tbody>
               </table>
-            </div>
+            </ScrollTable>
           )
         ) : (
           evPage.length === 0 ? (
@@ -427,7 +428,7 @@ export default async function ChampionDetailPage({
               {!club ? 'This champion has no assigned club.' : evQ || evType ? 'No events match your search.' : 'No events scheduled for this club.'}
             </p>
           ) : (
-            <div className="overflow-x-auto">
+            <ScrollTable label="Events" minWidth={640} className="overflow-x-auto">
               <table className="min-w-full divide-y divide-[#F1F5F9]">
                 <thead>
                   <tr className="bg-[#F9F9F9] text-left text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">
@@ -469,7 +470,7 @@ export default async function ChampionDetailPage({
                   })}
                 </tbody>
               </table>
-            </div>
+            </ScrollTable>
           )
         )}
 

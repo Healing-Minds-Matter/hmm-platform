@@ -104,7 +104,7 @@ export function TypeForm({ type, issued, today, inModal = false }: {
             </div>
           </div>
 
-          <fieldset className={SECTION} aria-describedby="validity-hint">
+          <fieldset className={`${SECTION} min-w-0`} aria-describedby="validity-hint">
             <legend className="sr-only">{TYPE_TEXT.validityLabel}</legend>
             <h2 className={SECTION_TITLE} aria-hidden="true">{TYPE_TEXT.validityLabel} <span className="text-[#DC2626]">*</span></h2>
             <p id="validity-hint" className={`${HINT} -mt-1`}>{TYPE_TEXT.validityHint}</p>
@@ -126,7 +126,7 @@ export function TypeForm({ type, issued, today, inModal = false }: {
                   <input id="validity_value" name="validity_value" type="number" min={1} max={120} required defaultValue={v?.validity_value ?? type?.validity_value ?? 2} className={INPUT} />
                   <FieldError name="validity_value" />
                 </div>
-                <div className="w-40">
+                <div className="w-40 max-sm:min-w-0 max-sm:flex-1">
                   <label htmlFor="validity_unit" className={LABEL}>Unit</label>
                   <select id="validity_unit" name="validity_unit" defaultValue={v?.validity_unit ?? type?.validity_unit ?? 'years'} className={INPUT}>
                     <option value="months">months</option>
@@ -138,7 +138,7 @@ export function TypeForm({ type, issued, today, inModal = false }: {
             )}
           </fieldset>
 
-          <fieldset className={SECTION} aria-describedby="period-hint">
+          <fieldset className={`${SECTION} min-w-0`} aria-describedby="period-hint">
             <legend className="sr-only">{TYPE_TEXT.periodLabel}</legend>
             <h2 className={SECTION_TITLE} aria-hidden="true">{TYPE_TEXT.periodLabel}</h2>
             <p id="period-hint" className={`${HINT} -mt-1`}>{TYPE_TEXT.periodHint}</p>

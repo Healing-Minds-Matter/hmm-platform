@@ -9,6 +9,10 @@
 // pinned on the left so you always know which row you are on. The scroll
 // area can be reached with Tab and scrolled with the arrow keys.
 // From 1024px up nothing changes: every rule below is phone/tablet-only.
+//
+// Fix Q2: `className` adds the box's own classes (e.g. a table that already
+// scrolled in its own box: "overflow-x-auto" or "max-h-56 overflow-y-auto"),
+// so that box and the phone scroll area are one element, not two nested ones.
 
 export const SCROLL_TABLE_CLASSES = [
   'max-lg:overflow-x-auto',
@@ -27,12 +31,15 @@ export const SCROLL_TABLE_CLASSES = [
 export function ScrollTable({
   label,
   minWidth = 880,
+  className,
   children,
 }: {
   /** What the table lists, e.g. "Clubs" — read out by screen readers. */
   label: string
   /** Narrowest the table may get before it scrolls (px). */
   minWidth?: number
+  /** Extra classes for the scroll box itself (kept on every screen size). */
+  className?: string
   children: React.ReactNode
 }) {
   return (
@@ -41,7 +48,7 @@ export function ScrollTable({
       aria-label={`${label} table`}
       // Lets keyboard users reach the scroll area and use the arrow keys.
       tabIndex={0}
-      className={SCROLL_TABLE_CLASSES}
+      className={className ? `${SCROLL_TABLE_CLASSES} ${className}` : SCROLL_TABLE_CLASSES}
       style={{ '--scroll-table-min': `${minWidth}px` } as React.CSSProperties}
     >
       {children}

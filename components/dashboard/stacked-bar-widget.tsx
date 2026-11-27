@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { ScrollTable } from '@/components/scroll-table'
 import type { StackedItem } from '@/actions/dashboard'
 
 const MAX_VISIBLE = 10
@@ -49,7 +50,7 @@ function ViewAllModal({
             ✕
           </button>
         </div>
-        <div className="overflow-auto">
+        <ScrollTable label="All clubs" minWidth={480} className="overflow-auto">
           <table className="min-w-full divide-y divide-gray-100">
             <thead className="sticky top-0 bg-gray-50">
               <tr>
@@ -78,7 +79,7 @@ function ViewAllModal({
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollTable>
       </div>
     </div>
   )

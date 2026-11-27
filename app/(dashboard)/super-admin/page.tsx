@@ -29,15 +29,15 @@ export default async function SuperAdminDashboard() {
   const data = await getDashboardData()
 
   return (
-    <div className="flex flex-col gap-5 p-6">
+    <div className="flex flex-col gap-5 p-6 max-sm:p-4">
 
       <ExecutiveBanner activeClubCount={data.activeGatekeepersPerClub.length} />
 
       {/* ── Row 1: Total Champions (4) · Upcoming Events (8). Certification figures are in the per-type table below. ── */}
-      <div className="grid grid-cols-12 gap-5">
+      <div className="grid grid-cols-12 gap-5 max-lg:grid-cols-1">
 
         {/* Total Champions */}
-        <div className="col-span-4 flex flex-col rounded-2xl bg-white p-5">
+        <div className="col-span-4 max-lg:col-span-1 flex flex-col rounded-2xl bg-white p-5">
           <h2 className="font-[family-name:var(--font-jakarta)] text-base font-bold text-[#0F172A]">Total Champions</h2>
           <p className="mt-2 font-[family-name:var(--font-jakarta)] text-[38px] font-black tracking-tight text-[#0F172A]">
             {data.totalActiveChampions.toLocaleString()}
@@ -51,17 +51,17 @@ export default async function SuperAdminDashboard() {
         </div>
 
         {/* Upcoming Events */}
-        <div className="col-span-8">
+        <div className="col-span-8 max-lg:col-span-1">
           <EventsWidget initialData={data.upcomingEvents} />
         </div>
       </div>
 
       {/* ── Row 2: Active Gatekeepers by Club (6) · Club Onboarding Progress (6) ── */}
-      <div className="grid grid-cols-12 gap-5">
-        <div className="col-span-6">
+      <div className="grid grid-cols-12 gap-5 max-lg:grid-cols-1">
+        <div className="col-span-6 max-lg:col-span-1">
           <BarChartWidget data={data.activeGatekeepersPerClub} />
         </div>
-        <div className="col-span-6">
+        <div className="col-span-6 max-lg:col-span-1">
           <OnboardingWidget initialData={data.onboardingProgress} initialMomChangePct={data.onboardingMomChangePct} />
         </div>
       </div>
@@ -70,8 +70,8 @@ export default async function SuperAdminDashboard() {
       <CertificationFiguresCard scope={{ kind: 'all' }} />
 
       {/* ── Row 3: Gatekeeper Activity by Club (full width) ── */}
-      <div className="grid grid-cols-12 gap-5">
-        <div className="col-span-12">
+      <div className="grid grid-cols-12 gap-5 max-lg:grid-cols-1">
+        <div className="col-span-12 max-lg:col-span-1">
           <StackedBarWidget data={data.gatekeeperStatusPerClub} />
         </div>
       </div>
