@@ -142,6 +142,31 @@ export function ResetPasswordForm({
           )}
         </div>
 
+        {/* Password requirements: shown from the start, between New and
+            Confirm (Fix J part 2), the same as on Change Password. Each rule
+            ticks as the new password meets it. */}
+        <div>
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Password requirements</h2>
+          <div className="grid grid-cols-2 gap-x-6 gap-y-2.5">
+            {RULES.map(r => (
+              <div key={r.key} className="flex items-center gap-2">
+                <span
+                  className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
+                    checks[r.key]
+                      ? 'bg-[#F5A623] text-white'
+                      : 'bg-gray-100 text-gray-400'
+                  }`}
+                >
+                  {checks[r.key] ? '✓' : '·'}
+                </span>
+                <span className={`text-xs ${checks[r.key] ? 'text-gray-700' : 'text-gray-400'}`}>
+                  {r.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* Confirm password */}
         <div>
           <label htmlFor="confirm" className="mb-1.5 block text-sm font-medium text-gray-700">
@@ -169,28 +194,6 @@ export function ResetPasswordForm({
           </div>
           <FieldError name="confirm" />
         </div>
-
-        {/* 2×2 requirements grid */}
-        {password.length > 0 && (
-          <div className="grid grid-cols-2 gap-x-6 gap-y-2.5">
-            {RULES.map(r => (
-              <div key={r.key} className="flex items-center gap-2">
-                <span
-                  className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
-                    checks[r.key]
-                      ? 'bg-[#F5A623] text-white'
-                      : 'bg-gray-100 text-gray-400'
-                  }`}
-                >
-                  {checks[r.key] ? '✓' : '·'}
-                </span>
-                <span className={`text-xs ${checks[r.key] ? 'text-gray-700' : 'text-gray-400'}`}>
-                  {r.label}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
 
         <button
           type="submit"

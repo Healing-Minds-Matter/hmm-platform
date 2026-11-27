@@ -55,6 +55,36 @@ describe('change-password boxes do not trigger iPhone zoom', () => {
   })
 })
 
+// Fix J part 2 (2026-11-27). The set-up-account and reset-password pages
+// (both opened from an email link) share ResetPasswordForm. Its rules must show
+// from the start, between New password and Confirm, like Change Password.
+describe('set-up-account and reset-password show the rules above Confirm', () => {
+  const FORM = 'app/(auth)/reset-password/reset-password-form.tsx'
+
+  it.each([
+    'app/(auth)/reset-password/page.tsx',
+    'app/auth/set-up-account/page.tsx',
+  ])('%s uses the shared ResetPasswordForm', path => {
+    expect(read(path)).toMatch(/<ResetPasswordForm[\s>]/)
+  })
+
+  it('places the rules between the New password box and the Confirm box', () => {
+    const src = read(FORM)
+    const rules = src.indexOf('Password requirements')
+    expect(rules).toBeGreaterThan(src.indexOf('id="password"'))
+    expect(rules).toBeLessThan(src.indexOf('id="confirm"'))
+  })
+
+  it('shows the rules before anything is typed (not hidden behind password.length)', () => {
+    const src = read(FORM)
+    const rulesBlock = src.slice(src.indexOf('Password requirements') - 400, src.indexOf('id="confirm"'))
+    expect(rulesBlock).toContain('RULES.map')
+    expect(rulesBlock).not.toMatch(/password\.length\s*>\s*0\s*&&\s*\(\s*<div className="grid/)
+    // Only the strength bar stays hidden until typing; the rules list appears once.
+    expect(src.match(/RULES\.map/g)).toHaveLength(1)
+  })
+})
+
 describe('email boxes autofill as the sign-in username', () => {
   it.each(EMAIL_FORMS)('%s uses autoComplete="username"', path => {
     const src = read(path)
