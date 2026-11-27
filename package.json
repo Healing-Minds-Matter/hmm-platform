@@ -36,6 +36,7 @@
     "eslint-config-next": "16.4.6",
     "jsdom": "^26.1.0",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5",
     "vitest": "^3.2.7"
   }
