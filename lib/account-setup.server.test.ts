@@ -31,6 +31,7 @@ import {
 } from '@/lib/account-setup.server'
 import { writeAuditLog } from '@/lib/audit'
 import { seedPasswordHistoryAdmin } from '@/lib/password-history.server'
+import { checkPasswordRules } from '@/lib/password-validation'
 import { clearLoginFailures } from '@/lib/auth/throttle.server'
 import { sendAccountSetupEmail, sendGatekeeperWelcomeEmail } from '@/lib/send-email'
 
@@ -92,6 +93,8 @@ describe('issueAccountSetupInvite', () => {
     expect(JSON.stringify(h.emails[0])).not.toMatch(/password=/i)
     const [write] = passwordWrites()
     expect(String(write.values.password).length).toBeGreaterThanOrEqual(48)
+    // Fix A: always passes the password rules (needs a symbol).
+    expect(Object.values(checkPasswordRules(String(write.values.password))).every(Boolean)).toBe(true)
     expect(JSON.stringify(h.emails[0])).not.toContain(String(write.values.password))
   })
   it('earlier unused links are cancelled', async () => {
