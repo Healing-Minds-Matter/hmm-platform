@@ -58,7 +58,9 @@ function PasswordInput({
         autoComplete={autoCompleteOverride ?? (name === 'currentPassword' ? 'current-password' : 'new-password')}
         value={value}
         onChange={onChange ? e => onChange(e.target.value) : undefined}
-        className={`h-10 w-full rounded-lg border bg-[#F8FAFC] pl-9 pr-10 text-[13px] text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8] ${ringClass ?? 'border-[#E2E8F0]'}`}
+        // 16px, not 13px: iOS Safari zooms the whole page when a focused
+        // input's text is under 16px (same fix as the Login password box).
+        className={`h-10 w-full rounded-lg border bg-[#F8FAFC] pl-9 pr-10 text-[16px] text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8] ${ringClass ?? 'border-[#E2E8F0]'}`}
       />
       <button
         type="button"
