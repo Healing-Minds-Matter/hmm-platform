@@ -153,7 +153,7 @@ export function ResetPasswordForm({
                 <span
                   className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
                     checks[r.key]
-                      ? 'bg-[#F5A623] text-white'
+                      ? 'bg-[#F5A623] text-on-amber'
                       : 'bg-gray-100 text-gray-400'
                   }`}
                 >
@@ -198,7 +198,7 @@ export function ResetPasswordForm({
         <button
           type="submit"
           disabled={isPending}
-          className="w-full rounded-xl bg-[#F5A623] px-4 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#E8941A] disabled:opacity-60"
+          className="w-full rounded-xl bg-[#F5A623] px-4 py-3.5 text-sm font-semibold text-on-amber shadow-sm transition hover:bg-[#E8941A] disabled:opacity-60"
         >
           {isPending ? 'Saving…' : submitLabel}
         </button>
