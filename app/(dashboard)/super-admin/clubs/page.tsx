@@ -5,6 +5,7 @@ import { certifiedFigures } from '@/lib/cert-summary'
 import { reactivateClubFormAction } from '@/actions/clubs'
 import { ClubFilters } from './club-filters'
 import { ExportClubsButton, type ExportRow } from './export-clubs-button'
+import { ScrollTable } from '@/components/scroll-table'
 
 export const metadata = { title: 'Clubs — HMM Super Admin' }
 
@@ -217,6 +218,8 @@ export default async function ClubsPage({
           </div>
         ) : (
           <>
+            {/* Phones/tablets: scrolls sideways, club name stays visible (Fix Q1). */}
+            <ScrollTable label="Clubs" minWidth={760}>
             <table className="w-full table-fixed">
               <thead>
                 <tr className="h-[46px] border-b border-[rgba(226,232,240,0.8)] bg-[#F9F9F9]">
@@ -375,6 +378,7 @@ export default async function ClubsPage({
                 })}
               </tbody>
             </table>
+            </ScrollTable>
 
             {/* Footer */}
             <div className="flex items-center justify-between border-t border-[rgba(226,232,240,0.8)] bg-white py-[16px] pl-[25px] pr-[16px]">
