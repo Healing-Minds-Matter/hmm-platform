@@ -268,7 +268,7 @@ export function CreateAnnouncementForm({
             name="intent"
             value="publish"
             disabled={isPending}
-            className="flex h-10 items-center gap-1.5 rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
+            className="flex h-10 items-center gap-1.5 rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-on-amber shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/icons/publish-send.svg" alt="" width={11.5} height={8.5} />

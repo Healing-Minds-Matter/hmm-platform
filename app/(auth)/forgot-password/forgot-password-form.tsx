@@ -102,7 +102,7 @@ function ForgotPasswordFormInner({ portal }: { portal: Portal }) {
         <button
           type="submit"
           disabled={isPending}
-          className="w-full rounded-lg bg-[#F4AC1E] py-4 text-[18px] font-semibold tracking-[0.18px] text-white transition hover:bg-[#e0991a] disabled:opacity-60"
+          className="w-full rounded-lg bg-[#F4AC1E] py-4 text-[18px] font-semibold tracking-[0.18px] text-on-amber transition hover:bg-[#e0991a] disabled:opacity-60"
         >
           {isPending ? 'Sending…' : 'Send reset link'}
         </button>

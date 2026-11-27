@@ -18,7 +18,7 @@ export default async function GroupsPage() {
         </p>
         <Link
           href="/super-admin/permissions/groups/new"
-          className="flex flex-shrink-0 items-center gap-2 rounded-lg bg-[#F4AC1E] px-5 py-2.5 text-[12px] font-semibold tracking-[0.24px] text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F]"
+          className="flex flex-shrink-0 items-center gap-2 rounded-lg bg-[#F4AC1E] px-5 py-2.5 text-[12px] font-semibold tracking-[0.24px] text-on-amber shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F]"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/icons/plus-small.svg" alt="" width={10.5} height={10.5} />

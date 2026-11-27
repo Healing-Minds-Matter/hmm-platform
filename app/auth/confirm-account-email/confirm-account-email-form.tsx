@@ -4,7 +4,7 @@ import { useActionState } from 'react'
 import { confirmAccountEmailAction } from '@/actions/email-change'
 
 const CARD = 'w-full max-w-[480px] rounded-2xl bg-white p-8 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.15)] ring-1 ring-[#E5E7EB]'
-const PRIMARY = 'flex h-10 w-full items-center justify-center rounded-lg bg-[#F4AC1E] px-5 text-[14px] font-semibold text-white transition-colors hover:bg-[#E09B0F] disabled:opacity-60'
+const PRIMARY = 'flex h-10 w-full items-center justify-center rounded-lg bg-[#F4AC1E] px-5 text-[14px] font-semibold text-on-amber transition-colors hover:bg-[#E09B0F] disabled:opacity-60'
 
 export function Result({ title, body, ok }: { title: string; body: string; ok: boolean }) {
   return (

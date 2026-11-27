@@ -216,7 +216,7 @@ function ProfileMenu({ fullName, roleLabel, initials, profileHref }: { fullName:
             </span>
           </div>
         </div>
-        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#012C51] text-xs font-bold text-white shadow-[0_0_0_2px_#DBEAFE] group-hover:bg-[#F5A623] transition-colors">
+        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#012C51] text-xs font-bold text-white shadow-[0_0_0_2px_#DBEAFE] group-hover:bg-[#F5A623] group-hover:text-on-amber transition-colors">
           {initials}
         </div>
       </button>

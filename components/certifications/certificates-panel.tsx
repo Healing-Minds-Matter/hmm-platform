@@ -275,7 +275,7 @@ function JourneyItem({ entry, typeById, names, today, actions }: {
 function SmallButton({ children, onClick, tone = 'plain' }: { children: React.ReactNode; onClick: () => void; tone?: 'plain' | 'primary' | 'danger' }) {
   const cls = {
     plain: 'border-[#E2E8F0] text-[#475569] hover:bg-[#F1F5F9]',
-    primary: 'border-[#F4AC1E] bg-[#F4AC1E] text-white hover:bg-[#E09B0F]',
+    primary: 'border-[#F4AC1E] bg-[#F4AC1E] text-on-amber hover:bg-[#E09B0F]',
     danger: 'border-[#FCA5A5] text-[#DC2626] hover:bg-[#FEF2F2]',
   }[tone]
   return (

@@ -235,7 +235,7 @@ export function AnnouncementForm({
           <button
             type="submit"
             disabled={isPending}
-            className="rounded-lg bg-[#F4AC1E] px-5 py-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
+            className="rounded-lg bg-[#F4AC1E] px-5 py-2.5 text-[13px] font-semibold text-on-amber transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
           >
             {isPending ? 'Saving…' : 'Save Changes'}
           </button>

@@ -199,7 +199,7 @@ export function CreateChampionForm({ clubs, onClose }: { clubs: Club[]; onClose?
           <button
             type="submit"
             disabled={isPending || clubs.length === 0}
-            className="flex h-10 items-center gap-2 rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
+            className="flex h-10 items-center gap-2 rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-on-amber shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
           >
             {!isPending && <img src="/icons/plus.svg" alt="" width={10.5} height={10.5} />}
             {isPending ? 'Sending Invite…' : 'Create & Send Invite'}

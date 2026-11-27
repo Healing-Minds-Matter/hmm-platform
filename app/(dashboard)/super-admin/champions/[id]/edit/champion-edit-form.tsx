@@ -217,7 +217,7 @@ export function ChampionEditForm({
           <button
             type="submit"
             disabled={isPending}
-            className="flex h-10 items-center gap-2 rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
+            className="flex h-10 items-center gap-2 rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-on-amber shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
           >
             {!isPending && <img src="/icons/check.svg" alt="" width={11.55} height={8.52} />}
             {isPending ? 'Saving…' : 'Save Changes'}
