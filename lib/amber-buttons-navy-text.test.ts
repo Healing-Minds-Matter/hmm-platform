@@ -1,15 +1,15 @@
 // Fix N (2026-11-27): white text on amber (#F4AC1E) buttons was 1.95:1 contrast,
 // below the 4.5:1 minimum. Every amber button now uses the shared `text-on-amber`
 // colour (navy #022C51, 7.3:1), defined once in app/globals.css.
-// Follow-up: the Reset / Set Your Password form uses a second amber (#F5A623) and is
-// left for after PR #33 merges (both change that file); extend AMBERS below then.
+// Follow-up (after PR #33): the Reset / Set Your Password form uses a second amber
+// (#F5A623, hover #E8941A); its button and rule ticks now use `text-on-amber` too.
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 const NAVY = '#022C51'
-const AMBERS = ['#F4AC1E']
-const HOVER_AMBERS = ['#E09B0F', '#E0991A', '#DB9A15']
+const AMBERS = ['#F4AC1E', '#F5A623']
+const HOVER_AMBERS = ['#E09B0F', '#E0991A', '#DB9A15', '#E8941A']
 const ROOTS = ['app', 'components', 'lib']
 // Icon files shown inside amber buttons: they must be navy, not white.
 const ON_AMBER_ICONS = [
@@ -55,7 +55,7 @@ describe('amber buttons use navy text', () => {
       expect(contrast(NAVY, bg)).toBeGreaterThanOrEqual(4.5)
     }
     // and white really did fail, so the test would have caught the old styling
-    expect(contrast('#FFFFFF', AMBERS[0])).toBeLessThan(4.5)
+    for (const bg of AMBERS) expect(contrast('#FFFFFF', bg)).toBeLessThan(4.5)
   })
 
   it('finds the amber buttons to check', () => {
@@ -72,9 +72,21 @@ describe('amber buttons use navy text', () => {
   it('every text colour set on an amber element passes 4.5:1', () => {
     const offending = amberLines().flatMap(l => {
       const colours = [...l.text.matchAll(/(?:^|[\s"'`])text-\[(#[0-9A-Fa-f]{6})\]/g)].map(m => m[1])
-      return colours.filter(c => contrast(c, AMBERS[0]) < 4.5).map(c => `${l.path}:${l.line} ${c}`)
+      return colours.filter(c => AMBERS.some(a => contrast(c, a) < 4.5)).map(c => `${l.path}:${l.line} ${c}`)
     })
     expect(offending).toEqual([])
+  })
+
+  it('Reset / Set Your Password: the button and the rule ticks are navy on amber', () => {
+    const lines = readFileSync('app/(auth)/reset-password/reset-password-form.tsx', 'utf8')
+      .split('\n')
+      .filter(l => /(^|[\s"'`])bg-\[#F5A623\]/.test(l) && /(^|[\s"'`])text-/.test(l))
+    // the rule tick and the submit button (the strength-bar segments hold no text)
+    expect(lines.length).toBe(2)
+    for (const l of lines) {
+      expect(l).toContain('text-on-amber')
+      expect(l).not.toMatch(/(^|[\s"'`:])text-white(?=[\s"'`]|$)/)
+    }
   })
 
   it('icons shown on amber buttons are navy, not white', () => {
