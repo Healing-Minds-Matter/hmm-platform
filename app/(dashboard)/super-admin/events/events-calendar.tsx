@@ -156,7 +156,7 @@ export function EventsCalendar({ view, year, month, day, club, type, q, events, 
       {/* Calendar Workspace Card */}
       <div className="flex flex-col gap-3 rounded-xl bg-white p-4 shadow-[0px_1px_1px_rgba(0,0,0,0.05)]">
         <div className="flex flex-col gap-[27px]">
-          <div className="flex items-center justify-between gap-3 pb-1 max-lg:flex-wrap">
+          <div className="flex flex-wrap items-center justify-between gap-3 pb-1">
             <div className="flex items-center gap-2 max-lg:flex-wrap max-sm:w-full max-sm:flex-col max-sm:items-stretch">
               <div className="relative">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -173,7 +173,7 @@ export function EventsCalendar({ view, year, month, day, club, type, q, events, 
                 <select
                   value={type}
                   onChange={e => router.push(hrefWith({ type: e.target.value }))}
-                  className="h-[34px] min-w-0 max-w-full appearance-none rounded-[5px] bg-[#F1F5F9] pl-3 pr-7 max-sm:w-full text-[11px] font-semibold tracking-[0.44px] text-[#0F172A] focus:outline-none"
+                  className="h-[34px] min-w-0 max-w-full lg:max-w-[220px] appearance-none rounded-[5px] bg-[#F1F5F9] pl-3 pr-7 max-sm:w-full text-[11px] font-semibold tracking-[0.44px] text-[#0F172A] focus:outline-none"
                 >
                   <option value="">All Event Types ({totalCount})</option>
                   {EVENT_TYPES.map(t => (
@@ -187,7 +187,7 @@ export function EventsCalendar({ view, year, month, day, club, type, q, events, 
                 <select
                   value={club}
                   onChange={e => router.push(hrefWith({ club: e.target.value }))}
-                  className="h-[34px] min-w-0 max-w-full appearance-none rounded-[5px] bg-[#F1F5F9] pl-3 pr-7 max-sm:w-full text-[11px] font-semibold tracking-[0.44px] text-[#0F172A] focus:outline-none"
+                  className="h-[34px] min-w-0 max-w-full lg:max-w-[220px] appearance-none rounded-[5px] bg-[#F1F5F9] pl-3 pr-7 max-sm:w-full text-[11px] font-semibold tracking-[0.44px] text-[#0F172A] focus:outline-none"
                 >
                   <option value="">All Clubs</option>
                   {clubs.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
