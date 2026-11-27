@@ -37,7 +37,7 @@ export function GatekeeperFilters({
   }, [router, pathname, q, clubFilter, status, championFilter])
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-white px-6 py-3 font-[family-name:var(--font-inter)]">
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-white px-6 py-3 max-sm:px-4 font-[family-name:var(--font-inter)]">
       <div className="relative min-w-[240px] max-w-[420px] flex-1">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img

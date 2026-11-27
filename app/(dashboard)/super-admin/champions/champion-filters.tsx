@@ -30,7 +30,7 @@ export function ChampionFilters({
   }, [router, pathname, q, clubFilter, status])
 
   return (
-    <div className="flex items-center justify-between gap-3 rounded-xl bg-white px-6 py-3 font-[family-name:var(--font-inter)]">
+    <div className="flex items-center justify-between gap-3 rounded-xl bg-white px-6 py-3 max-lg:flex-wrap max-sm:px-4 font-[family-name:var(--font-inter)]">
       <div className="relative w-full max-w-[516px]">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img

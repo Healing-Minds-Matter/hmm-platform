@@ -127,7 +127,7 @@ export function ProfileForm({
         <p className="text-[11px] text-[#94A3B8]">Used for sign-in — change it under Security &amp; Sign-in.</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
         <div className="flex flex-col gap-1.5">
           <label htmlFor="phone" className="text-[12px] font-semibold tracking-[0.24px] text-[#0F172A]">
             Direct Phone

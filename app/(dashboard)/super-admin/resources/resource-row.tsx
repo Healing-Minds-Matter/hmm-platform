@@ -48,8 +48,8 @@ export function ResourceRow({
   const primaryAction = PRIMARY_ACTION[resource.type] ?? PRIMARY_ACTION.other
 
   return (
-    <div className="flex w-full items-start justify-between gap-4 rounded-xl bg-white p-4 shadow-[0px_1px_1px_rgba(0,0,0,0.05)]">
-      <div className="flex flex-1 items-start gap-4">
+    <div className="flex w-full items-start justify-between gap-4 rounded-xl bg-white p-4 shadow-[0px_1px_1px_rgba(0,0,0,0.05)] max-sm:flex-col">
+      <div className="flex flex-1 items-start gap-4 max-sm:flex-col">
         <div
           className="flex h-[112px] w-[176px] flex-shrink-0 items-center justify-center overflow-hidden rounded-xl"
           style={{ background: visual.tint }}
@@ -108,7 +108,7 @@ export function ResourceRow({
         </div>
       </div>
 
-      <div className="flex flex-shrink-0 flex-col items-center justify-end gap-1.5">
+      <div className="flex flex-shrink-0 flex-col items-center justify-end gap-1.5 max-sm:flex-row">
         {/* Sheet rows 36/63: the whole article, read-only (Edit stays separate). */}
         {resource.type === 'article' && (
           <Link

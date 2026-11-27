@@ -14,7 +14,7 @@ export default async function NewDelegationPage() {
     .order('full_name')
 
   return (
-    <div className="flex justify-center p-8">
+    <div className="flex justify-center p-8 max-sm:p-4">
       <NewDelegationForm users={users ?? []} />
     </div>
   )

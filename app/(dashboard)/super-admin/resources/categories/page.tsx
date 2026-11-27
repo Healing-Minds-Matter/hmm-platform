@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { ScrollTable } from '@/components/scroll-table'
 import { createClient } from '@/lib/supabase/server'
 import { CategoryCreateForm, CategoryRow } from './category-controls'
 
@@ -17,7 +18,7 @@ export default async function ResourceCategoriesPage() {
   const list = categories ?? []
 
   return (
-    <div className="flex flex-col gap-6 p-8 font-[family-name:var(--font-inter)]">
+    <div className="flex flex-col gap-6 p-8 max-sm:p-4 font-[family-name:var(--font-inter)]">
       <div className="flex flex-col gap-1">
         <Link href="/super-admin/resources" className="text-[13px] font-semibold text-[#003495] hover:underline">← Learning Resources</Link>
         <h1 className="text-[24px] font-bold tracking-[-0.7px] text-[#0F172A]">Resource Categories</h1>
@@ -30,6 +31,7 @@ export default async function ResourceCategoriesPage() {
       {canManage === true && <CategoryCreateForm />}
 
       <div className="overflow-hidden rounded-xl bg-white shadow-[0px_1px_1px_rgba(0,0,0,0.05)]">
+        <ScrollTable label="Categories" minWidth={640}>
         <table className="w-full text-left">
           <caption className="sr-only">Resource categories</caption>
           <thead>
@@ -49,6 +51,7 @@ export default async function ResourceCategoriesPage() {
             ))}
           </tbody>
         </table>
+        </ScrollTable>
       </div>
     </div>
   )

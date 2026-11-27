@@ -22,7 +22,7 @@ export default async function NewExceptionPage() {
   ])
 
   return (
-    <div className="flex justify-center p-8">
+    <div className="flex justify-center p-8 max-sm:p-4">
       <NewExceptionForm users={users ?? []} permissions={permissions ?? []} />
     </div>
   )

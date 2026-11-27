@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { ScrollTable } from '@/components/scroll-table'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { loadCertSummary } from '@/lib/cert-summary.server'
@@ -162,7 +163,7 @@ export default async function ClubDetailPage({
   }
 
   return (
-    <div className="flex flex-col gap-6 p-6 font-[family-name:var(--font-inter)]">
+    <div className="flex flex-col gap-6 p-6 max-sm:p-4 font-[family-name:var(--font-inter)]">
 
       {/* Breadcrumb */}
       <nav className="flex items-center gap-2 text-xs">
@@ -173,7 +174,7 @@ export default async function ClubDetailPage({
       </nav>
 
       {/* Header identity */}
-      <div className="flex items-center justify-between gap-6 rounded-2xl bg-white p-6">
+      <div className="flex items-center justify-between gap-6 rounded-2xl bg-white p-6 max-lg:flex-wrap max-sm:p-4">
         <div className="flex min-w-0 flex-col gap-2">
           <div className="flex flex-wrap items-center gap-2.5">
             <h1 className="text-[30px] font-bold tracking-[-0.75px] text-[#0F172A]">{club.name}</h1>
@@ -383,7 +384,7 @@ export default async function ClubDetailPage({
               {gkQ ? 'No gatekeepers match your search.' : 'No gatekeepers assigned to this club.'}
             </p>
           ) : (
-            <div className="overflow-x-auto">
+            <ScrollTable label="Gatekeepers" minWidth={640} className="overflow-x-auto">
               <table className="min-w-full divide-y divide-[#F1F5F9]">
                 <thead>
                   <tr className="bg-[#F9F9F9] text-left text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">
@@ -412,7 +413,7 @@ export default async function ClubDetailPage({
                   ))}
                 </tbody>
               </table>
-            </div>
+            </ScrollTable>
           )
         ) : (
           evPage.length === 0 ? (
@@ -420,7 +421,7 @@ export default async function ClubDetailPage({
               {evQ || evType ? 'No events match your search.' : 'No events scheduled for this club.'}
             </p>
           ) : (
-            <div className="overflow-x-auto">
+            <ScrollTable label="Events" minWidth={640} className="overflow-x-auto">
               <table className="min-w-full divide-y divide-[#F1F5F9]">
                 <thead>
                   <tr className="bg-[#F9F9F9] text-left text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">
@@ -462,7 +463,7 @@ export default async function ClubDetailPage({
                   })}
                 </tbody>
               </table>
-            </div>
+            </ScrollTable>
           )
         )}
 

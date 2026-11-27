@@ -21,7 +21,7 @@ export default async function EditGatekeeperPage({ params }: { params: Promise<{
   if (!gatekeeper) notFound()
 
   return (
-    <div className="flex justify-center p-8">
+    <div className="flex justify-center p-8 max-sm:p-4">
       <GatekeeperEditForm gatekeeper={gatekeeper} clubs={clubs ?? []} />
     </div>
   )

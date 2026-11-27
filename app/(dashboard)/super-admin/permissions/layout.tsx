@@ -15,7 +15,7 @@ export default function PermissionsLayout({
   modal: React.ReactNode
 }) {
   return (
-    <div className="flex flex-col gap-6 p-8 font-[family-name:var(--font-inter)]">
+    <div className="flex flex-col gap-6 p-8 max-sm:p-4 font-[family-name:var(--font-inter)]">
       <div>
         <h1 className="text-[24px] font-bold tracking-[-0.6px] leading-[32px] text-[#0F172A]">
           Permissions & Access Controls

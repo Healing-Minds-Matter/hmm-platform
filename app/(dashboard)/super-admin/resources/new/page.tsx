@@ -5,7 +5,7 @@ export const metadata = { title: 'Create Resource — HMM Super Admin' }
 
 export default async function NewResourcePage() {
   return (
-    <div className="flex justify-center p-8">
+    <div className="flex justify-center p-8 max-sm:p-4">
       <CreateResourceForm categories={await loadResourceCategories()} />
     </div>
   )

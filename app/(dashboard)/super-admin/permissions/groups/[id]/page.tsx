@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { ScrollTable } from '@/components/scroll-table'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { GroupPermissionControl } from './group-permission-control'
@@ -57,7 +58,7 @@ export default async function GroupDetailPage({
 
   return (
     <div className="flex flex-col gap-6 font-[family-name:var(--font-inter)]">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-start justify-between gap-4 max-lg:flex-wrap">
         <div>
           <Link href="/super-admin/permissions/groups" className="text-[13px] font-semibold text-[#1E4BB8] hover:underline">
             ← Back to Groups
@@ -84,6 +85,7 @@ export default async function GroupDetailPage({
           {memberRows.length === 0 ? (
             <p className="p-6 text-sm text-[#94A3B8]">No members yet.</p>
           ) : (
+            <ScrollTable label="Group members" minWidth={480}>
             <table className="w-full">
               <tbody className="divide-y divide-[#F1F5F9]">
                 {memberRows.map(m => (
@@ -97,6 +99,7 @@ export default async function GroupDetailPage({
                 ))}
               </tbody>
             </table>
+            </ScrollTable>
           )}
           {group.is_active && (
             <div className="border-t border-[#F1F5F9] p-4">
@@ -116,6 +119,7 @@ export default async function GroupDetailPage({
           {permissionKeys.length === 0 ? (
             <p className="p-6 text-sm text-[#94A3B8]">No permissions configured yet.</p>
           ) : (
+            <ScrollTable label="Group permissions" minWidth={420}>
             <table className="w-full">
               <tbody className="divide-y divide-[#F1F5F9]">
                 {permissionKeys.map(key => (
@@ -132,6 +136,7 @@ export default async function GroupDetailPage({
                 ))}
               </tbody>
             </table>
+            </ScrollTable>
           )}
         </div>
       </div>

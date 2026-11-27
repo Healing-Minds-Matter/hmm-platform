@@ -21,7 +21,7 @@ export default async function ReactivateGatekeeperPage({ params }: { params: Pro
   if (!gatekeeper) notFound()
   if (gatekeeper.is_active) {
     return (
-      <div className="p-8">
+      <div className="p-8 max-sm:p-4">
         <p className="text-sm text-gray-600">This gatekeeper is already active.</p>
       </div>
     )
@@ -31,7 +31,7 @@ export default async function ReactivateGatekeeperPage({ params }: { params: Pro
   const currentClub = gatekeeper.clubs as any
 
   return (
-    <div className="flex justify-center p-8">
+    <div className="flex justify-center p-8 max-sm:p-4">
       <ReactivateGatekeeperForm
         gatekeeper={{ id: gatekeeper.id, full_name: gatekeeper.full_name, email: gatekeeper.email, club_id: gatekeeper.club_id }}
         currentClub={currentClub}

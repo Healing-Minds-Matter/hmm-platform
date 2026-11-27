@@ -169,7 +169,7 @@ export function CreateResourceForm({ categories, onClose }: { categories: Resour
               <FieldError name="title" />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
               <div>
                 <label htmlFor="category_id" className="mb-1.5 block text-[13px] font-medium text-[#0F172A]">
                   Category <span className="text-[#DC2626]">*</span>

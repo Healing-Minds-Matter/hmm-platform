@@ -21,7 +21,7 @@ export default async function ChampionPermissionsPage({ params }: { params: Prom
   const { data: rows, error } = await supabase.rpc('list_effective_permissions', { p_user_id: id })
 
   return (
-    <div className="flex justify-center p-8">
+    <div className="flex justify-center p-8 max-sm:p-4">
       <ChampionPermissionsCard
         champion={champion}
         rows={(rows ?? []) as EffectiveRow[]}

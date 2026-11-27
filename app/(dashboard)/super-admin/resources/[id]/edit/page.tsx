@@ -22,7 +22,7 @@ export default async function EditResourcePage({
   if (!resource) notFound()
 
   return (
-    <div className="flex justify-center p-8">
+    <div className="flex justify-center p-8 max-sm:p-4">
       <EditResourceForm resource={resource} categories={await loadResourceCategories()} />
     </div>
   )

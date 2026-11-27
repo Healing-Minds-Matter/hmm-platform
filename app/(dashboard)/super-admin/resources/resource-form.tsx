@@ -149,7 +149,7 @@ export function EditResourceForm({ resource, categories, onClose }: { resource: 
             <FieldError name="description" />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
             <div>
               <label htmlFor="type" className={labelClass}>
                 Type <span className="text-[#DC2626]">*</span>

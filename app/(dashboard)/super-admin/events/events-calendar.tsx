@@ -127,9 +127,9 @@ export function EventsCalendar({ view, year, month, day, club, type, q, events, 
   const updatedLabel = formatOrgTime(generatedAt, { hour: '2-digit', minute: '2-digit' })
 
   return (
-    <div className="flex flex-col gap-6 p-8 font-[family-name:var(--font-inter)]">
+    <div className="flex flex-col gap-6 p-8 max-sm:p-4 font-[family-name:var(--font-inter)]">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-start justify-between gap-4 max-lg:flex-wrap">
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-3">
             <h1 className="text-[24px] font-bold tracking-[-0.7px] text-[#0F172A]">Events &amp; Calendar</h1>
@@ -156,8 +156,8 @@ export function EventsCalendar({ view, year, month, day, club, type, q, events, 
       {/* Calendar Workspace Card */}
       <div className="flex flex-col gap-3 rounded-xl bg-white p-4 shadow-[0px_1px_1px_rgba(0,0,0,0.05)]">
         <div className="flex flex-col gap-[27px]">
-          <div className="flex items-center justify-between gap-3 pb-1">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between gap-3 pb-1 max-lg:flex-wrap">
+            <div className="flex items-center gap-2 max-lg:flex-wrap">
               <div className="relative">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src="/icons/search-filter.svg" alt="" className="pointer-events-none absolute left-3 top-1/2 h-[12px] w-[12px] -translate-y-1/2" />
@@ -197,7 +197,7 @@ export function EventsCalendar({ view, year, month, day, club, type, q, events, 
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 max-lg:flex-wrap">
               {view !== 'agenda' && (
                 <div className="flex h-[34px] items-center gap-1 rounded-lg bg-[#F1F5F9] p-0.5">
                   <button onClick={goToday} className="rounded-[4px] bg-white px-2 py-0.5 text-[11px] font-semibold tracking-[0.44px] text-[#0F172A] shadow-sm">
@@ -238,7 +238,7 @@ export function EventsCalendar({ view, year, month, day, club, type, q, events, 
             </div>
           </div>
 
-          <div className="flex items-center gap-4 rounded-lg bg-[#F8FAFC] px-2.5 py-1">
+          <div className="flex items-center gap-4 rounded-lg bg-[#F8FAFC] px-2.5 py-1 max-sm:flex-wrap max-sm:gap-x-3 max-sm:gap-y-1">
             <span className="text-[11px] font-semibold uppercase tracking-[0.55px] text-[#64748B]">Legend:</span>
             {usedTypes.map(t => {
               const style = eventTypeStyle(t.value)
@@ -484,13 +484,13 @@ function MonthGrid({
   return (
     // No overflow-hidden here: the "+N more" day list must be able to extend
     // past the bottom row. The header and grid below keep their own rounding.
-    <div className="rounded-lg bg-white">
-      <div className="flex gap-1 rounded-t-lg bg-[#F8FAFC] p-1">
+    <div className="rounded-lg bg-white max-sm:overflow-x-auto">
+      <div className="flex gap-1 rounded-t-lg bg-[#F8FAFC] p-1 max-sm:min-w-[560px]">
         {WEEKDAY_LABELS.map(w => (
           <div key={w} className="flex-1 py-1 text-center text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">{w}</div>
         ))}
       </div>
-      <div className="grid grid-cols-7 gap-1 rounded-b-lg bg-[#F8FAFC] p-1">
+      <div className="grid grid-cols-7 gap-1 rounded-b-lg bg-[#F8FAFC] p-1 max-sm:min-w-[560px]">
         {days.map((dayDate, index) => {
           const key = dayKey(dayDate)
           const inMonth = dayDate >= firstOfMonth && dayDate <= lastOfMonth
@@ -560,8 +560,8 @@ function WeekGrid({
   }
 
   return (
-    <div className="overflow-hidden rounded-lg bg-white">
-      <div className="grid grid-cols-7 gap-1 rounded-t-lg bg-[#F8FAFC] p-1">
+    <div className="overflow-hidden rounded-lg bg-white max-sm:overflow-x-auto">
+      <div className="grid grid-cols-7 gap-1 rounded-t-lg bg-[#F8FAFC] p-1 max-sm:min-w-[560px]">
         {days.map(d => {
           const isToday = d.getUTCFullYear() === todayYmd.year && d.getUTCMonth() + 1 === todayYmd.month && d.getUTCDate() === todayYmd.day
           return (
@@ -574,7 +574,7 @@ function WeekGrid({
           )
         })}
       </div>
-      <div className="grid grid-cols-7 gap-1 rounded-b-lg bg-[#F8FAFC] p-1">
+      <div className="grid grid-cols-7 gap-1 rounded-b-lg bg-[#F8FAFC] p-1 max-sm:min-w-[560px]">
         {days.map(d => {
           const key = dayKey(d)
           const dayEvents = eventsByDay[key] ?? []

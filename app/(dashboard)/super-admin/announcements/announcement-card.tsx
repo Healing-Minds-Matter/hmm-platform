@@ -40,8 +40,8 @@ export function AnnouncementCard({
     : AUDIENCE_LABEL[a.audience]
 
   return (
-    <div className="flex flex-col gap-4 rounded-2xl bg-white p-6 shadow-[0px_1px_1px_rgba(0,0,0,0.05)]">
-      <div className="flex items-center justify-between gap-3">
+    <div className="flex flex-col gap-4 rounded-2xl bg-white p-6 shadow-[0px_1px_1px_rgba(0,0,0,0.05)] max-sm:p-4">
+      <div className="flex items-center justify-between gap-3 max-sm:flex-wrap">
         <div className="flex flex-wrap items-center gap-2">
           {a.is_pinned && (
             <span className="flex items-center gap-1 rounded-full bg-[#F4AC1E] px-2.5 py-1 text-[11px] font-semibold tracking-[0.44px] text-[#2A1700]">
@@ -76,7 +76,7 @@ export function AnnouncementCard({
       </div>
 
       {canManage && (
-        <div className="flex items-center justify-between pt-1">
+        <div className="flex items-center justify-between pt-1 max-sm:flex-wrap max-sm:gap-2">
           <div className="flex items-center gap-2">
             <Link
               href={`${basePath}/${a.id}/edit`}

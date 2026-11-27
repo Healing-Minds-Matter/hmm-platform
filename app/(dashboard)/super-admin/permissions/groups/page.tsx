@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { ScrollTable } from '@/components/scroll-table'
 import { createClient } from '@/lib/supabase/server'
 
 export default async function GroupsPage() {
@@ -11,7 +12,7 @@ export default async function GroupsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-4 rounded-xl bg-white p-4 shadow-[0px_1px_1px_rgba(0,0,0,0.05)]">
+      <div className="flex items-center justify-between gap-4 rounded-xl bg-white p-4 shadow-[0px_1px_1px_rgba(0,0,0,0.05)] max-lg:flex-wrap">
         <p className="text-[13px] leading-5 text-[#475569]">
           Grant the same permissions to multiple people at once — group settings override each
           member&apos;s Role default but are themselves overridden by any Individual Exception.
@@ -32,6 +33,7 @@ export default async function GroupsPage() {
         </div>
       ) : (
         <div className="overflow-hidden rounded-xl bg-white shadow-[0px_1px_1px_rgba(0,0,0,0.05)]">
+          <ScrollTable label="Groups" minWidth={720}>
           <table className="w-full">
             <thead>
               <tr className="border-b border-[#F1F5F9] bg-[#F8FAFC] text-left text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">
@@ -64,6 +66,7 @@ export default async function GroupsPage() {
               ))}
             </tbody>
           </table>
+          </ScrollTable>
         </div>
       )}
     </div>

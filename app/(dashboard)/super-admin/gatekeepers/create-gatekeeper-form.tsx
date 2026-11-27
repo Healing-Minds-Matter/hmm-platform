@@ -146,7 +146,7 @@ export function CreateGatekeeperForm({
               <h2 className="border-b border-[#E2E8F0] pb-2 text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">
                 Personal Details
               </h2>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
                 <div>
                   <label htmlFor="full_name" className="mb-1.5 block text-[13px] font-medium text-[#0F172A]">
                     Full Name <span className="text-[#DC2626]">*</span>
@@ -171,7 +171,7 @@ export function CreateGatekeeperForm({
                   <FieldError name="email" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
                 <div>
                   <label htmlFor="phone" className="mb-1.5 block text-[13px] font-medium text-[#0F172A]">
                     Phone Number <span className="text-[#DC2626]">*</span>
@@ -206,7 +206,7 @@ export function CreateGatekeeperForm({
                     <h2 className="text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">Club Assignment &amp; Mentorship</h2>
                     <span className="rounded bg-[#F1F5F9] px-2 py-0.5 text-[11px] font-medium text-[#475569]">1 Club per Gatekeeper</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
                     <div>
                       <label htmlFor="club_id" className="mb-1.5 block text-[13px] font-medium text-[#0F172A]">
                         Assigned Regional Club <span className="text-[#DC2626]">*</span>

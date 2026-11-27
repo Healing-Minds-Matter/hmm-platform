@@ -42,7 +42,7 @@ export default async function GatekeeperDetailPage({ params, searchParams }: { p
   const status = personCertStatus(gatekeeper.is_active, (await loadCertSummary(supabase)).byHolder.get(gatekeeper.id))
 
   return (
-    <div className="flex flex-col gap-6 p-6 font-[family-name:var(--font-inter)]">
+    <div className="flex flex-col gap-6 p-6 max-sm:p-4 font-[family-name:var(--font-inter)]">
       <nav className="flex items-center gap-2 text-xs">
         <Link href="/super-admin/gatekeepers" className="text-[#64748B] hover:text-[#022C51]">Gatekeepers</Link>
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -50,7 +50,7 @@ export default async function GatekeeperDetailPage({ params, searchParams }: { p
         <span className="font-medium text-[#022C51]">{gatekeeper.full_name}</span>
       </nav>
 
-      <div className="flex flex-wrap items-center justify-between gap-6 rounded-2xl bg-white p-6">
+      <div className="flex flex-wrap items-center justify-between gap-6 rounded-2xl bg-white p-6 max-sm:p-4">
         <div className="flex min-w-0 flex-1 items-center gap-4">
           <div className="flex h-20 w-20 flex-shrink-0 items-center justify-center rounded-full bg-[#012C51] text-2xl font-bold text-white">
             {getInitials(gatekeeper.full_name)}

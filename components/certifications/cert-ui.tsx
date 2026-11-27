@@ -5,7 +5,7 @@ import { typeStatusBadge, type CertificationTypeRow } from '@/lib/certification-
 
 export function PageHeader({ title, description, action }: { title: string; description: string; action?: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-4">
+    <div className="flex items-center justify-between gap-4 max-lg:flex-wrap">
       <div>
         <h1 className="text-[24px] font-bold tracking-[-0.7px] text-[#0F172A]">{title}</h1>
         <p className="mt-1 max-w-3xl text-sm text-[#475569]">{description}</p>

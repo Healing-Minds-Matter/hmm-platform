@@ -41,12 +41,12 @@ export default async function CertificationTypePage({ params, searchParams }: {
   const base = `/super-admin/certifications/${id}`
 
   return (
-    <div className="flex flex-col gap-4 p-8 font-[family-name:var(--font-inter)]">
+    <div className="flex flex-col gap-4 p-8 max-sm:p-4 font-[family-name:var(--font-inter)]">
       <div className="text-[13px] text-[#64748B]">
         <Link href="/super-admin/certifications" className="hover:text-[#022C51]">Certifications</Link> / {type.name}
       </div>
 
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-start justify-between gap-4 max-lg:flex-wrap">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-[24px] font-bold tracking-[-0.7px] text-[#0F172A]">{type.name}</h1>

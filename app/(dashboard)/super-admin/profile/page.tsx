@@ -84,7 +84,7 @@ export default async function ProfilePage() {
   const initials = getInitials(profile.full_name)
 
   return (
-    <div className="p-8 font-[family-name:var(--font-inter)]">
+    <div className="p-8 max-sm:p-4 font-[family-name:var(--font-inter)]">
 
         {/* Header */}
         <div className="mb-8">
@@ -97,7 +97,7 @@ export default async function ProfilePage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-4 max-lg:grid-cols-1">
           {/* Left column */}
           <div className="flex flex-col gap-4">
 

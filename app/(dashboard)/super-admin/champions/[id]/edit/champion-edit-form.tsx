@@ -106,7 +106,7 @@ export function ChampionEditForm({
               <FieldError name="full_name" />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
               <div>
                 <label htmlFor="email" className="mb-1.5 block text-[13px] font-medium text-[#0F172A]">
                   Contact Email <span className="text-[#DC2626]">*</span>
@@ -156,7 +156,7 @@ export function ChampionEditForm({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
               <div>
                 <label htmlFor="club_id" className="mb-1.5 block text-[13px] font-medium text-[#0F172A]">
                   Assigned Club <span className="text-[#DC2626]">*</span>
