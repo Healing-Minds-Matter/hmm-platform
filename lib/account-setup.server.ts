@@ -1,6 +1,7 @@
 import 'server-only'
 import crypto from 'crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { unguessablePassword } from '@/lib/unguessable-password.server'
 import { writeAuditLog } from '@/lib/audit'
 import { sendAccountSetupEmail, sendGatekeeperWelcomeEmail } from '@/lib/send-email'
 import { validatePassword } from '@/lib/password-validation'
@@ -108,7 +109,7 @@ export async function issueAccountSetupInvite(params: {
 
   // Retire any temporary password: a random one that is never stored or shown.
   const { error: pwError } = await admin.auth.admin.updateUserById(params.userId, {
-    password: crypto.randomBytes(48).toString('base64url'),
+    password: unguessablePassword(),
   })
   if (pwError) {
     await admin.from('account_setup_invites').update({ cancelled_at: new Date().toISOString() }).eq('id', invite.id)
