@@ -97,7 +97,7 @@ export default async function ChampionGatekeepersPage({
             Add, edit, and track your club&apos;s Gatekeepers and their certifications.
           </p>
         </div>
-        <div className="flex flex-shrink-0 items-center gap-2 max-sm:flex-wrap">
+        <div className="flex flex-shrink-0 items-center gap-2 max-sm:w-full max-sm:flex-wrap">
         {certTypes && certTypes.length > 0 && (
           <BulkAwardButton
             types={certTypes}

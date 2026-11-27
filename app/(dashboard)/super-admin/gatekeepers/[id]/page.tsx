@@ -51,7 +51,7 @@ export default async function GatekeeperDetailPage({ params, searchParams }: { p
       </nav>
 
       <div className="flex flex-wrap items-center justify-between gap-6 rounded-2xl bg-white p-6 max-sm:p-4">
-        <div className="flex min-w-0 flex-1 items-center gap-4">
+        <div className="flex min-w-0 flex-1 items-center gap-4 max-sm:basis-full">
           <div className="flex h-20 w-20 flex-shrink-0 items-center justify-center rounded-full bg-[#012C51] text-2xl font-bold text-white">
             {getInitials(gatekeeper.full_name)}
           </div>
@@ -94,7 +94,7 @@ export default async function GatekeeperDetailPage({ params, searchParams }: { p
             </div>
           </div>
         </div>
-        <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
+        <div className="flex flex-shrink-0 flex-wrap items-center gap-2 max-sm:w-full">
           {gatekeeper.is_active && (
             <Link
               href={`/super-admin/gatekeepers/${id}/edit`}
