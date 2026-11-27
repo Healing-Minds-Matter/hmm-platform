@@ -13,7 +13,7 @@ export default async function EditChampionAnnouncementPage({ params }: { params:
   const loaded = await loadOwnAnnouncement(id, ctx.userId)
   if (!loaded) notFound()
   return (
-    <div className="flex justify-center p-8">
+    <div className="flex justify-center p-8 max-sm:p-4">
       {ctx.canPublish
         ? <AnnouncementForm announcement={loaded.announcement} clubs={[]} ownClub={ctx.ownClub} backHref="/champion/announcements" />
         : <NoAnnouncementPermission />}

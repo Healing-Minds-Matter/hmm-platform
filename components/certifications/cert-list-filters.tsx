@@ -5,7 +5,7 @@
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { LIST_STATUSES } from '@/lib/cert-summary'
 
-const SELECT = 'rounded-lg border border-transparent bg-[#F9F9F9] py-2 pl-4 pr-8 text-[13px] text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#F4AC1E]/40'
+const SELECT = 'max-sm:min-w-0 max-sm:w-full rounded-lg border border-transparent bg-[#F9F9F9] py-2 pl-4 pr-8 text-[13px] text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#F4AC1E]/40'
 
 export function CertListFilters({ types }: { types: { id: string; name: string }[] }) {
   const router = useRouter()
@@ -21,7 +21,7 @@ export function CertListFilters({ types }: { types: { id: string; name: string }
   }
   const cert = params.get('cert') ?? ''
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-xl bg-white px-6 py-3 font-[family-name:var(--font-inter)]">
+    <div className="flex flex-wrap items-center gap-2 rounded-xl bg-white px-6 py-3 max-sm:px-4 font-[family-name:var(--font-inter)]">
       <span className="text-[12px] font-semibold text-[#475569]">Certifications</span>
       <select aria-label="Certification" value={cert} onChange={e => set('cert', e.target.value)} className={SELECT}>
         <option value="">All certifications</option>

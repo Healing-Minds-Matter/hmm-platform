@@ -98,7 +98,7 @@ export default async function GatekeepersPage({
             Monitor, search, and manage Gatekeepers and their certifications across all {activeClubCount} active regional clubs.
           </p>
         </div>
-        <div className="flex flex-shrink-0 items-center gap-2">
+        <div className="flex flex-shrink-0 items-center gap-2 max-sm:w-full max-sm:flex-wrap">
         {certTypes && certTypes.length > 0 && (
           <BulkAwardButton
             types={certTypes}

@@ -21,7 +21,7 @@ export default async function NewChampionEventPage() {
   const club = profile.clubs as any
 
   return (
-    <div className="flex justify-center p-8">
+    <div className="flex justify-center p-8 max-sm:p-4">
       <CreateEventForm clubs={[]} ownClub={{ id: club.id, name: club.name }} fallbackPath="/champion/events" />
     </div>
   )
