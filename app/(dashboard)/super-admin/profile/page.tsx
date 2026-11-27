@@ -6,6 +6,7 @@ import { syncProfileEmail } from '@/lib/email-sync.server'
 import { ProfileForm } from './profile-form'
 import { groupAccessList, type AccessRow } from '@/lib/access-list'
 import { RoleAccessList } from '@/components/role-access-list'
+import { formatOrgDate } from '@/lib/org-date'
 
 export const metadata = { title: 'My Profile — HMM Super Admin' }
 
@@ -281,7 +282,7 @@ export default async function ProfilePage() {
                   <p className="text-[13px] text-[#475569]">
                     Coverage &amp; Out of Office:{' '}
                     {activeDelegation
-                      ? <span className="font-bold text-[#0F172A]">{activeDelegation.delegate?.full_name} covering until {new Date(activeDelegation.ends_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                      ? <span className="font-bold text-[#0F172A]">{activeDelegation.delegate?.full_name} covering until {formatOrgDate(activeDelegation.ends_at, { month: 'short', day: 'numeric' }, 'en-US')}</span>
                       : <span className="font-bold text-[#0F172A]">No active delegation scheduled</span>}
                   </p>
                 </div>
