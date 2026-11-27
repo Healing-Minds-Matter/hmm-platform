@@ -623,16 +623,16 @@ function AgendaView({
                   {dateLabel}
                 </div>
               )}
-              <Link href={hrefWith({ event: ev.id })} scroll={false} className="flex items-center gap-3 px-6 py-3 hover:bg-slate-50">
+              <Link href={hrefWith({ event: ev.id })} scroll={false} className="flex items-center gap-3 px-6 py-3 hover:bg-slate-50 max-sm:flex-wrap max-sm:gap-y-1 max-sm:px-4">
                 <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ backgroundColor: style.dot }} />
                 <span className="w-16 flex-shrink-0 text-sm text-[#64748B]">
                   {formatOrgTime(startsAt, { hour: '2-digit', minute: '2-digit' })}
                 </span>
-                <span className="flex-1 truncate text-sm font-medium text-[#0F172A]">{ev.title}</span>
-                <span className={`inline-flex flex-shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${style.badge}`}>
+                <span className="min-w-0 flex-1 truncate text-sm font-medium text-[#0F172A] max-sm:basis-[calc(100%-6.25rem)]">{ev.title}</span>
+                <span className={`inline-flex flex-shrink-0 rounded-full px-2 py-0.5 text-xs font-medium max-sm:ml-[5.25rem] ${style.badge}`}>
                   {eventTypeLabel(ev.type, ev.type_description)}
                 </span>
-                <span className="flex-shrink-0 text-sm text-[#64748B]">{ev.club_name}</span>
+                <span className="flex-shrink-0 text-sm text-[#64748B] max-sm:min-w-0 max-sm:flex-shrink max-sm:truncate">{ev.club_name}</span>
               </Link>
             </li>
           )
