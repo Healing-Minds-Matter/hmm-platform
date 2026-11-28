@@ -196,6 +196,32 @@ The link works once and expires in ${params.expiresInHours} hours. If it has exp
   return sendEmail({ to: params.to, subject: 'Set your Healing Minds Matter password', html, text })
 }
 
+// Fix B: an account that had signed in with a temporary password has had it
+// replaced by a random one nobody knows. A Supabase reset link sent from a
+// script can't work (its PKCE check is tied to whoever asked for it), so this
+// tells the person to use Forgot password themselves. No link, no password.
+export async function sendTemporaryPasswordResetNotice(params: {
+  to: string
+  fullName: string
+  role: string
+}): Promise<SendResult> {
+  const where = params.role === 'gatekeeper'
+    ? 'Open the Healing Minds Matter Gatekeeper app, tap “Forgot password?” on the sign-in screen'
+    : 'Go to the Healing Minds Matter sign-in page, click “Forgot password?”'
+  const html = `<p>Hi ${escapeHtml(params.fullName)},</p>
+<p>For your security, we have reset the password of your Healing Minds Matter account (${escapeHtml(params.to)}). Your old password no longer works, and you have been signed out everywhere.</p>
+<p>To choose a new password: ${where} and enter this email address. We'll email you a link to set your new password.</p>
+<p>If you have any questions, contact your Club Champion or administrator.</p>`
+  const text = `Hi ${params.fullName},
+
+For your security, we have reset the password of your Healing Minds Matter account (${params.to}). Your old password no longer works, and you have been signed out everywhere.
+
+To choose a new password: ${where} and enter this email address. We'll email you a link to set your new password.
+
+If you have any questions, contact your Club Champion or administrator.`
+  return sendEmail({ to: params.to, subject: 'Your Healing Minds Matter password has been reset', html, text })
+}
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')
