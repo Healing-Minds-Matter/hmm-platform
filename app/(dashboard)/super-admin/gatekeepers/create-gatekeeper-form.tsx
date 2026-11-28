@@ -129,7 +129,7 @@ export function CreateGatekeeperForm({
             )}
           </div>
           <div className="flex items-center justify-end gap-2.5 border-t border-[#E2E8F0] px-6 py-4">
-            <button type="button" onClick={close} className="flex h-10 items-center rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] hover:bg-[#E09B0F]">
+            <button type="button" onClick={close} className="flex h-10 items-center rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-on-amber shadow-[0_1px_1px_rgba(0,0,0,0.05)] hover:bg-[#E09B0F]">
               Done
             </button>
           </div>
@@ -146,7 +146,7 @@ export function CreateGatekeeperForm({
               <h2 className="border-b border-[#E2E8F0] pb-2 text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">
                 Personal Details
               </h2>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
                 <div>
                   <label htmlFor="full_name" className="mb-1.5 block text-[13px] font-medium text-[#0F172A]">
                     Full Name <span className="text-[#DC2626]">*</span>
@@ -171,7 +171,7 @@ export function CreateGatekeeperForm({
                   <FieldError name="email" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
                 <div>
                   <label htmlFor="phone" className="mb-1.5 block text-[13px] font-medium text-[#0F172A]">
                     Phone Number <span className="text-[#DC2626]">*</span>
@@ -206,7 +206,7 @@ export function CreateGatekeeperForm({
                     <h2 className="text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">Club Assignment &amp; Mentorship</h2>
                     <span className="rounded bg-[#F1F5F9] px-2 py-0.5 text-[11px] font-medium text-[#475569]">1 Club per Gatekeeper</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
                     <div>
                       <label htmlFor="club_id" className="mb-1.5 block text-[13px] font-medium text-[#0F172A]">
                         Assigned Regional Club <span className="text-[#DC2626]">*</span>
@@ -348,7 +348,7 @@ export function CreateGatekeeperForm({
             </button>
             <button
               type="submit" disabled={singlePending || (scope.mode === 'select' && scope.clubs.length === 0)}
-              className="flex h-10 items-center gap-1.5 rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
+              className="flex h-10 items-center gap-1.5 rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-on-amber shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
             >
               {!singlePending && <img src="/icons/plus.svg" alt="" width={10.5} height={10.5} />}
               {singlePending ? 'Registering…' : 'Register Gatekeeper'}
@@ -373,7 +373,7 @@ function BulkGatekeeperUpload({ scope, onClose }: { scope: ClubScope; onClose: (
     full_name: 'Maya Lin',
     email: 'maya.lin@example.com',
     phone: '077 123 4567',
-    club_id: scope.mode === 'select' ? scope.clubs[0]?.id ?? '' : '',
+    club_id: scope.mode === 'select' ? scope.clubs[0]?.club_code || scope.clubs[0]?.id || '' : '',
   }
 
   return (
@@ -395,13 +395,13 @@ function BulkGatekeeperUpload({ scope, onClose }: { scope: ClubScope; onClose: (
           <p className="text-[12px] leading-[18px] text-[#475569]">
             Header row required, exactly: <code className={code}>{columns.join(',')}</code>
             <br />
-            <code className={code}>club_id</code> must be a real club&apos;s internal ID. Every row needs its own <code className={code}>phone</code> number. Add certifications afterwards, from each person&apos;s Certifications section.
+            <code className={code}>club_id</code> can be the club&apos;s code (e.g. PAN-CA) or its ID. Every row needs its own <code className={code}>phone</code> number. Add certifications afterwards, from each person&apos;s Certifications section.
           </p>
           <details className="text-[12px] text-[#475569]">
-            <summary className="cursor-pointer font-semibold text-[#003495]">Active club IDs</summary>
+            <summary className="cursor-pointer font-semibold text-[#003495]">Active club codes and IDs</summary>
             <ul className="mt-1.5 flex flex-col gap-0.5">
               {scope.clubs.map(c => (
-                <li key={c.id} className="font-mono text-[11px]">{c.id} — {c.name}</li>
+                <li key={c.id} className="font-mono text-[11px]">{c.club_code ? `${c.club_code} · ` : ''}{c.id} — {c.name}</li>
               ))}
             </ul>
           </details>

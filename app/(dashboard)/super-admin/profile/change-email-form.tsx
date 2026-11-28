@@ -37,7 +37,7 @@ export function ChangeEmailForm({
 
   const closeControl = (label: string, primary = false) => {
     const className = primary
-      ? 'flex h-10 items-center rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-white transition-colors hover:bg-[#E09B0F]'
+      ? 'flex h-10 items-center rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-on-amber transition-colors hover:bg-[#E09B0F]'
       : 'flex h-10 items-center rounded-lg bg-[#F1F5F9] px-4 text-[13px] font-medium text-[#0F172A] transition-colors hover:bg-[#E2E8F0]'
     return onClose ? (
       <button type="button" onClick={onClose} className={className}>{label}</button>
@@ -126,7 +126,7 @@ export function ChangeEmailForm({
                   required
                   autoComplete="email"
                   placeholder="you@healingmindsmatter.org"
-                  className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-[13px] text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
+                  className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-[16px] text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                 />
                 <FieldError name="newEmail" />
               </div>
@@ -142,7 +142,7 @@ export function ChangeEmailForm({
                     type={showPassword ? 'text' : 'password'}
                     required
                     autoComplete="current-password"
-                    className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] pl-3 pr-10 text-[13px] text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
+                    className="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] pl-3 pr-10 text-[16px] text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
                   />
                   <button
                     type="button"
@@ -170,7 +170,7 @@ export function ChangeEmailForm({
             <button
               type="submit"
               disabled={isPending}
-              className="flex h-10 items-center rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
+              className="flex h-10 items-center rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-on-amber shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
             >
               {isPending ? 'Sending…' : 'Send Confirmation Links'}
             </button>

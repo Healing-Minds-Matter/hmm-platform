@@ -25,7 +25,7 @@ export default async function ReactivateChampionPage({ params }: { params: Promi
   if (!champion) notFound()
   if (champion.is_active) {
     return (
-      <div className="p-8">
+      <div className="p-8 max-sm:p-4">
         <p className="text-sm text-gray-600">This champion is already active.</p>
       </div>
     )
@@ -35,7 +35,7 @@ export default async function ReactivateChampionPage({ params }: { params: Promi
   const currentClub = champion.clubs as any
 
   return (
-    <div className="flex justify-center p-8">
+    <div className="flex justify-center p-8 max-sm:p-4">
       <ReactivateChampionForm
         champion={{ id: champion.id, full_name: champion.full_name, email: champion.email, club_id: champion.club_id }}
         currentClub={currentClub}

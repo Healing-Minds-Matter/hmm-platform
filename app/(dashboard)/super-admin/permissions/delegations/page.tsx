@@ -1,5 +1,7 @@
 import Link from 'next/link'
+import { ScrollTable } from '@/components/scroll-table'
 import { createClient } from '@/lib/supabase/server'
+import { formatOrgDate } from '@/lib/org-date'
 import { DelegationEndButton } from './delegation-end-button'
 
 function statusOf(startsAt: string, endsAt: string, endedEarlyAt: string | null, endedReason: string | null, delegatorActive: boolean) {
@@ -35,14 +37,14 @@ export default async function DelegationsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-4 rounded-xl bg-white p-4 shadow-[0px_1px_1px_rgba(0,0,0,0.05)]">
+      <div className="flex items-center justify-between gap-4 rounded-xl bg-white p-4 shadow-[0px_1px_1px_rgba(0,0,0,0.05)] max-lg:flex-wrap">
         <p className="text-[13px] leading-5 text-[#475569]">
           A delegate temporarily gains their delegator&apos;s full effective permission set, in
           addition to their own, for the scheduled window.
         </p>
         <Link
           href="/super-admin/permissions/delegations/new"
-          className="flex flex-shrink-0 items-center gap-2 rounded-lg bg-[#F4AC1E] px-5 py-2.5 text-[12px] font-semibold tracking-[0.24px] text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F]"
+          className="flex flex-shrink-0 items-center gap-2 rounded-lg bg-[#F4AC1E] px-5 py-2.5 text-[12px] font-semibold tracking-[0.24px] text-on-amber shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F]"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/icons/plus-small.svg" alt="" width={10.5} height={10.5} />
@@ -56,6 +58,7 @@ export default async function DelegationsPage() {
         </div>
       ) : (
         <div className="overflow-hidden rounded-xl bg-white shadow-[0px_1px_1px_rgba(0,0,0,0.05)]">
+          <ScrollTable label="Delegations" minWidth={880}>
           <table className="w-full">
             <thead>
               <tr className="border-b border-[#F1F5F9] bg-[#F8FAFC] text-left text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">
@@ -76,10 +79,10 @@ export default async function DelegationsPage() {
                     <td className="px-6 py-4 text-[13px] font-semibold text-[#0F172A]">{d.delegator?.full_name ?? '—'}</td>
                     <td className="px-6 py-4 text-[13px] text-[#475569]">{d.delegate?.full_name ?? '—'}</td>
                     <td className="px-6 py-4 text-[13px] text-[#475569]">
-                      {new Date(d.starts_at).toLocaleDateString('en-AU', { dateStyle: 'medium' })}
+                      {formatOrgDate(d.starts_at, { dateStyle: 'medium' })}
                     </td>
                     <td className="px-6 py-4 text-[13px] text-[#475569]">
-                      {new Date(d.ends_at).toLocaleDateString('en-AU', { dateStyle: 'medium' })}
+                      {formatOrgDate(d.ends_at, { dateStyle: 'medium' })}
                     </td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold tracking-[0.44px] ${status.cls}`}>
@@ -94,6 +97,7 @@ export default async function DelegationsPage() {
               })}
             </tbody>
           </table>
+          </ScrollTable>
         </div>
       )}
     </div>

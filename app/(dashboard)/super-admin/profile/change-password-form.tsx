@@ -58,7 +58,9 @@ function PasswordInput({
         autoComplete={autoCompleteOverride ?? (name === 'currentPassword' ? 'current-password' : 'new-password')}
         value={value}
         onChange={onChange ? e => onChange(e.target.value) : undefined}
-        className={`h-10 w-full rounded-lg border bg-[#F8FAFC] pl-9 pr-10 text-[13px] text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8] ${ringClass ?? 'border-[#E2E8F0]'}`}
+        // 16px, not 13px: iOS Safari zooms the whole page when a focused
+        // input's text is under 16px (same fix as the Login password box).
+        className={`h-10 w-full rounded-lg border bg-[#F8FAFC] pl-9 pr-10 text-[16px] text-[#0F172A] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8] ${ringClass ?? 'border-[#E2E8F0]'}`}
       />
       <button
         type="button"
@@ -246,7 +248,7 @@ export function ChangePasswordForm({
 
             <div className="rounded-xl border border-[rgba(226,232,240,0.8)] bg-[rgba(239,244,255,0.6)] p-[15px]">
               <h3 className="mb-2 text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">Password Requirements</h3>
-              <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 max-sm:grid-cols-1">
                 {RULES.map(r => (
                   <div key={r.key} className="flex items-center gap-1.5">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -321,7 +323,7 @@ export function ChangePasswordForm({
           <button
             type="submit"
             disabled={isPending}
-            className="flex h-10 items-center gap-1.5 rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
+            className="flex h-10 items-center gap-1.5 rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-on-amber shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/icons/pw-update-btn-lock.svg" alt="" className="h-[15.75px] w-3" />

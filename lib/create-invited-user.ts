@@ -1,5 +1,5 @@
 import 'server-only'
-import crypto from 'crypto'
+import { unguessablePassword } from '@/lib/unguessable-password.server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { describeInviteError } from '@/lib/invite-errors'
 
@@ -18,10 +18,8 @@ export async function createAuthAccount(params: {
 }): Promise<{ userId: string } | { error: string }> {
   const { data: created, error } = await createAdminClient().auth.admin.createUser({
     email: params.email,
-    // Review Finding 8: Supabase now requires upper, lower, digit and symbol;
-    // a random base64url string can miss one, so a fixed tail guarantees all
-    // four. Still 64 random characters nobody is told.
-    password: `${crypto.randomBytes(48).toString('base64url')}aA1!`,
+    // Always has upper, lower, digit and symbol (Review Finding 8).
+    password: unguessablePassword(),
     email_confirm: true,
     user_metadata: { full_name: params.fullName },
   })

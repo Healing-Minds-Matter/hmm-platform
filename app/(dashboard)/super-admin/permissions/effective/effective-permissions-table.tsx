@@ -1,3 +1,5 @@
+import { ScrollTable } from '@/components/scroll-table'
+
 export type PermissionSource = 'individual' | 'group' | 'role' | 'delegated'
 
 export interface EffectiveRow {
@@ -51,6 +53,7 @@ export function EffectivePermissionsTable({ rows, roleName }: { rows: EffectiveR
           No permissions apply to this user yet.
         </div>
       ) : (
+        <ScrollTable label="Effective permissions" minWidth={640}>
         <table className="w-full">
           <thead>
             <tr className="border-b border-[#F1F5F9] bg-[#F8FAFC] text-left text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">
@@ -81,6 +84,7 @@ export function EffectivePermissionsTable({ rows, roleName }: { rows: EffectiveR
             ))}
           </tbody>
         </table>
+        </ScrollTable>
       )}
     </div>
   )

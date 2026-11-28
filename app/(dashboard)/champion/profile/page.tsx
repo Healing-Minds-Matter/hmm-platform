@@ -60,7 +60,7 @@ export default async function ChampionProfilePage() {
   const initials = getInitials(profile.full_name)
 
   return (
-    <div className="p-8 font-[family-name:var(--font-inter)]">
+    <div className="p-8 max-sm:p-4 font-[family-name:var(--font-inter)]">
       <div className="mb-8">
         <h1 className="text-[24px] font-bold tracking-[-0.7px] text-[#0F172A]">
           My Profile &amp; Account Settings
@@ -70,11 +70,11 @@ export default async function ChampionProfilePage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-4 max-lg:grid-cols-1">
         {/* Left column */}
         <div className="flex flex-col gap-4">
           {/* Card 1: Identity summary */}
-          <div className="flex flex-col gap-4 rounded-2xl bg-white p-[25px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] ring-1 ring-[#E5E7EB]">
+          <div className="flex flex-col gap-4 rounded-2xl bg-white p-[25px] max-sm:p-4 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] ring-1 ring-[#E5E7EB]">
             <div className="flex items-center gap-4">
               <div className="relative flex-shrink-0">
                 <div
@@ -90,7 +90,7 @@ export default async function ChampionProfilePage() {
                 </span>
               </div>
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 max-sm:flex-wrap">
                   <h2 className="text-[22px] font-bold tracking-[-0.55px] text-[#0F172A] font-[family-name:var(--font-jakarta)]">
                     {profile.full_name}
                   </h2>
@@ -112,7 +112,7 @@ export default async function ChampionProfilePage() {
                 </div>
               </div>
             </div>
-            <div className="flex items-center justify-between border-t border-[#E5E7EB] pt-[13px]">
+            <div className="flex items-center justify-between border-t border-[#E5E7EB] pt-[13px] max-sm:flex-wrap max-sm:gap-2">
               <span className="flex items-center gap-2 text-[13px] text-[#475569]">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src="/icons/c1-building.svg" alt="" className="h-[13.5px] w-[15px]" />
@@ -127,8 +127,8 @@ export default async function ChampionProfilePage() {
           </div>
 
           {/* Card 2: Personal & Account Details */}
-          <div className="rounded-2xl bg-white p-[25px] shadow-[0px_1px_1px_rgba(0,0,0,0.05)] ring-1 ring-[#E5E7EB]">
-            <div className="mb-4 flex items-center justify-between">
+          <div className="rounded-2xl bg-white p-[25px] max-sm:p-4 shadow-[0px_1px_1px_rgba(0,0,0,0.05)] ring-1 ring-[#E5E7EB]">
+            <div className="mb-4 flex items-center justify-between max-sm:flex-wrap max-sm:gap-2">
               <div className="flex items-center gap-2.5">
                 <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#EFF4FF]">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -154,7 +154,7 @@ export default async function ChampionProfilePage() {
         {/* Right column */}
         <div className="flex flex-col gap-4">
           {/* Card 3: Security & Sign-in */}
-          <div className="rounded-2xl bg-white p-[25px] shadow-[0px_1px_1px_rgba(0,0,0,0.05)] ring-1 ring-[#E5E7EB]">
+          <div className="rounded-2xl bg-white p-[25px] max-sm:p-4 shadow-[0px_1px_1px_rgba(0,0,0,0.05)] ring-1 ring-[#E5E7EB]">
             <div className="mb-4 flex items-center gap-2.5">
               <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#EFF4FF]">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -166,7 +166,7 @@ export default async function ChampionProfilePage() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between rounded-xl bg-[#F8FAFC] p-[13px] ring-1 ring-[#E5E7EB]">
+            <div className="flex items-center justify-between rounded-xl bg-[#F8FAFC] p-[13px] ring-1 ring-[#E5E7EB] max-sm:flex-wrap max-sm:gap-3">
               <div className="flex items-center gap-3">
                 <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -193,8 +193,8 @@ export default async function ChampionProfilePage() {
           </div>
 
           {/* Card 4: Role & Access */}
-          <div className="rounded-2xl bg-white p-[25px] shadow-[0px_1px_1px_rgba(0,0,0,0.05)] ring-1 ring-[#E5E7EB]">
-            <div className="mb-3 flex items-center justify-between">
+          <div className="rounded-2xl bg-white p-[25px] max-sm:p-4 shadow-[0px_1px_1px_rgba(0,0,0,0.05)] ring-1 ring-[#E5E7EB]">
+            <div className="mb-3 flex items-center justify-between max-sm:flex-wrap max-sm:gap-2">
               <div className="flex items-center gap-2.5">
                 <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#EFF4FF]">
                   {/* eslint-disable-next-line @next/next/no-img-element */}

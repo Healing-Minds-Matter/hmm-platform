@@ -198,7 +198,7 @@ function BulkCsvUploadSteps({ action, noun, formatHelp, template, checkHeader, o
             <button type="button" onClick={onRestart} className="flex h-10 items-center rounded-lg bg-[#F1F5F9] px-4 text-[13px] font-medium text-[#0F172A] transition-colors hover:bg-[#E2E8F0]">
               Upload another file
             </button>
-            <button type="button" onClick={onClose} className="flex h-10 items-center rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] hover:bg-[#E09B0F]">
+            <button type="button" onClick={onClose} className="flex h-10 items-center rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-on-amber shadow-[0_1px_1px_rgba(0,0,0,0.05)] hover:bg-[#E09B0F]">
               Close
             </button>
           </>
@@ -210,14 +210,14 @@ function BulkCsvUploadSteps({ action, noun, formatHelp, template, checkHeader, o
             {step === 'choose' ? (
               <button
                 type="submit" name="intent" value="check" disabled={isPending || !file || !!headerError}
-                className="flex h-10 items-center rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
+                className="flex h-10 items-center rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-on-amber shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
               >
                 {isPending ? `Checking… ${progress?.done ?? 0} of ${rows(progress?.total ?? 0)}` : 'Check file'}
               </button>
             ) : counts.ready > 0 && !state?.stopped ? (
               <button
                 type="submit" name="intent" value="save" disabled={isPending}
-                className="flex h-10 items-center rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
+                className="flex h-10 items-center rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-on-amber shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
               >
                 {isPending && pendingIntent === 'save' ? `Registering… ${progress?.done ?? 0} of ${rows(progress?.total ?? 0)}` : `Register ${plural(counts.ready, noun)}`}
               </button>

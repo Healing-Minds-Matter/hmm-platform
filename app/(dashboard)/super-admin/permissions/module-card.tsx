@@ -115,7 +115,7 @@ export function ModuleCard({
                 <span className="inline-block h-5 w-5 translate-x-0.5 rounded-full bg-white" />
               </span>
             ) : (
-              <RoleDefaultToggle key={role} role={role} permission={item.key} initialEnabled={item.isEnabled} />
+              <RoleDefaultToggle key={role} role={role} permission={item.key} label={item.label} initialEnabled={item.isEnabled} />
             )}
           </div>
         ))}

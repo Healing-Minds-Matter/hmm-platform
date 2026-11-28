@@ -12,7 +12,7 @@ export default async function ChampionReviewsPage({ searchParams }: { searchPara
   const supabase = await createClient()
   const waiting = await waitingReviewCount(supabase)
   return (
-    <div className="flex flex-col gap-4 p-8 font-[family-name:var(--font-inter)]">
+    <div className="flex flex-col gap-4 p-8 max-sm:p-4 font-[family-name:var(--font-inter)]">
       <PageHeader title="Certifications" description="Review certifications your Gatekeepers have added themselves. Verified ones still don’t count as official certificates." />
       <CertTabs current="reviews" base="/champion/certifications" showAudit={false} reviews={waiting ?? 0} />
       <ReviewQueue portal="champion" filter={reviewFilterFrom(show)} />

@@ -88,7 +88,7 @@ export function LoginForm({ portal }: { portal: 'super_admin' | 'champion' }) {
                 id="email"
                 name="email"
                 type="email"
-                autoComplete="email"
+                autoComplete="username"
                 required
                 placeholder="you@healingmindsmatter.org"
                 className="h-12 w-full rounded-lg border border-[#D4D7E3] bg-[#FCFDFF] px-4 text-[16px] tracking-[0.16px] text-[#0C1421] outline-none transition placeholder:text-[#8897AD] focus:border-[#F4AC1E] focus:ring-2 focus:ring-[#F4AC1E]/20"
@@ -162,9 +162,9 @@ export function LoginForm({ portal }: { portal: 'super_admin' | 'champion' }) {
                   alt=""
                   className="absolute inset-0 size-full peer-checked:opacity-0"
                 />
-                <span className="absolute inset-0 hidden items-center justify-center rounded-[3px] bg-[#F4AC1E] peer-checked:flex">
+                <span className="absolute inset-0 hidden items-center justify-center rounded-[3px] bg-[#F4AC1E] text-on-amber peer-checked:flex">
                   <svg viewBox="0 0 12 10" className="h-[7px] w-[9px]" fill="none" aria-hidden="true">
-                    <path d="M1 5L4.5 8.5L11 1" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M1 5L4.5 8.5L11 1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 </span>
               </span>
@@ -182,7 +182,7 @@ export function LoginForm({ portal }: { portal: 'super_admin' | 'champion' }) {
         <button
           type="submit"
           disabled={isPending}
-          className="w-full rounded-lg bg-[#F4AC1E] py-4 text-[18px] font-semibold tracking-[0.18px] text-white transition hover:bg-[#e0991a] disabled:opacity-60"
+          className="w-full rounded-lg bg-[#F4AC1E] py-4 text-[18px] font-semibold tracking-[0.18px] text-on-amber transition hover:bg-[#e0991a] disabled:opacity-60"
         >
           {isPending ? 'Signing in…' : 'Sign in'}
         </button>

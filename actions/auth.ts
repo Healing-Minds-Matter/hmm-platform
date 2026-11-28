@@ -19,6 +19,7 @@ import {
 import { validatePassword } from '@/lib/password-validation'
 import { isPasswordReused, recordPasswordHash } from '@/lib/password-history.server'
 import { writeAuditLog } from '@/lib/audit'
+import { PWNED_PASSWORD_MESSAGE, isPwnedPassword } from '@/lib/pwned-password.server'
 import { invalid, type FieldErrors } from '@/lib/form-errors'
 import { fetchAccountStatus, isAllowedIn } from '@/lib/auth/account-status'
 import { z } from 'zod'
@@ -28,6 +29,7 @@ import {
   allowResetRequest,
   checkLoginAllowed,
   clearLoginFailures,
+  isAuthOutage,
   normaliseEmail,
   recordLoginFailure,
   tooManyAttemptsMessage,
@@ -44,12 +46,6 @@ const LOGIN_INPUT = z.object({
   portal: z.enum(['super_admin', 'champion']),
 })
 const RESET_REQUEST_INPUT = EMAIL
-
-/** Too many requests (429), a server error (5xx) or no answer at all (status 0 / none). */
-function isAuthOutage(error: { status?: number }): boolean {
-  const status = error.status ?? 0
-  return status === 0 || status === 429 || status >= 500
-}
 
 // ---------------------------------------------------------------------------
 // Login — Story 1.1
@@ -271,6 +267,8 @@ export async function resetPasswordAction(
   if (reused) {
     return invalid('password', 'You cannot reuse one of your last 5 passwords. Please choose a different one.')
   }
+  // Fix 3: refuse a password known from data breaches.
+  if (await isPwnedPassword(password)) return invalid('password', PWNED_PASSWORD_MESSAGE)
 
   const { error: updateError } = await supabase.auth.updateUser({ password })
   if (updateError) {
@@ -282,6 +280,9 @@ export async function resetPasswordAction(
 
   // Scenario 08: record new hash, log the event; Supabase invalidates the reset link automatically
   await recordPasswordHash(user.id, password)
+  // HMM-195: a reset ends any sign-in lockout on this account (only the
+  // account counter; the network counter is kept).
+  if (user.email) await clearLoginFailures(user.email)
   await writeAuditLog({
     actorId: user.id,
     action: 'auth.password_reset',
@@ -376,6 +377,8 @@ export async function changePasswordAction(
   if (reusedNew) {
     return invalid('newPassword', 'You cannot reuse one of your last 5 passwords. Please choose a different one.')
   }
+  // Fix 3: refuse a password known from data breaches.
+  if (await isPwnedPassword(newPassword)) return invalid('newPassword', PWNED_PASSWORD_MESSAGE)
 
   const { error: updateError } = await supabase.auth.updateUser({ password: newPassword })
   if (updateError) return { error: 'Failed to update password. Please try again.' }

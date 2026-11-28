@@ -14,7 +14,7 @@ export default async function EditAnnouncementPage({
   if (!loaded) notFound()
 
   return (
-    <div className="flex justify-center p-8">
+    <div className="flex justify-center p-8 max-sm:p-4">
       <AnnouncementForm announcement={loaded.announcement} clubs={loaded.clubs} />
     </div>
   )

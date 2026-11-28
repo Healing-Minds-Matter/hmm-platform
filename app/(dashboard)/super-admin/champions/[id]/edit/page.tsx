@@ -23,7 +23,7 @@ export default async function EditChampionPage({ params }: { params: Promise<{ i
   if (!champion) notFound()
 
   return (
-    <div className="flex justify-center p-8">
+    <div className="flex justify-center p-8 max-sm:p-4">
       <ChampionEditForm champion={champion} clubs={clubs ?? []} />
     </div>
   )

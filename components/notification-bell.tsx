@@ -66,7 +66,7 @@ export function NotificationBell({ notifications, unread }: { notifications: Bel
       </button>
 
       {open && (
-        <div className="absolute right-0 top-10 z-40 w-[360px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-[#E2E8F0] bg-white shadow-[0_10px_30px_-8px_rgba(15,23,42,0.25)]">
+        <div className="absolute right-0 top-10 z-40 w-[360px] max-w-[calc(100vw-2rem)] max-sm:fixed max-sm:inset-x-4 max-sm:top-16 max-sm:w-auto max-sm:max-w-none overflow-hidden rounded-xl border border-[#E2E8F0] bg-white shadow-[0_10px_30px_-8px_rgba(15,23,42,0.25)]">
           <div className="border-b border-[#E2E8F0] px-4 py-3 text-[13px] font-bold text-[#0F172A]">Notifications</div>
           {notifications.length === 0 ? (
             <p className="px-4 py-6 text-center text-[13px] text-[#64748B]">No notifications yet.</p>

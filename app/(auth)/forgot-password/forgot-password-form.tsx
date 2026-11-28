@@ -92,7 +92,7 @@ function ForgotPasswordFormInner({ portal }: { portal: Portal }) {
             id="email"
             name="email"
             type="email"
-            autoComplete="email"
+            autoComplete="username"
             required
             placeholder="you@healingmindsmatter.org"
             className="h-12 w-full rounded-lg border border-[#D4D7E3] bg-[#FCFDFF] px-4 text-[16px] tracking-[0.16px] text-[#0C1421] outline-none transition placeholder:text-[#8897AD] focus:border-[#F4AC1E] focus:ring-2 focus:ring-[#F4AC1E]/20"
@@ -102,7 +102,7 @@ function ForgotPasswordFormInner({ portal }: { portal: Portal }) {
         <button
           type="submit"
           disabled={isPending}
-          className="w-full rounded-lg bg-[#F4AC1E] py-4 text-[18px] font-semibold tracking-[0.18px] text-white transition hover:bg-[#e0991a] disabled:opacity-60"
+          className="w-full rounded-lg bg-[#F4AC1E] py-4 text-[18px] font-semibold tracking-[0.18px] text-on-amber transition hover:bg-[#e0991a] disabled:opacity-60"
         >
           {isPending ? 'Sending…' : 'Send reset link'}
         </button>

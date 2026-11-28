@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation'
 import { requirePermissionManager, type Caller } from '@/lib/auth/guards.server'
 import { invalid, type FieldErrors } from '@/lib/form-errors'
 import { describeGrantPlan, planExceptionGrant } from '@/lib/exception-grant'
+import { orgDayEndIso, orgDayStartIso } from '@/lib/org-date'
 
 export type PermissionActionState = { error?: string } | null
 
@@ -39,25 +40,28 @@ async function permissionManagerOrError(): Promise<Caller | { error: string }> {
 
 // ── Story 9.1: Role-Based Default Permissions ──────────────────────────────
 
-export async function updateRoleDefaultAction(formData: FormData) {
+// Fix L: returns null when saved (or already set), or { error } so the switch
+// can flip back and say why. Same checks as before; only the answer is new.
+export async function updateRoleDefaultAction(formData: FormData): Promise<PermissionActionState> {
   const role = formData.get('role') as string
   const permission = formData.get('permission') as string
   const isEnabled = formData.get('is_enabled') === 'true'
 
-  if (role !== 'champion' && role !== 'gatekeeper') return
-  if (!isPermissionKey(permission)) return
+  if (role !== 'champion' && role !== 'gatekeeper') return { error: 'This role can’t be changed here.' }
+  if (!isPermissionKey(permission)) return { error: 'Unknown permission.' }
 
-  const caller = await permissionManager()
-  if (!caller) return
+  const caller = await permissionManagerOrError()
+  if ('error' in caller) return caller
   const supabase = caller.supabase
 
-  const { data: existing } = await supabase
+  const { data: existing, error: readError } = await supabase
     .from('permissions')
     .select('id, is_enabled')
     .eq('role', role)
     .eq('permission', permission)
     .maybeSingle()
-  if (existing && existing.is_enabled === isEnabled) return // nothing to change
+  if (readError) return { error: SAVE_FAILED }
+  if (existing && existing.is_enabled === isEnabled) return null // nothing to change
 
   const { error } = await supabase
     .from('permissions')
@@ -65,10 +69,13 @@ export async function updateRoleDefaultAction(formData: FormData) {
       { role, permission, is_enabled: isEnabled, updated_by: caller.id },
       { onConflict: 'role,permission' }
     )
-  if (error) return
+  if (error) return { error: SAVE_FAILED }
 
   revalidatePath('/super-admin/permissions')
+  return null
 }
+
+const SAVE_FAILED = 'Couldn’t save the change. Please try again.'
 
 // ── Story 9.2: Individual Permission Exception ─────────────────────────────
 
@@ -332,18 +339,22 @@ export async function createDelegationAction(
   if (delegatorId === delegateId) return invalid('delegate_id', 'Delegator and delegate must be different people.')
   if (!startsAt) return invalid('starts_at', 'Start date is required.')
   if (!endsAt) return invalid('ends_at', 'End date is required.')
-  if (new Date(endsAt) <= new Date(startsAt)) return invalid('ends_at', 'End date must be after the start date.')
+  // Fix M: the dates mean Sri Lanka days — start at 00:00, end at 23:59:59
+  // Sri Lanka time — not midnight UTC (05:30 in Sri Lanka, losing the last day).
+  const startIso = orgDayStartIso(startsAt)
+  const endIso = orgDayEndIso(endsAt)
+  if (!startIso) return invalid('starts_at', 'Enter a valid start date.')
+  if (!endIso) return invalid('ends_at', 'Enter a valid end date.')
+  if (endsAt <= startsAt) return invalid('ends_at', 'End date must be after the start date.')
   if (!isUuid(delegatorId)) return invalid('delegator_id', 'Select the delegator (the person going on leave).')
   if (!isUuid(delegateId)) return invalid('delegate_id', 'Select the delegate (the person covering).')
-  if (Number.isNaN(new Date(startsAt).getTime())) return invalid('starts_at', 'Enter a valid start date.')
-  if (Number.isNaN(new Date(endsAt).getTime())) return invalid('ends_at', 'Enter a valid end date.')
 
   const caller = await permissionManagerOrError()
   if ('error' in caller) return caller
 
   const { error } = await caller.supabase
     .from('role_delegations')
-    .insert({ delegator_id: delegatorId, delegate_id: delegateId, starts_at: startsAt, ends_at: endsAt, created_by: caller.id })
+    .insert({ delegator_id: delegatorId, delegate_id: delegateId, starts_at: startIso, ends_at: endIso, created_by: caller.id })
   if (error) return { error: 'The delegation couldn’t be saved. Please try again.' }
 
   revalidatePath('/super-admin/permissions/delegations')

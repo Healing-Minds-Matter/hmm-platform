@@ -10,7 +10,7 @@ export default async function CertificationsPage() {
   const [types, holders, waiting] = await Promise.all([loadTypes(supabase), holderCounts(supabase), waitingReviewCount(supabase)])
 
   return (
-    <div className="flex flex-col gap-4 p-8 font-[family-name:var(--font-inter)]">
+    <div className="flex flex-col gap-4 p-8 max-sm:p-4 font-[family-name:var(--font-inter)]">
       <PageHeader
         title="Certifications"
         description="Every certification HMM recognises. Nothing is built in: every type is set up here and treated the same way."

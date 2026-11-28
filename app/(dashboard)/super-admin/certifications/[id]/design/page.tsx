@@ -32,7 +32,7 @@ export default async function CertificateDesignPage({ params, searchParams }: {
     : type.status === 'retired' ? `${type.name} is retired. Its certificate design can’t be created or edited until the type is reactivated.` : null
   if (blocked) {
     return (
-      <div className="flex flex-col gap-4 p-8 font-[family-name:var(--font-inter)]">
+      <div className="flex flex-col gap-4 p-8 max-sm:p-4 font-[family-name:var(--font-inter)]">
         {crumbs}
         <div className="rounded-xl bg-[#FFFBEB] px-5 py-4 text-sm text-[#B45309]">{blocked}</div>
       </div>
@@ -49,7 +49,7 @@ export default async function CertificateDesignPage({ params, searchParams }: {
   const sample = sampleValues(type)
 
   return (
-    <div className="flex flex-col gap-4 p-8 font-[family-name:var(--font-inter)]">
+    <div className="flex flex-col gap-4 p-8 max-sm:p-4 font-[family-name:var(--font-inter)]">
       {crumbs}
       <CertificateDesigner
         key={startFrom?.version ?? 0}

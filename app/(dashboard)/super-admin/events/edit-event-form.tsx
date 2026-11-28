@@ -106,7 +106,7 @@ export function EditEventForm({
 
             <div className="flex flex-col gap-2">
               <h3 className="text-[13px] font-medium tracking-[0.24px] text-[#0F172A]">Event Type</h3>
-              <div className="grid grid-cols-4 gap-2.5">
+              <div className="grid grid-cols-4 gap-2.5 max-sm:grid-cols-2">
                 {TYPE_OPTIONS.map(opt => (
                   <button
                     key={opt.value}
@@ -129,7 +129,7 @@ export function EditEventForm({
               {type === 'other' && <TypeDescriptionField defaultValue={event.type_description} />}
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-3 gap-4 max-sm:grid-cols-1">
               <div>
                 <label htmlFor="event_date" className="mb-1.5 block text-[13px] font-medium tracking-[0.24px] text-[#0F172A]">
                   Event Date <span className="text-[#DC2626]">*</span>
@@ -186,7 +186,7 @@ export function EditEventForm({
               <FieldError name="venue" />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
               <div>
                 <label htmlFor="virtual_link" className="mb-1.5 block text-[13px] font-medium tracking-[0.24px] text-[#0F172A]">
                   Link
@@ -228,7 +228,7 @@ export function EditEventForm({
           </button>
           <button
             type="submit" disabled={isPending}
-            className="flex h-10 items-center gap-2 rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
+            className="flex h-10 items-center gap-2 rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-on-amber shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
           >
             {!isPending && <img src="/icons/check.svg" alt="" width={11.55} height={8.52} />}
             {isPending ? 'Saving…' : 'Save Changes'}

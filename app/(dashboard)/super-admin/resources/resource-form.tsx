@@ -149,7 +149,7 @@ export function EditResourceForm({ resource, categories, onClose }: { resource: 
             <FieldError name="description" />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
             <div>
               <label htmlFor="type" className={labelClass}>
                 Type <span className="text-[#DC2626]">*</span>
@@ -332,7 +332,7 @@ export function EditResourceForm({ resource, categories, onClose }: { resource: 
             name="intent"
             value="publish"
             disabled={uploading || isPending}
-            className="flex h-10 items-center rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
+            className="flex h-10 items-center rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-on-amber shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
           >
             {uploading ? 'Uploading file…' : isPending ? 'Saving…' : isDraft ? 'Publish' : 'Save Changes'}
           </button>
@@ -366,7 +366,7 @@ export function EditResourceForm({ resource, categories, onClose }: { resource: 
               <button
                 type="button"
                 onClick={confirmReschedule}
-                className="flex h-10 items-center rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-white transition-colors hover:bg-[#E09B0F]"
+                className="flex h-10 items-center rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-on-amber transition-colors hover:bg-[#E09B0F]"
               >
                 Yes, reschedule
               </button>

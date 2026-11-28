@@ -9,7 +9,7 @@ export default async function NewChampionAnnouncementPage() {
   const ctx = await championAnnouncementContext()
   if (!ctx) return null
   return (
-    <div className="flex justify-center p-8">
+    <div className="flex justify-center p-8 max-sm:p-4">
       {ctx.canPublish
         ? <CreateAnnouncementForm clubs={[]} ownClub={ctx.ownClub} backHref="/champion/announcements" />
         : <NoAnnouncementPermission />}

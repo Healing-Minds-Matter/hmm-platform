@@ -6,5 +6,5 @@ export const metadata = { title: 'Edit certification type — HMM Super Admin' }
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const { type, issued } = await loadTypeForForm(id)
-  return <div className="flex justify-center p-8"><TypeForm type={type} issued={issued} /></div>
+  return <div className="flex justify-center p-8 max-sm:p-4"><TypeForm type={type} issued={issued} /></div>
 }

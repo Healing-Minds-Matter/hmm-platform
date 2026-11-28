@@ -14,7 +14,7 @@ import { parsePhone } from '@/lib/phone'
 import { checkPhoneAvailable, describePhoneDbError, findPhoneClash, loadPhoneOwners, phoneChanged, type PhoneOwner } from '@/lib/phone-uniqueness.server'
 import { readCsvUpload } from '@/lib/csv'
 import { batchLines, bulkIntent, type BulkRowResult, type BulkUploadState } from '@/lib/bulk-upload'
-import { gatekeeperCsvHeaderError } from '@/lib/gatekeeper-csv'
+import { type ClubCodeMatch, gatekeeperCsvHeaderError, indexClubCodes, isClubId, resolveClubCell } from '@/lib/gatekeeper-csv'
 import { todayDateString } from '@/lib/org-date'
 import { TYPE_COLUMNS, type CertificationTypeRow } from '@/lib/certification-types'
 import { describeCertError, validateAward } from '@/lib/certificates'
@@ -306,7 +306,7 @@ export async function createGatekeeperAction(
 // CSV header: full_name,email,phone,club_id (see lib/gatekeeper-csv.ts). Certificates
 // aren't part of registration: they're added from each person's Certifications section.
 // phone is required and must be unique (also within the same file);
-// club_id must be a real active club UUID.
+// club_id must be a real active club: its ID or its club code (e.g. PAN-CA).
 
 // Two steps (see lib/bulk-upload.ts): intent=check runs every check below
 // without creating accounts or sending email; intent=save checks again and
@@ -346,6 +346,18 @@ export async function createGatekeepersBulkAction(
   const headerError = gatekeeperCsvHeaderError(header, caller.role as 'super_admin' | 'champion')
   if (headerError) return { error: headerError }
 
+  // club_id cells may hold a club code instead of the ID: load the codes
+  // once, and only when some row actually uses one. If the lookup fails, stop
+  // the whole request: otherwise every code row would wrongly say "No club
+  // has the code".
+  let clubCodes = new Map<string, ClubCodeMatch[]>()
+  if (!forcedClubId && clubIdx !== -1
+    && dataRows.some(({ cells }) => (cells[clubIdx] ?? '').trim() && !isClubId(cells[clubIdx]))) {
+    const { data: clubs, error: clubsError } = await createAdminClient().from('clubs').select('id, club_code, is_active')
+    if (clubsError) return { error: "Couldn't check club codes right now. Please try again." }
+    clubCodes = indexClubCodes(clubs ?? [])
+  }
+
   const results: BulkRowResult[] = []
   // The database can't see other rows in this file before they're saved, so
   // duplicates within the CSV are caught here — in both steps (Review
@@ -369,13 +381,17 @@ export async function createGatekeepersBulkAction(
       if (inBatch) results.push({ row: rowNum, label: rawEmail || '(missing)', status: 'failed', error })
     }
 
+    // A Super Admin's club_id cell may be a club code: turn it into the ID.
+    const clubCell = forcedClubId ? { clubId: forcedClubId } : resolveClubCell(clubIdx !== -1 ? cells[clubIdx] : '', clubCodes)
+    if ('error' in clubCell) { fail(clubCell.error); continue }
+
     // Review Finding 13j: every row through the same schema as the single
     // form. A Champion's rows always go to their own club.
     const parsedRow = parseNewGatekeeper({
       full_name: cells[nameIdx],
       email: cells[emailIdx],
       phone: cells[phoneIdx],
-      club_id: forcedClubId ?? (clubIdx !== -1 ? cells[clubIdx] : ''),
+      club_id: clubCell.clubId,
       preferred_language: langIdx !== -1 ? cells[langIdx] : '',
     })
     if (!parsedRow.ok) { fail(parsedRow.error); continue }

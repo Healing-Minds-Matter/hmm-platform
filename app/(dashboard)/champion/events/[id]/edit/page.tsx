@@ -16,7 +16,7 @@ export default async function EditChampionEventPage({ params }: { params: Promis
   if (!props) notFound()
 
   return (
-    <div className="flex justify-center p-8">
+    <div className="flex justify-center p-8 max-sm:p-4">
       <EditEventForm {...props} />
     </div>
   )

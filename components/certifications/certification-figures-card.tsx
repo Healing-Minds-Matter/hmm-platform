@@ -16,6 +16,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { loadCertSummary } from '@/lib/cert-summary.server'
 import { byHolder, certificationFigures, certifiedFigures, certifiedThisMonth, CURRENT_CERT_COLUMNS, type CurrentCert } from '@/lib/cert-summary'
 import { todayDateString } from '@/lib/org-date'
+import { ScrollTable } from '@/components/scroll-table'
 
 export async function CertificationFiguresCard({ scope }: { scope: { kind: 'all' } | { kind: 'club'; clubId: string } }) {
   const supabase = await createClient()
@@ -62,7 +63,7 @@ export async function CertificationFiguresCard({ scope }: { scope: { kind: 'all'
   const noneHref = link(null)
 
   return (
-    <section className="rounded-2xl bg-white p-6">
+    <section className="rounded-2xl bg-white p-6 max-sm:p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div>
           <h2 className="font-[family-name:var(--font-jakarta)] text-base font-bold text-[#0F172A]">Certifications</h2>
@@ -86,7 +87,7 @@ export async function CertificationFiguresCard({ scope }: { scope: { kind: 'all'
       {perType.length === 0 ? (
         <p className="mt-4 text-sm text-[#64748B]">No one {scope.kind === 'club' ? 'in your club ' : ''}holds a certification yet.</p>
       ) : (
-        <div className="mt-4 overflow-x-auto">
+        <ScrollTable label="Certification figures" minWidth={520} className="mt-4 overflow-x-auto">
           <table className="w-full min-w-[520px] text-left text-[13px]">
             <thead>
               <tr className="border-b border-[#E2E8F0] text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">
@@ -109,7 +110,7 @@ export async function CertificationFiguresCard({ scope }: { scope: { kind: 'all'
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollTable>
       )}
     </section>
   )

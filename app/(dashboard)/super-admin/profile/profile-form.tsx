@@ -127,7 +127,7 @@ export function ProfileForm({
         <p className="text-[11px] text-[#94A3B8]">Used for sign-in — change it under Security &amp; Sign-in.</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
         <div className="flex flex-col gap-1.5">
           <label htmlFor="phone" className="text-[12px] font-semibold tracking-[0.24px] text-[#0F172A]">
             Direct Phone
@@ -198,7 +198,7 @@ export function ProfileForm({
         <button
           type="submit"
           disabled={isPending}
-          className="flex items-center gap-1.5 rounded-[5px] bg-[#F4AC1E] px-5 py-2 text-[12px] font-semibold tracking-[0.24px] text-white shadow-[0px_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
+          className="flex items-center gap-1.5 rounded-[5px] bg-[#F4AC1E] px-5 py-2 text-[12px] font-semibold tracking-[0.24px] text-on-amber shadow-[0px_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/icons/c2-save-icon.svg" alt="" className="h-[9.019px] w-[12.225px]" />

@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { TYPE_TEXT, programmePeriodLabel, validityLabel, type CertificationTypeRow } from '@/lib/certification-types'
+import { ScrollTable } from '@/components/scroll-table'
 import { Code, TypeStatusBadge } from './cert-ui'
 
 // The list of certification types (Story 10.1 Sc05). Super Admins also see
@@ -15,7 +16,7 @@ export function TypesTable({ types, holders, manage, base }: {
     return <div className="rounded-[12px] border border-[#E2E8F0] bg-white p-12 text-center text-sm text-[#64748B]">No certification types yet.</div>
   }
   return (
-    <div className="overflow-x-auto rounded-[12px] border border-[#E2E8F0] bg-white">
+    <ScrollTable label="Certification types" minWidth={760} className="overflow-x-auto rounded-[12px] border border-[#E2E8F0] bg-white">
       <table className="w-full min-w-[760px]">
         <thead>
           <tr className="h-[46px] border-b border-[rgba(226,232,240,0.8)] bg-[#F9F9F9]">
@@ -58,6 +59,6 @@ export function TypesTable({ types, holders, manage, base }: {
           ))}
         </tbody>
       </table>
-    </div>
+    </ScrollTable>
   )
 }

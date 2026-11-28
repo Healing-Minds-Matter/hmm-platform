@@ -91,7 +91,7 @@ export function NewDelegationForm({ users, onClose }: { users: UserOption[]; onC
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
             <div>
               <label htmlFor="starts_at" className="mb-1.5 block text-[13px] font-medium text-[#0F172A]">
                 Start Date <span className="text-[#DC2626]">*</span>
@@ -125,7 +125,7 @@ export function NewDelegationForm({ users, onClose }: { users: UserOption[]; onC
           <button
             type="submit"
             disabled={isPending}
-            className="rounded-lg bg-[#F4AC1E] px-5 py-2.5 text-[13px] font-semibold text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
+            className="rounded-lg bg-[#F4AC1E] px-5 py-2.5 text-[13px] font-semibold text-on-amber shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
           >
             {isPending ? 'Creating…' : 'Create Delegation'}
           </button>

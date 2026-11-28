@@ -8,6 +8,7 @@ import { useActionState, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSubmitWithoutReset } from '@/hooks/use-submit-without-reset'
 import { ModalOverlay } from '@/components/modal-overlay'
+import { ScrollTable } from '@/components/scroll-table'
 import { downloadBlob, fetchPdf, printBlob } from '@/components/certifications/pdf-actions'
 import { Badge, Code, FormCard, CANCEL_BTN, DANGER_BTN, HINT, INPUT, LABEL, OPTION, PRIMARY_BTN } from '@/components/certifications/cert-ui'
 import { formatCertDate, lastAwardDate, programmeEnded, validityLabel, type CertificationTypeRow } from '@/lib/certification-types'
@@ -73,7 +74,7 @@ export function CertificatesPanel(props: Props) {
   )
 
   return (
-    <section className="flex flex-col gap-6 rounded-2xl bg-white p-6">
+    <section className="flex flex-col gap-6 rounded-2xl bg-white p-6 max-sm:p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-[16px] font-bold text-[#0F172A]">Certifications</h2>
@@ -96,7 +97,8 @@ export function CertificatesPanel(props: Props) {
       {current.length === 0 ? (
         <p className="rounded-xl border border-dashed border-[#E2E8F0] px-4 py-6 text-center text-sm text-[#64748B]">No certifications</p>
       ) : (
-        <div className="overflow-x-auto">
+        // Phones/tablets: first column (certification) stays visible (Fix Q3).
+        <ScrollTable label="Certifications" minWidth={720} className="overflow-x-auto">
           <table className="w-full min-w-[720px] text-left text-[13px]">
             <thead>
               <tr className="border-b border-[#E2E8F0] text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">
@@ -132,7 +134,7 @@ export function CertificatesPanel(props: Props) {
               })}
             </tbody>
           </table>
-        </div>
+        </ScrollTable>
       )}
 
       <div className="flex flex-col gap-3">
@@ -275,7 +277,7 @@ function JourneyItem({ entry, typeById, names, today, actions }: {
 function SmallButton({ children, onClick, tone = 'plain' }: { children: React.ReactNode; onClick: () => void; tone?: 'plain' | 'primary' | 'danger' }) {
   const cls = {
     plain: 'border-[#E2E8F0] text-[#475569] hover:bg-[#F1F5F9]',
-    primary: 'border-[#F4AC1E] bg-[#F4AC1E] text-white hover:bg-[#E09B0F]',
+    primary: 'border-[#F4AC1E] bg-[#F4AC1E] text-on-amber hover:bg-[#E09B0F]',
     danger: 'border-[#FCA5A5] text-[#DC2626] hover:bg-[#FEF2F2]',
   }[tone]
   return (

@@ -14,6 +14,12 @@ vi.mock('server-only', () => ({}))
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: () => fakeClient(h.db, 'admin') }))
 vi.mock('@/lib/audit', () => ({ writeAuditLog: vi.fn() }))
 vi.mock('@/lib/password-history.server', () => ({ seedPasswordHistoryAdmin: vi.fn() }))
+const pwned = vi.hoisted(() => new Set<string>())
+vi.mock('@/lib/pwned-password.server', async orig => ({
+  ...(await orig<typeof import('@/lib/pwned-password.server')>()),
+  isPwnedPassword: async (pw: string) => pwned.has(pw),
+}))
+vi.mock('@/lib/auth/throttle.server', () => ({ clearLoginFailures: vi.fn() }))
 vi.mock('@/lib/send-email', () => ({
   sendAccountSetupEmail: vi.fn(async (p: Record<string, unknown>) => { h.emails.push({ kind: 'plain', ...p }); return {} }),
   // Gatekeepers get the branded welcome email (Review Finding 3).
@@ -25,6 +31,8 @@ import {
 } from '@/lib/account-setup.server'
 import { writeAuditLog } from '@/lib/audit'
 import { seedPasswordHistoryAdmin } from '@/lib/password-history.server'
+import { checkPasswordRules } from '@/lib/password-validation'
+import { clearLoginFailures } from '@/lib/auth/throttle.server'
 import { sendAccountSetupEmail, sendGatekeeperWelcomeEmail } from '@/lib/send-email'
 
 const invites = () => h.db.tables.account_setup_invites ?? []
@@ -35,6 +43,7 @@ beforeEach(() => {
   h.emails = []
   vi.mocked(writeAuditLog).mockClear()
   vi.mocked(seedPasswordHistoryAdmin).mockClear()
+  vi.mocked(clearLoginFailures).mockClear()
   vi.mocked(sendAccountSetupEmail).mockClear()
   vi.mocked(sendGatekeeperWelcomeEmail).mockClear()
   h.db = createFakeDb({
@@ -84,6 +93,8 @@ describe('issueAccountSetupInvite', () => {
     expect(JSON.stringify(h.emails[0])).not.toMatch(/password=/i)
     const [write] = passwordWrites()
     expect(String(write.values.password).length).toBeGreaterThanOrEqual(48)
+    // Fix A: always passes the password rules (needs a symbol).
+    expect(Object.values(checkPasswordRules(String(write.values.password))).every(Boolean)).toBe(true)
     expect(JSON.stringify(h.emails[0])).not.toContain(String(write.values.password))
   })
   it('earlier unused links are cancelled', async () => {
@@ -157,11 +168,35 @@ describe('completeAccountSetup', () => {
     expect(passwordWrites()).toEqual([])
     expect(await completeAccountSetup(token, GOOD, GOOD)).toMatchObject({ done: true })
   })
+  it('Fix 3: a password known from data breaches → field error, nothing set, link still usable', async () => {
+    const token = await linkToken()
+    pwned.add(GOOD)
+    expect(await completeAccountSetup(token, GOOD, GOOD)).toMatchObject({ fieldErrors: { password: expect.stringMatching(/data breach/) } })
+    expect(passwordWrites()).toEqual([])
+    pwned.clear()
+    expect(await completeAccountSetup(token, GOOD, GOOD)).toMatchObject({ done: true })
+  })
   it('refused by the database at claim time (account signed in since) → invalid, no password set', async () => {
     const token = await linkToken()
     h.db.writeErrors.account_setup_invites = { code: '42501', message: 'refused' }
     expect(await completeAccountSetup(token, GOOD, GOOD)).toEqual({ invalid: true })
     expect(passwordWrites()).toEqual([])
+  })
+
+  // Fix 1 (HMM-195): setting a password from the link ends any sign-in lockout.
+  it('a saved password clears the account’s sign-in lockout', async () => {
+    const token = await linkToken()
+    await completeAccountSetup(token, GOOD, GOOD)
+    expect(clearLoginFailures).toHaveBeenCalledTimes(1)
+    expect(clearLoginFailures).toHaveBeenCalledWith('asha@example.com')
+  })
+  it('nothing is cleared when the password isn’t saved', async () => {
+    const token = await linkToken()
+    await completeAccountSetup(token, GOOD, 'other')
+    await completeAccountSetup('nope', GOOD, GOOD)
+    h.db.writeErrors['auth.users'] = { message: 'down' }
+    expect(await completeAccountSetup(token, GOOD, GOOD)).toMatchObject({ error: expect.any(String) })
+    expect(clearLoginFailures).not.toHaveBeenCalled()
   })
 })
 

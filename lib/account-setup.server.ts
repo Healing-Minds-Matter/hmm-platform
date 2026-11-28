@@ -1,11 +1,14 @@
 import 'server-only'
 import crypto from 'crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { unguessablePassword } from '@/lib/unguessable-password.server'
 import { writeAuditLog } from '@/lib/audit'
 import { sendAccountSetupEmail, sendGatekeeperWelcomeEmail } from '@/lib/send-email'
 import { validatePassword } from '@/lib/password-validation'
 import { seedPasswordHistoryAdmin } from '@/lib/password-history.server'
+import { clearLoginFailures } from '@/lib/auth/throttle.server'
 import type { FieldErrors } from '@/lib/form-errors'
+import { PWNED_PASSWORD_MESSAGE, isPwnedPassword } from '@/lib/pwned-password.server'
 
 // Review Finding 2: set-password links. An account that has never been
 // signed into gets a single-use link, emailed to the account's own sign-in
@@ -106,7 +109,7 @@ export async function issueAccountSetupInvite(params: {
 
   // Retire any temporary password: a random one that is never stored or shown.
   const { error: pwError } = await admin.auth.admin.updateUserById(params.userId, {
-    password: crypto.randomBytes(48).toString('base64url'),
+    password: unguessablePassword(),
   })
   if (pwError) {
     await admin.from('account_setup_invites').update({ cancelled_at: new Date().toISOString() }).eq('id', invite.id)
@@ -130,7 +133,8 @@ export async function issueAccountSetupInvite(params: {
       expiresInHours: ACCOUNT_SETUP_TTL_HOURS,
     })
   if (sent.error) {
-    console.error('[issueAccountSetupInvite] email failed')
+    // Status and SendGrid's reason only (addresses removed) — e.g. "Maximum credits exceeded".
+    console.error('[issueAccountSetupInvite] email failed', { status: sent.status ?? null, reason: sent.reason ?? null })
     await admin.from('account_setup_invites').update({ cancelled_at: new Date().toISOString() }).eq('id', invite.id)
     return { error: 'The invite email couldn’t be sent. Please try again.' }
   }
@@ -180,6 +184,8 @@ export async function completeAccountSetup(token: string, password: string, conf
   if (password !== confirm) return { error: 'Passwords do not match.', fieldErrors: { confirm: 'Passwords do not match.' } }
   const { valid, errors } = validatePassword(password, { name: invite.full_name, email: invite.email })
   if (!valid) return { error: errors.join('\n'), fieldErrors: { password: errors.join('\n') } }
+  // Fix 3: refuse a password known from data breaches.
+  if (await isPwnedPassword(password)) return { error: PWNED_PASSWORD_MESSAGE, fieldErrors: { password: PWNED_PASSWORD_MESSAGE } }
 
   const admin = createAdminClient()
   // Claim it first so the link can only ever be used once. The database also
@@ -198,6 +204,8 @@ export async function completeAccountSetup(token: string, password: string, conf
     return { error: 'Your password couldn’t be saved. Please try again.' }
   }
   await seedPasswordHistoryAdmin(invite.user_id, password)
+  // HMM-195: a new password ends any sign-in lockout on this account (account counter only).
+  await clearLoginFailures(invite.email)
   await admin.from('profiles').update({ must_change_password: false }).eq('id', invite.user_id)
 
   await writeAuditLog({

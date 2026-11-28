@@ -36,7 +36,7 @@ export default async function EditGatekeeperPage({ params }: { params: Promise<{
   const club = callerProfile.clubs as any
 
   return (
-    <div className="flex justify-center p-8">
+    <div className="flex justify-center p-8 max-sm:p-4">
       <GatekeeperEditForm gatekeeper={gatekeeper} clubName={club?.name ?? 'Your Club'} emailLocked={emailLocked} />
     </div>
   )

@@ -10,6 +10,9 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, Menlo, Monaco, "Cascadia Code", monospace;
+  /* Text and icons on amber (#F4AC1E) buttons: navy gives 7.3:1 contrast
+     (white was 1.95:1). Use the `text-on-amber` class on every amber button. */
+  --color-on-amber: #022C51;
 }
 
 body {

@@ -5,6 +5,7 @@ import { certifiedFigures } from '@/lib/cert-summary'
 import { reactivateClubFormAction } from '@/actions/clubs'
 import { ClubFilters } from './club-filters'
 import { ExportClubsButton, type ExportRow } from './export-clubs-button'
+import { ScrollTable } from '@/components/scroll-table'
 
 export const metadata = { title: 'Clubs — HMM Super Admin' }
 
@@ -176,8 +177,8 @@ export default async function ClubsPage({
   })
 
   return (
-    <div className="flex flex-col gap-4 p-8 font-[family-name:var(--font-inter)]">
-      <div className="flex items-center justify-between gap-4">
+    <div className="flex flex-col gap-4 p-8 max-sm:p-4 font-[family-name:var(--font-inter)]">
+      <div className="flex items-center justify-between gap-4 max-lg:flex-wrap">
         <div>
           <h1 className="text-[24px] font-bold tracking-[-0.7px] text-[#0F172A]">Club Management</h1>
           <p className="mt-1 text-sm text-[#475569]">
@@ -188,7 +189,7 @@ export default async function ClubsPage({
           <ExportClubsButton rows={exportRows} />
           <Link
             href="/super-admin/clubs/new"
-            className="flex items-center gap-2 rounded-lg bg-[#F4AC1E] px-4 py-2 text-[12px] font-semibold tracking-[0.24px] text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F]"
+            className="flex items-center gap-2 rounded-lg bg-[#F4AC1E] px-4 py-2 text-[12px] font-semibold tracking-[0.24px] text-on-amber shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F]"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/icons/plus-small.svg" alt="" width={10.5} height={10.5} />
@@ -217,6 +218,8 @@ export default async function ClubsPage({
           </div>
         ) : (
           <>
+            {/* Phones/tablets: scrolls sideways, club name stays visible (Fix Q1). */}
+            <ScrollTable label="Clubs" minWidth={760}>
             <table className="w-full table-fixed">
               <thead>
                 <tr className="h-[46px] border-b border-[rgba(226,232,240,0.8)] bg-[#F9F9F9]">
@@ -375,6 +378,7 @@ export default async function ClubsPage({
                 })}
               </tbody>
             </table>
+            </ScrollTable>
 
             {/* Footer */}
             <div className="flex items-center justify-between border-t border-[rgba(226,232,240,0.8)] bg-white py-[16px] pl-[25px] pr-[16px]">

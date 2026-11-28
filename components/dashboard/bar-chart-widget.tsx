@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { ScrollTable } from '@/components/scroll-table'
 import { countTickStep } from '@/lib/chart-scale'
 import Link from 'next/link'
 import type { BarItem } from '@/actions/dashboard'
@@ -53,7 +54,7 @@ function ViewAllModal({
             ✕
           </button>
         </div>
-        <div className="overflow-auto">
+        <ScrollTable label="All clubs" minWidth={360} className="overflow-auto">
           <table className="min-w-full divide-y divide-gray-100">
             <thead className="sticky top-0 bg-gray-50">
               <tr>
@@ -74,7 +75,7 @@ function ViewAllModal({
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollTable>
       </div>
     </div>
   )

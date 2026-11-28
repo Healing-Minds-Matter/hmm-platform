@@ -66,7 +66,7 @@ export function CohortPeopleField({
           aria-label="Search people"
           className="mb-2 h-9 w-full rounded-lg border border-[#E2E8F0] bg-white px-3 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E4BB8]"
         />
-        <div className="grid max-h-40 grid-cols-2 gap-x-4 gap-y-1.5 overflow-y-auto">
+        <div className="grid max-h-40 grid-cols-2 gap-x-4 gap-y-1.5 overflow-y-auto max-sm:grid-cols-1">
           {loadedFor !== key ? (
             <p className="col-span-2 text-[12px] text-[#64748B]">Loading people…</p>
           ) : shown.length === 0 ? (

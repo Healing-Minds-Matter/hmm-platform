@@ -169,7 +169,7 @@ export function CreateResourceForm({ categories, onClose }: { categories: Resour
               <FieldError name="title" />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
               <div>
                 <label htmlFor="category_id" className="mb-1.5 block text-[13px] font-medium text-[#0F172A]">
                   Category <span className="text-[#DC2626]">*</span>
@@ -319,7 +319,7 @@ export function CreateResourceForm({ categories, onClose }: { categories: Resour
             name="intent"
             value="publish"
             disabled={busy}
-            className="flex h-10 items-center gap-1.5 rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
+            className="flex h-10 items-center gap-1.5 rounded-lg bg-[#F4AC1E] px-5 text-[13px] font-semibold text-on-amber shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F] disabled:opacity-60"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/icons/publish-upload-icon.svg" alt="" width={12} height={12} />

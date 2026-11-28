@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { ScrollTable } from '@/components/scroll-table'
 import { loginPath } from '@/lib/login-redirect.server'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
@@ -88,15 +89,15 @@ export default async function ChampionGatekeepersPage({
   const showingTo = Math.min(from + pageRows.length, total)
 
   return (
-    <div className="flex flex-col gap-4 p-8 font-[family-name:var(--font-inter)]">
-      <div className="flex items-center justify-between gap-4">
+    <div className="flex flex-col gap-4 p-8 max-sm:p-4 font-[family-name:var(--font-inter)]">
+      <div className="flex items-center justify-between gap-4 max-lg:flex-wrap">
         <div>
           <h1 className="text-[24px] font-bold tracking-[-0.7px] text-[#0F172A]">Gatekeeper Management</h1>
           <p className="mt-1 text-sm text-[#475569]">
             Add, edit, and track your club&apos;s Gatekeepers and their certifications.
           </p>
         </div>
-        <div className="flex flex-shrink-0 items-center gap-2">
+        <div className="flex flex-shrink-0 items-center gap-2 max-sm:w-full max-sm:flex-wrap">
         {certTypes && certTypes.length > 0 && (
           <BulkAwardButton
             types={certTypes}
@@ -106,7 +107,7 @@ export default async function ChampionGatekeepersPage({
         )}
         <Link
           href="/champion/gatekeepers/new"
-          className="flex flex-shrink-0 items-center gap-2 rounded-lg bg-[#F4AC1E] px-4 py-2 text-[12px] font-semibold tracking-[0.24px] text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F]"
+          className="flex flex-shrink-0 items-center gap-2 rounded-lg bg-[#F4AC1E] px-4 py-2 text-[12px] font-semibold tracking-[0.24px] text-on-amber shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F]"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/icons/plus-small.svg" alt="" width={10.5} height={10.5} />
@@ -125,6 +126,8 @@ export default async function ChampionGatekeepersPage({
           </div>
         ) : (
           <>
+            {/* Phones/tablets: scrolls sideways, name column stays visible (Fix Q3). */}
+            <ScrollTable label="Gatekeepers" minWidth={640}>
             <table className="w-full">
               <thead>
                 <tr className="h-[46px] border-b border-[rgba(226,232,240,0.8)] bg-[#F9F9F9]">
@@ -209,13 +212,14 @@ export default async function ChampionGatekeepersPage({
                 ))}
               </tbody>
             </table>
+            </ScrollTable>
 
-            <div className="flex items-center justify-between border-t border-[rgba(226,232,240,0.8)] bg-white py-[16px] pl-[25px] pr-[16px]">
+            <div className="flex items-center justify-between border-t border-[rgba(226,232,240,0.8)] bg-white py-[16px] pl-[25px] pr-[16px] max-sm:flex-wrap max-sm:gap-3 max-sm:pl-[16px]">
               <p className="text-[10px] text-[#8492A6]">
                 Showing <span className="font-bold text-[#5D626E]">{showingFrom} to {showingTo}</span> of{' '}
                 <span className="font-bold text-[#5D626E]">{total}</span> {filtered.some(g => g.isSelf) ? 'people' : 'Gatekeepers'}
               </p>
-              <div className="flex items-center gap-[6px]">
+              <div className="flex flex-wrap items-center gap-[6px]">
                 {page <= 1 ? (
                   <span className="flex h-[22px] cursor-default items-center justify-center rounded-[4px] bg-[#F1F5F9] px-[12px] py-[6px] text-[10px] font-semibold tracking-[0.24px] text-[#475569] opacity-50">
                     Previous

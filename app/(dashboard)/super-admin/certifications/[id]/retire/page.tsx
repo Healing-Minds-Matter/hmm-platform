@@ -7,5 +7,5 @@ export const metadata = { title: 'Retire certification type — HMM Super Admin'
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const { type, impact } = await loadTypeForForm(id)
-  return <div className="flex justify-center p-8"><RetireForm type={type} impact={impact} today={todayDateString()} /></div>
+  return <div className="flex justify-center p-8 max-sm:p-4"><RetireForm type={type} impact={impact} today={todayDateString()} /></div>
 }

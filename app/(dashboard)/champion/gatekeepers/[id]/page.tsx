@@ -43,7 +43,7 @@ export default async function ChampionGatekeeperDetailPage({ params, searchParam
   const status = personCertStatus(gatekeeper.is_active, (await loadCertSummary(supabase)).byHolder.get(gatekeeper.id))
 
   return (
-    <div className="flex flex-col gap-6 p-6 font-[family-name:var(--font-inter)]">
+    <div className="flex flex-col gap-6 p-6 max-sm:p-4 font-[family-name:var(--font-inter)]">
       <nav className="flex items-center gap-2 text-xs">
         <Link href="/champion/gatekeepers" className="text-[#64748B] hover:text-[#022C51]">Gatekeepers</Link>
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -51,8 +51,8 @@ export default async function ChampionGatekeeperDetailPage({ params, searchParam
         <span className="font-medium text-[#022C51]">{gatekeeper.full_name}</span>
       </nav>
 
-      <div className="flex flex-wrap items-center justify-between gap-6 rounded-2xl bg-white p-6">
-        <div className="flex min-w-0 flex-1 items-center gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-6 rounded-2xl bg-white p-6 max-sm:p-4">
+        <div className="flex min-w-0 flex-1 items-center gap-4 max-sm:basis-full">
           <div className="flex h-20 w-20 flex-shrink-0 items-center justify-center rounded-full bg-[#012C51] text-2xl font-bold text-white">
             {getInitials(gatekeeper.full_name)}
           </div>
@@ -76,7 +76,7 @@ export default async function ChampionGatekeeperDetailPage({ params, searchParam
               <div className="flex items-center gap-1.5">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src="/icons/mail.svg" alt="" width={15} height={12} />
-                <span className="text-[13px] text-[#0F172A]">{gatekeeper.email}</span>
+                <span className="text-[13px] text-[#0F172A] max-sm:break-all">{gatekeeper.email}</span>
               </div>
               <div className="flex items-center gap-1.5">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -86,14 +86,14 @@ export default async function ChampionGatekeeperDetailPage({ params, searchParam
             </div>
           </div>
         </div>
-        <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
+        <div className="flex flex-shrink-0 flex-wrap items-center gap-2 max-sm:w-full">
           {gatekeeper.is_active && (
             <Link
               href={`/champion/gatekeepers/${id}/edit`}
-              className="flex items-center gap-1.5 rounded-lg bg-[#F4AC1E] px-4 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-[#DB9A15]"
+              className="flex items-center gap-1.5 rounded-lg bg-[#F4AC1E] px-4 py-2.5 text-xs font-semibold text-on-amber shadow-sm hover:bg-[#DB9A15]"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/icons/pencil.svg" alt="" className="h-3 w-3 brightness-0 invert" />
+              <img src="/icons/pencil-on-amber.svg" alt="" className="h-3 w-3" />
               Edit Gatekeeper
             </Link>
           )}
@@ -102,7 +102,7 @@ export default async function ChampionGatekeeperDetailPage({ params, searchParam
         </div>
       </div>
 
-      <div className="rounded-2xl bg-white p-6">
+      <div className="rounded-2xl bg-white p-6 max-sm:p-4">
         <div>
           <p className="text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">Preferred Language</p>
           <p className="mt-1 text-sm text-[#0F172A]">

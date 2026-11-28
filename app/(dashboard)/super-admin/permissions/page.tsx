@@ -108,7 +108,7 @@ export default async function PermissionsDashboardPage({
   return (
     <div className="flex flex-col gap-5">
       {activeDelegations.length > 0 && (
-        <div className="flex items-center gap-3 rounded-[6px] border border-[#FDE68A] bg-[#FFFBEB] p-4">
+        <div className="flex items-center gap-3 rounded-[6px] border border-[#FDE68A] bg-[#FFFBEB] p-4 max-sm:flex-wrap">
           <span className="text-[13px] text-[#92400E]">
             {activeDelegations.length} temporary role delegation{activeDelegations.length !== 1 ? 's are' : ' is'} active
             right now — any default change here also applies immediately to the delegate(s) borrowing that access.
@@ -122,14 +122,14 @@ export default async function PermissionsDashboardPage({
         </div>
       )}
 
-      <div className="flex gap-5">
+      <div className="flex gap-5 max-lg:flex-col">
         <div className="flex min-w-0 flex-1 flex-col gap-5">
           <div className="flex w-full flex-col gap-4 rounded-[10px] border border-[#E2E8F0] bg-white p-[21px]">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between max-lg:flex-wrap max-lg:gap-3">
               <div className="whitespace-nowrap text-[12px] font-semibold uppercase tracking-[0.6px] text-black">
                 SELECT ROLE TO VIEW OR CUSTOMIZE:
               </div>
-              <div className="flex gap-0.5 rounded-[10px] border border-[rgba(226,232,240,0.8)] bg-[#F1F5F9] p-[5px]">
+              <div className="flex gap-0.5 rounded-[10px] border border-[rgba(226,232,240,0.8)] bg-[#F1F5F9] p-[5px] max-sm:w-full max-sm:flex-col">
                 <Link
                   href="/super-admin/permissions?role=champion"
                   className={`flex items-center gap-2 rounded-[6px] px-4 py-2 text-[14px] font-semibold ${
@@ -193,7 +193,7 @@ export default async function PermissionsDashboardPage({
           </div>
         </div>
 
-        <div className="flex w-[340px] shrink-0 flex-col gap-6">
+        <div className="flex w-[340px] shrink-0 flex-col gap-6 max-lg:w-full">
           <UserLookupWidget />
 
           <div className="flex w-full flex-col gap-4 rounded-[10px] border border-[#E2E8F0] bg-white p-[21px]">

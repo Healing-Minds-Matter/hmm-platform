@@ -108,7 +108,7 @@ export function ResetPasswordForm({
               value={password}
               onChange={e => setPassword(e.target.value)}
               placeholder="••••••••••"
-              className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 pr-11 text-sm outline-none transition focus:border-[#F5A623] focus:ring-2 focus:ring-[#F5A623]/20"
+              className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 pr-11 text-[16px] outline-none transition focus:border-[#F5A623] focus:ring-2 focus:ring-[#F5A623]/20"
             />
             <button
               type="button"
@@ -142,6 +142,31 @@ export function ResetPasswordForm({
           )}
         </div>
 
+        {/* Password requirements: shown from the start, between New and
+            Confirm (Fix J part 2), the same as on Change Password. Each rule
+            ticks as the new password meets it. */}
+        <div>
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Password requirements</h2>
+          <div className="grid grid-cols-2 gap-x-6 gap-y-2.5">
+            {RULES.map(r => (
+              <div key={r.key} className="flex items-center gap-2">
+                <span
+                  className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
+                    checks[r.key]
+                      ? 'bg-[#F5A623] text-on-amber'
+                      : 'bg-gray-100 text-gray-400'
+                  }`}
+                >
+                  {checks[r.key] ? '✓' : '·'}
+                </span>
+                <span className={`text-xs ${checks[r.key] ? 'text-gray-700' : 'text-gray-400'}`}>
+                  {r.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* Confirm password */}
         <div>
           <label htmlFor="confirm" className="mb-1.5 block text-sm font-medium text-gray-700">
@@ -155,7 +180,7 @@ export function ResetPasswordForm({
               autoComplete="new-password"
               required
               placeholder="••••••••••"
-              className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 pr-11 text-sm outline-none transition focus:border-[#F5A623] focus:ring-2 focus:ring-[#F5A623]/20"
+              className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 pr-11 text-[16px] outline-none transition focus:border-[#F5A623] focus:ring-2 focus:ring-[#F5A623]/20"
             />
             <button
               type="button"
@@ -170,32 +195,10 @@ export function ResetPasswordForm({
           <FieldError name="confirm" />
         </div>
 
-        {/* 2×2 requirements grid */}
-        {password.length > 0 && (
-          <div className="grid grid-cols-2 gap-x-6 gap-y-2.5">
-            {RULES.map(r => (
-              <div key={r.key} className="flex items-center gap-2">
-                <span
-                  className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
-                    checks[r.key]
-                      ? 'bg-[#F5A623] text-white'
-                      : 'bg-gray-100 text-gray-400'
-                  }`}
-                >
-                  {checks[r.key] ? '✓' : '·'}
-                </span>
-                <span className={`text-xs ${checks[r.key] ? 'text-gray-700' : 'text-gray-400'}`}>
-                  {r.label}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-
         <button
           type="submit"
           disabled={isPending}
-          className="w-full rounded-xl bg-[#F5A623] px-4 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#E8941A] disabled:opacity-60"
+          className="w-full rounded-xl bg-[#F5A623] px-4 py-3.5 text-sm font-semibold text-on-amber shadow-sm transition hover:bg-[#E8941A] disabled:opacity-60"
         >
           {isPending ? 'Saving…' : submitLabel}
         </button>

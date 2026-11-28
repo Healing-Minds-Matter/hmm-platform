@@ -15,7 +15,7 @@ export default async function EditClubPage({ params }: { params: Promise<{ id: s
   if (!club) notFound()
 
   return (
-    <div className="p-8">
+    <div className="p-8 max-sm:p-4">
       <ClubEditForm club={club} />
     </div>
   )

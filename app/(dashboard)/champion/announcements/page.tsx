@@ -54,8 +54,8 @@ export default async function ChampionAnnouncementsPage() {
   }))
 
   return (
-    <div className="flex flex-col gap-6 p-8 font-[family-name:var(--font-inter)]">
-      <div className="flex items-start justify-between gap-4">
+    <div className="flex flex-col gap-6 p-8 max-sm:p-4 font-[family-name:var(--font-inter)]">
+      <div className="flex items-start justify-between gap-4 max-sm:flex-wrap">
         <div className="flex flex-col gap-1">
           <h1 className="text-[24px] font-bold tracking-[-0.7px] text-[#0F172A]">Announcements</h1>
           <p className="max-w-[768px] text-[14px] leading-5 text-[#475569]">
@@ -65,7 +65,7 @@ export default async function ChampionAnnouncementsPage() {
         {canPublish === true && (
           <Link
             href="/champion/announcements/new"
-            className="flex flex-shrink-0 items-center gap-2 rounded-lg bg-[#F4AC1E] px-6 py-2.5 text-[12px] font-semibold tracking-[0.24px] text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F]"
+            className="flex flex-shrink-0 items-center gap-2 rounded-lg bg-[#F4AC1E] px-6 py-2.5 text-[12px] font-semibold tracking-[0.24px] text-on-amber shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F]"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/icons/plus-small.svg" alt="" width={10.5} height={10.5} />

@@ -13,7 +13,7 @@ export default async function NewGatekeeperPage() {
   ])
 
   return (
-    <div className="flex justify-center p-8">
+    <div className="flex justify-center p-8 max-sm:p-4">
       <CreateGatekeeperForm
         scope={{ mode: 'select', clubs: clubs ?? [], champions: champions ?? [] }}
         redirectPath="/super-admin/gatekeepers"

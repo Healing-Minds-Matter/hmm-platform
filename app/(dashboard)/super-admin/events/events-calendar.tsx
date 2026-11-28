@@ -127,9 +127,9 @@ export function EventsCalendar({ view, year, month, day, club, type, q, events, 
   const updatedLabel = formatOrgTime(generatedAt, { hour: '2-digit', minute: '2-digit' })
 
   return (
-    <div className="flex flex-col gap-6 p-8 font-[family-name:var(--font-inter)]">
+    <div className="flex flex-col gap-6 p-8 max-sm:p-4 font-[family-name:var(--font-inter)]">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-start justify-between gap-4 max-lg:flex-wrap">
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-3">
             <h1 className="text-[24px] font-bold tracking-[-0.7px] text-[#0F172A]">Events &amp; Calendar</h1>
@@ -145,7 +145,7 @@ export function EventsCalendar({ view, year, month, day, club, type, q, events, 
         </div>
         <Link
           href={newEventHref ?? `${basePath}/new`}
-          className="flex flex-shrink-0 items-center gap-2 rounded-lg bg-[#F4AC1E] px-4 py-2 text-[12px] font-semibold tracking-[0.24px] text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F]"
+          className="flex flex-shrink-0 items-center gap-2 rounded-lg bg-[#F4AC1E] px-4 py-2 text-[12px] font-semibold tracking-[0.24px] text-on-amber shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#E09B0F]"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/icons/plus-small.svg" alt="" width={10.5} height={10.5} />
@@ -156,8 +156,8 @@ export function EventsCalendar({ view, year, month, day, club, type, q, events, 
       {/* Calendar Workspace Card */}
       <div className="flex flex-col gap-3 rounded-xl bg-white p-4 shadow-[0px_1px_1px_rgba(0,0,0,0.05)]">
         <div className="flex flex-col gap-[27px]">
-          <div className="flex items-center justify-between gap-3 pb-1">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-3 pb-1">
+            <div className="flex items-center gap-2 max-lg:flex-wrap max-sm:w-full max-sm:flex-col max-sm:items-stretch">
               <div className="relative">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src="/icons/search-filter.svg" alt="" className="pointer-events-none absolute left-3 top-1/2 h-[12px] w-[12px] -translate-y-1/2" />
@@ -166,14 +166,14 @@ export function EventsCalendar({ view, year, month, day, club, type, q, events, 
                   defaultValue={q}
                   placeholder="Search event or venue..."
                   onChange={e => router.push(hrefWith({ q: e.target.value }))}
-                  className="h-[34px] w-64 rounded-[5px] bg-[#F1F5F9] pl-8 pr-3 text-[13px] text-[#0F172A] placeholder:text-[#64748B] focus:outline-none focus:ring-2 focus:ring-[#F4AC1E]/40"
+                  className="h-[34px] w-64 rounded-[5px] bg-[#F1F5F9] max-sm:w-full pl-8 pr-3 text-[13px] text-[#0F172A] placeholder:text-[#64748B] focus:outline-none focus:ring-2 focus:ring-[#F4AC1E]/40"
                 />
               </div>
               <div className="relative">
                 <select
                   value={type}
                   onChange={e => router.push(hrefWith({ type: e.target.value }))}
-                  className="h-[34px] appearance-none rounded-[5px] bg-[#F1F5F9] pl-3 pr-7 text-[11px] font-semibold tracking-[0.44px] text-[#0F172A] focus:outline-none"
+                  className="h-[34px] min-w-0 max-w-full lg:max-w-[220px] appearance-none rounded-[5px] bg-[#F1F5F9] pl-3 pr-7 max-sm:w-full text-[11px] font-semibold tracking-[0.44px] text-[#0F172A] focus:outline-none"
                 >
                   <option value="">All Event Types ({totalCount})</option>
                   {EVENT_TYPES.map(t => (
@@ -187,7 +187,7 @@ export function EventsCalendar({ view, year, month, day, club, type, q, events, 
                 <select
                   value={club}
                   onChange={e => router.push(hrefWith({ club: e.target.value }))}
-                  className="h-[34px] appearance-none rounded-[5px] bg-[#F1F5F9] pl-3 pr-7 text-[11px] font-semibold tracking-[0.44px] text-[#0F172A] focus:outline-none"
+                  className="h-[34px] min-w-0 max-w-full lg:max-w-[220px] appearance-none rounded-[5px] bg-[#F1F5F9] pl-3 pr-7 max-sm:w-full text-[11px] font-semibold tracking-[0.44px] text-[#0F172A] focus:outline-none"
                 >
                   <option value="">All Clubs</option>
                   {clubs.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -197,7 +197,7 @@ export function EventsCalendar({ view, year, month, day, club, type, q, events, 
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 max-lg:flex-wrap">
               {view !== 'agenda' && (
                 <div className="flex h-[34px] items-center gap-1 rounded-lg bg-[#F1F5F9] p-0.5">
                   <button onClick={goToday} className="rounded-[4px] bg-white px-2 py-0.5 text-[11px] font-semibold tracking-[0.44px] text-[#0F172A] shadow-sm">
@@ -238,7 +238,7 @@ export function EventsCalendar({ view, year, month, day, club, type, q, events, 
             </div>
           </div>
 
-          <div className="flex items-center gap-4 rounded-lg bg-[#F8FAFC] px-2.5 py-1">
+          <div className="flex items-center gap-4 rounded-lg bg-[#F8FAFC] px-2.5 py-1 max-sm:flex-wrap max-sm:gap-x-3 max-sm:gap-y-1">
             <span className="text-[11px] font-semibold uppercase tracking-[0.55px] text-[#64748B]">Legend:</span>
             {usedTypes.map(t => {
               const style = eventTypeStyle(t.value)
@@ -484,13 +484,13 @@ function MonthGrid({
   return (
     // No overflow-hidden here: the "+N more" day list must be able to extend
     // past the bottom row. The header and grid below keep their own rounding.
-    <div className="rounded-lg bg-white">
-      <div className="flex gap-1 rounded-t-lg bg-[#F8FAFC] p-1">
+    <div className="rounded-lg bg-white max-sm:overflow-x-auto">
+      <div className="flex gap-1 rounded-t-lg bg-[#F8FAFC] p-1 max-sm:min-w-[560px]">
         {WEEKDAY_LABELS.map(w => (
           <div key={w} className="flex-1 py-1 text-center text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">{w}</div>
         ))}
       </div>
-      <div className="grid grid-cols-7 gap-1 rounded-b-lg bg-[#F8FAFC] p-1">
+      <div className="grid grid-cols-7 gap-1 rounded-b-lg bg-[#F8FAFC] p-1 max-sm:min-w-[560px]">
         {days.map((dayDate, index) => {
           const key = dayKey(dayDate)
           const inMonth = dayDate >= firstOfMonth && dayDate <= lastOfMonth
@@ -560,8 +560,8 @@ function WeekGrid({
   }
 
   return (
-    <div className="overflow-hidden rounded-lg bg-white">
-      <div className="grid grid-cols-7 gap-1 rounded-t-lg bg-[#F8FAFC] p-1">
+    <div className="overflow-hidden rounded-lg bg-white max-sm:overflow-x-auto">
+      <div className="grid grid-cols-7 gap-1 rounded-t-lg bg-[#F8FAFC] p-1 max-sm:min-w-[560px]">
         {days.map(d => {
           const isToday = d.getUTCFullYear() === todayYmd.year && d.getUTCMonth() + 1 === todayYmd.month && d.getUTCDate() === todayYmd.day
           return (
@@ -574,7 +574,7 @@ function WeekGrid({
           )
         })}
       </div>
-      <div className="grid grid-cols-7 gap-1 rounded-b-lg bg-[#F8FAFC] p-1">
+      <div className="grid grid-cols-7 gap-1 rounded-b-lg bg-[#F8FAFC] p-1 max-sm:min-w-[560px]">
         {days.map(d => {
           const key = dayKey(d)
           const dayEvents = eventsByDay[key] ?? []
@@ -623,16 +623,16 @@ function AgendaView({
                   {dateLabel}
                 </div>
               )}
-              <Link href={hrefWith({ event: ev.id })} scroll={false} className="flex items-center gap-3 px-6 py-3 hover:bg-slate-50">
+              <Link href={hrefWith({ event: ev.id })} scroll={false} className="flex items-center gap-3 px-6 py-3 hover:bg-slate-50 max-sm:flex-wrap max-sm:gap-y-1 max-sm:px-4">
                 <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ backgroundColor: style.dot }} />
                 <span className="w-16 flex-shrink-0 text-sm text-[#64748B]">
                   {formatOrgTime(startsAt, { hour: '2-digit', minute: '2-digit' })}
                 </span>
-                <span className="flex-1 truncate text-sm font-medium text-[#0F172A]">{ev.title}</span>
-                <span className={`inline-flex flex-shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${style.badge}`}>
+                <span className="min-w-0 flex-1 truncate text-sm font-medium text-[#0F172A] max-sm:basis-[calc(100%-6.25rem)]">{ev.title}</span>
+                <span className={`inline-flex flex-shrink-0 rounded-full px-2 py-0.5 text-xs font-medium max-sm:ml-[5.25rem] ${style.badge}`}>
                   {eventTypeLabel(ev.type, ev.type_description)}
                 </span>
-                <span className="flex-shrink-0 text-sm text-[#64748B]">{ev.club_name}</span>
+                <span className="flex-shrink-0 text-sm text-[#64748B] max-sm:min-w-0 max-sm:flex-shrink max-sm:truncate">{ev.club_name}</span>
               </Link>
             </li>
           )

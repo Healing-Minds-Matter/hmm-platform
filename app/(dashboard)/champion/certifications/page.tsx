@@ -13,7 +13,7 @@ export default async function ChampionCertificationsPage() {
   const [types, waiting] = await Promise.all([allowed ? loadTypes(supabase) : Promise.resolve([]), waitingReviewCount(supabase)])
 
   return (
-    <div className="flex flex-col gap-4 p-8 font-[family-name:var(--font-inter)]">
+    <div className="flex flex-col gap-4 p-8 max-sm:p-4 font-[family-name:var(--font-inter)]">
       <PageHeader title="Certifications" description="The certification types your Gatekeepers can hold. Only Super Admins can add or change types." />
       <CertTabs current="types" base="/champion/certifications" showAudit={false} reviews={waiting} />
       {allowed

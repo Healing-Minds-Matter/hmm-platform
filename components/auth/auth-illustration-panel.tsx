@@ -1,3 +1,12 @@
+'use client'
+
+import { useSyncExternalStore } from 'react'
+import {
+  ILLUSTRATION_IMAGES,
+  isIllustrationScreen,
+  subscribeToIllustrationScreen,
+} from '@/lib/auth-illustration'
+
 // Rebuilt from real Figma node data (fileKey K1Csx2BjbSmP9NRSDtoEe2, node
 // 144:20 "Login" — the "sign in" section's current frame; the file was
 // revised in place since the previous build, which used the now-deleted
@@ -24,7 +33,22 @@
 // behavior — it scales to fit its box at any viewport size without ever
 // cropping, and the panel it sits in is sized equally with the left card by
 // the parent layout (app/(auth)/layout.tsx), flush with no extra gap.
+//
+// Fix S (Nov 2026): the panel is hidden below Tailwind's `lg` breakpoint, but
+// CSS hiding alone still let phones download its ~880 KB of images. The three
+// <image> layers are now only added once the screen is known to be at least
+// `lg` wide (lib/auth-illustration.ts). The server render and the first
+// client render leave them out, so phones never request them; on desktop
+// they are added right after hydration. The swirls and tagline (inline
+// vectors, no download) still render straight away, and the panel's box and
+// size are unchanged, so nothing shifts.
 export function AuthIllustrationPanel() {
+  const showImages = useSyncExternalStore(
+    subscribeToIllustrationScreen,
+    () => isIllustrationScreen(),
+    () => false,
+  )
+
   return (
     <div className="hidden flex-1 items-center justify-center overflow-hidden lg:flex">
       <svg
@@ -82,7 +106,7 @@ export function AuthIllustrationPanel() {
             each at its own real position, all clipped through the same
             organic shape so a different part of the shape reveals each one */}
         <g clipPath="url(#login-photo-clip)">
-          <image href="/images/login/photo.jpg" x="607.4786" y="123.7243" width="854.1328" height="640.5996" preserveAspectRatio="xMidYMid slice" />
+          {showImages && <image href={ILLUSTRATION_IMAGES.photo} x="607.4786" y="123.7243" width="854.1328" height="640.5996" preserveAspectRatio="xMidYMid slice" />}
           <g transform="translate(820.3495, -135.2211) scale(1.0000485, 1.0000417)">
             <path
               d="M504.048 930.932C235.594 952.221 270.591 952.221 186.596 930.932C102.601 909.643 63.9577 816.099 55.3373 776.362C46.7169 736.624 44.147 711.533 65.5448 666.1C75.3141 645.357 106.225 600.53 161.892 592.015C231.476 581.37 344.293 666.1 424.17 666.1C504.048 666.1 508.165 658.01 528.752 604.788C549.339 551.566 497.872 517.93 424.17 483.868C350.469 449.806 257.54 431.019 186.596 382.373C97.1582 321.047 81.6886 93.7142 55.3373 49.0078"
@@ -92,21 +116,23 @@ export function AuthIllustrationPanel() {
               fill="none"
             />
           </g>
-          <image href="/images/login/room-bg.png" x="931.3916" y="220.9025" width="459.8044" height="556.4748" preserveAspectRatio="xMidYMid slice" />
+          {showImages && <image href={ILLUSTRATION_IMAGES.roomBackground} x="931.3916" y="220.9025" width="459.8044" height="556.4748" preserveAspectRatio="xMidYMid slice" />}
         </g>
 
         {/* logo badge (node 144:60) — Figma scales/shifts this specific
             asset (h-115.22% w-148.3% left--25.95% top--6.69% of its own
             75x57 box) rather than a plain center-crop; reproduced exactly. */}
-        <image
-          href="/images/login/logo-badge.png"
-          x="1312.5375"
-          y="38.1867"
-          width="111.225"
-          height="65.6754"
-          preserveAspectRatio="none"
-          clipPath="url(#login-logo-clip)"
-        />
+        {showImages && (
+          <image
+            href={ILLUSTRATION_IMAGES.logoBadge}
+            x="1312.5375"
+            y="38.1867"
+            width="111.225"
+            height="65.6754"
+            preserveAspectRatio="none"
+            clipPath="url(#login-logo-clip)"
+          />
+        )}
 
         {/* tagline (node 144:61/144:62/144:63) */}
         <text

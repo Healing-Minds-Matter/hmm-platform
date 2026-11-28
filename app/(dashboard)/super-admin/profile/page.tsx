@@ -6,6 +6,7 @@ import { syncProfileEmail } from '@/lib/email-sync.server'
 import { ProfileForm } from './profile-form'
 import { groupAccessList, type AccessRow } from '@/lib/access-list'
 import { RoleAccessList } from '@/components/role-access-list'
+import { formatOrgDate } from '@/lib/org-date'
 
 export const metadata = { title: 'My Profile — HMM Super Admin' }
 
@@ -83,7 +84,7 @@ export default async function ProfilePage() {
   const initials = getInitials(profile.full_name)
 
   return (
-    <div className="p-8 font-[family-name:var(--font-inter)]">
+    <div className="p-8 max-sm:p-4 font-[family-name:var(--font-inter)]">
 
         {/* Header */}
         <div className="mb-8">
@@ -96,7 +97,7 @@ export default async function ProfilePage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-4 max-lg:grid-cols-1">
           {/* Left column */}
           <div className="flex flex-col gap-4">
 
@@ -117,7 +118,7 @@ export default async function ProfilePage() {
                   </span>
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 max-sm:flex-wrap">
                     <h2 className="text-[22px] font-bold tracking-[-0.55px] text-[#0F172A] font-[family-name:var(--font-jakarta)]">
                       {profile.full_name}
                     </h2>
@@ -281,7 +282,7 @@ export default async function ProfilePage() {
                   <p className="text-[13px] text-[#475569]">
                     Coverage &amp; Out of Office:{' '}
                     {activeDelegation
-                      ? <span className="font-bold text-[#0F172A]">{activeDelegation.delegate?.full_name} covering until {new Date(activeDelegation.ends_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                      ? <span className="font-bold text-[#0F172A]">{activeDelegation.delegate?.full_name} covering until {formatOrgDate(activeDelegation.ends_at, { month: 'short', day: 'numeric' }, 'en-US')}</span>
                       : <span className="font-bold text-[#0F172A]">No active delegation scheduled</span>}
                   </p>
                 </div>

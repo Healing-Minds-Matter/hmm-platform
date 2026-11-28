@@ -6,6 +6,7 @@
 // edited as a copy: saving creates the next version, so none is overwritten.
 
 import { useState } from 'react'
+import { ScrollTable } from '@/components/scroll-table'
 import Link from 'next/link'
 import { ModalOverlay } from '@/components/modal-overlay'
 import { CertificatePreview } from '@/components/certifications/certificate-preview'
@@ -38,7 +39,7 @@ export function DesignVersions({ typeId, versions, assets, sample, placeholders,
       {versions.length === 0 ? (
         <p className="mt-4 text-sm text-[#64748B]">No versions yet. Save to create version 1.</p>
       ) : (
-        <div className="mt-4 overflow-x-auto">
+        <ScrollTable label="Design versions" minWidth={560} className="mt-4 overflow-x-auto">
           <table className="w-full min-w-[560px] text-left text-[13px]">
             <thead>
               <tr className="border-b border-[#E2E8F0] text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">
@@ -73,7 +74,7 @@ export function DesignVersions({ typeId, versions, assets, sample, placeholders,
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollTable>
       )}
       {viewing !== null && (
         <ModalOverlay onClose={() => setViewing(null)} maxWidth={860}>

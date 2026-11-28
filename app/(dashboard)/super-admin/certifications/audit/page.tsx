@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { ScrollTable } from '@/components/scroll-table'
 import { waitingReviewCount } from '@/lib/certifications.server'
 import { AUDIT_ACTION_LABEL, auditTone, describeAudit } from '@/lib/certification-types'
 import { formatOrgDate, formatOrgTime } from '@/lib/org-date'
@@ -38,18 +39,18 @@ export default async function CertificationAuditPage({ searchParams }: { searchP
 
   const th = 'px-[16px] text-left text-[11px] font-semibold uppercase tracking-[0.55px] text-[#475569]'
   return (
-    <div className="flex flex-col gap-4 p-8 font-[family-name:var(--font-inter)]">
+    <div className="flex flex-col gap-4 p-8 max-sm:p-4 font-[family-name:var(--font-inter)]">
       <PageHeader title="Certifications" description="Every change to certifications, types and designs: who did it, when and why. Only Super Admins can see this." />
       <CertTabs current="audit" base="/super-admin/certifications" showAudit reviews={waiting} />
 
-      <form className="flex flex-wrap items-center gap-3 rounded-xl bg-white px-6 py-3">
+      <form className="flex flex-wrap items-center gap-3 rounded-xl bg-white px-6 py-3 max-sm:px-4">
         <label htmlFor="action" className="text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">Action</label>
         <select id="action" name="action" defaultValue={action} className="rounded-lg border border-transparent bg-[#F9F9F9] py-2 pl-4 pr-8 text-[13px] text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#F4AC1E]/40">
           <option value="">All actions</option>
           {Object.entries(AUDIT_ACTION_LABEL).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
         </select>
         <label htmlFor="q" className="text-[11px] font-bold uppercase tracking-[0.55px] text-[#64748B]">Search</label>
-        <input id="q" name="q" defaultValue={q} placeholder="Name, certification or reason" className="min-w-[260px] rounded-lg border border-transparent bg-[#F9F9F9] px-4 py-2 text-[13px] text-[#0F172A] placeholder:text-[#64748B] focus:outline-none focus:ring-2 focus:ring-[#F4AC1E]/40" />
+        <input id="q" name="q" defaultValue={q} placeholder="Name, certification or reason" className="min-w-[260px] max-sm:w-full max-sm:min-w-0 rounded-lg border border-transparent bg-[#F9F9F9] px-4 py-2 text-[13px] text-[#0F172A] placeholder:text-[#64748B] focus:outline-none focus:ring-2 focus:ring-[#F4AC1E]/40" />
         <button type="submit" className="rounded-lg bg-[#F1F5F9] px-4 py-2 text-[12px] font-semibold text-[#003495] hover:bg-slate-200">Apply</button>
         <span className="text-[12px] text-[#64748B]">{rows.length} {rows.length === 1 ? 'entry' : 'entries'}{(data ?? []).length === PAGE ? ` (latest ${PAGE})` : ''}</span>
       </form>
@@ -58,6 +59,7 @@ export default async function CertificationAuditPage({ searchParams }: { searchP
         {rows.length === 0 ? (
           <div className="p-12 text-center text-sm text-[#64748B]">{action || q ? 'No entries match.' : 'No certification activity yet.'}</div>
         ) : (
+          <ScrollTable label="Certification activity" minWidth={820}>
           <table className="w-full min-w-[820px]">
             <thead>
               <tr className="h-[46px] border-b border-[rgba(226,232,240,0.8)] bg-[#F9F9F9]">
@@ -76,6 +78,7 @@ export default async function CertificationAuditPage({ searchParams }: { searchP
               ))}
             </tbody>
           </table>
+          </ScrollTable>
         )}
       </div>
       <p className="text-[12px] text-[#64748B]">Entries are kept permanently.</p>
