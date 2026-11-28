@@ -22,7 +22,8 @@ vi.mock('@/lib/account-setup.server', () => ({
 }))
 
 import {
-  ACTIONS, AUDIT_ACTION, buildPlan, formatApprovalFile, parseApprovalFile, prepareLiveRun, realDeps, runLive,
+  ACTIONS, AUDIT_ACTION, buildPlan, formatApprovalFile, isUndeliverableEmail, parseApprovalFile, prepareLiveRun,
+  realDeps, runLive, sendsEmail,
   type FlaggedProfile, type PlannedAction, type ResetDeps,
 } from '@/lib/temporary-password-reset.server'
 
@@ -36,9 +37,9 @@ const INACTIVE = id(5)
 
 function profiles(): FlaggedProfile[] {
   return [
-    { id: SIGNED, email: 'zz-champ@example.com', full_name: 'ZZ Champ', role: 'champion', club_id: 'c1', is_active: true },
-    { id: NEVER, email: 'zz-gk@example.com', full_name: 'ZZ Gate', role: 'gatekeeper', club_id: 'c1', is_active: true },
-    { id: UNKNOWN, email: 'zz-unknown@example.com', full_name: 'ZZ Unknown', role: 'gatekeeper', club_id: null, is_active: true },
+    { id: SIGNED, email: 'zz-champ@clubmail.lk', full_name: 'ZZ Champ', role: 'champion', club_id: 'c1', is_active: true },
+    { id: NEVER, email: 'zz-gk@clubmail.lk', full_name: 'ZZ Gate', role: 'gatekeeper', club_id: 'c1', is_active: true },
+    { id: UNKNOWN, email: 'zz-unknown@clubmail.lk', full_name: 'ZZ Unknown', role: 'gatekeeper', club_id: null, is_active: true },
     { id: SUPER, email: 'zz-sa@example.com', full_name: 'ZZ Admin', role: 'super_admin', club_id: null, is_active: true },
     { id: INACTIVE, email: 'zz-off@example.com', full_name: 'ZZ Off', role: 'gatekeeper', club_id: 'c1', is_active: false },
   ]
@@ -75,7 +76,7 @@ describe('buildPlan (dry run)', () => {
   it('lists each account with role, club, sign-in state and planned action', async () => {
     const plan = await buildPlan(deps)
     const byId = Object.fromEntries(plan.map(r => [r.id, r]))
-    expect(byId[NEVER]).toMatchObject({ email: 'zz-gk@example.com', role: 'gatekeeper', club: 'ZZ Club', signedIn: 'never', action: ACTIONS.sendSetPasswordLink })
+    expect(byId[NEVER]).toMatchObject({ email: 'zz-gk@clubmail.lk', role: 'gatekeeper', club: 'ZZ Club', signedIn: 'never', action: ACTIONS.sendSetPasswordLink })
     expect(byId[SIGNED]).toMatchObject({ signedIn: 'yes', action: ACTIONS.replacePasswordAndNotify })
     expect(byId[UNKNOWN]).toMatchObject({ club: '-', signedIn: 'unknown', action: ACTIONS.replacePasswordAndNotify })
   })
@@ -238,6 +239,94 @@ describe('runLive', () => {
     await runLive({ batch: await batchOf(NEVER, SIGNED, UNKNOWN), actorId: ACTOR, delayMs: 5000, deps })
     expect(deps.sleep).toHaveBeenCalledTimes(2)
     expect(deps.sleep).toHaveBeenCalledWith(5000)
+  })
+})
+
+describe('made-up addresses: password retired, no email', () => {
+  const FAKE = id(6)
+  const FAKE_SIGNED = id(8)
+  beforeEach(() => {
+    const withFakes = [
+      ...profiles(),
+      { id: FAKE, email: 'zz-fake@example.com', full_name: 'ZZ Fake', role: 'gatekeeper', club_id: 'c1', is_active: true },
+      { id: FAKE_SIGNED, email: 'zz-fake2@Example.ORG', full_name: 'ZZ Fake2', role: 'champion', club_id: 'c1', is_active: true },
+    ]
+    deps.listFlaggedProfiles.mockImplementation(async () => withFakes)
+  })
+
+  it.each([
+    ['zz@example.com', true], ['a@EXAMPLE.net', true], ['a@example.org', true], ['a@club.test', true],
+    ['a@x.invalid', true], ['a@x.example', true], ['a@localhost.localhost', true], ['', true], [null, true], ['no-at-sign', true],
+    ['someone@gmail.com', false], ['jayani@ensiz.com', false], ['a@myexample.com', false], ['a@example.com.lk', false],
+  ])('isUndeliverableEmail(%s) = %s', (email, expected) => {
+    expect(isUndeliverableEmail(email as string | null)).toBe(expected)
+  })
+
+  it('the dry run plans "no email" for them whether or not they signed in', async () => {
+    const plan = await buildPlan(deps)
+    expect(plan.find(r => r.id === FAKE)?.action).toBe(ACTIONS.replacePasswordNoEmail)
+    expect(plan.find(r => r.id === FAKE_SIGNED)?.action).toBe(ACTIONS.replacePasswordNoEmail)
+    expect(plan.find(r => r.id === NEVER)?.action).toBe(ACTIONS.sendSetPasswordLink)
+    expect(sendsEmail(ACTIONS.replacePasswordNoEmail)).toBe(false)
+    expect(sendsEmail(ACTIONS.sendSetPasswordLink)).toBe(true)
+  })
+
+  it('the approval file lists them and reads them back', async () => {
+    const approved = parseApprovalFile(formatApprovalFile(await buildPlan(deps), new Date()))
+    expect(approved.get(FAKE)).toBe(ACTIONS.replacePasswordNoEmail)
+  })
+
+  it('live: password replaced and sessions ended, but no link and no email', async () => {
+    const batch = (await buildPlan(deps)).filter(r => r.id === FAKE)
+    const [r] = await runLive({ batch, actorId: ACTOR, delayMs: 0, deps })
+    expect(r.outcome).toBe('password_replaced_no_email')
+    expect(calls).toEqual([`password:${FAKE}`, `sessions:${FAKE}`])
+    expect(deps.issueSetupLink).not.toHaveBeenCalled()
+    expect(deps.sendNotice).not.toHaveBeenCalled()
+    expect(deps.audit).toHaveBeenCalledWith({ actorId: ACTOR, userId: FAKE, details: { action: ACTIONS.replacePasswordNoEmail, outcome: 'password_replaced_no_email' } })
+  })
+
+  it('live: if the password cannot be replaced it fails, with no sign-out', async () => {
+    deps.replacePassword.mockResolvedValueOnce(false)
+    const batch = (await buildPlan(deps)).filter(r => r.id === FAKE)
+    const [r] = await runLive({ batch, actorId: ACTOR, delayMs: 0, deps })
+    expect(r.outcome).toBe('failed')
+    expect(deps.revokeSessions).not.toHaveBeenCalled()
+  })
+
+  it('live: a failed sign-out is flagged for a manual check', async () => {
+    deps.revokeSessions.mockResolvedValueOnce(false)
+    const batch = (await buildPlan(deps)).filter(r => r.id === FAKE)
+    const [r] = await runLive({ batch, actorId: ACTOR, delayMs: 0, deps })
+    expect(r.outcome).toBe('password_replaced_sessions_not_ended')
+  })
+
+  it('a Super Admin can switch any approved account to "no email" in the file (e.g. a stranger\'s real inbox)', async () => {
+    const p = await prepareLiveRun(new Map([
+      [NEVER, ACTIONS.replacePasswordNoEmail], [SIGNED, ACTIONS.replacePasswordNoEmail],
+    ]), 50, deps)
+    expect(p.batch.map(r => [r.id, r.action]).sort()).toEqual([
+      [NEVER, ACTIONS.replacePasswordNoEmail], [SIGNED, ACTIONS.replacePasswordNoEmail],
+    ].sort())
+    expect(p.changed).toEqual([])
+    const results = await runLive({ batch: p.batch, actorId: ACTOR, delayMs: 0, deps })
+    expect(results.every(r => r.outcome === 'password_replaced_no_email')).toBe(true)
+    expect(deps.issueSetupLink).not.toHaveBeenCalled()
+    expect(deps.sendNotice).not.toHaveBeenCalled()
+  })
+
+  it('but cannot switch the other way: a made-up address approved to get email is not touched', async () => {
+    const p = await prepareLiveRun(new Map([[FAKE, ACTIONS.sendSetPasswordLink]]), 50, deps)
+    expect(p.batch).toEqual([])
+    expect(p.changed.map(r => r.id)).toEqual([FAKE])
+  })
+
+  it('"no email" still never touches a Super Admin or a deactivated account', async () => {
+    const p = await prepareLiveRun(new Map([
+      [SUPER, ACTIONS.replacePasswordNoEmail], [INACTIVE, ACTIONS.replacePasswordNoEmail],
+    ]), 50, deps)
+    expect(p.batch).toEqual([])
+    expect(p.changed.map(r => r.id).sort()).toEqual([SUPER, INACTIVE].sort())
   })
 })
 

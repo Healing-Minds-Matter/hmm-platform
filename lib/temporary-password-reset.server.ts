@@ -11,7 +11,11 @@ import { hasSignedIn, issueAccountSetupInvite, revokeUserSessions } from '@/lib/
 //   - never signed in → a new set-password link (issueAccountSetupInvite,
 //     which also replaces the password with a random one nobody sees);
 //   - signed in before → random password, every session ended, and a notice
-//     email telling them to use Forgot password.
+//     email telling them to use Forgot password;
+//   - made-up address (example.com, .test, ...) → random password and every
+//     session ended, but NO email (it could only bounce). A Super Admin can
+//     also switch any approved line to this in the approval file (e.g. for a
+//     real inbox that isn't the person's).
 //
 // "Still on a temporary password" = profiles.must_change_password is true.
 // New accounts are created with it false; the database clears it whenever
@@ -23,11 +27,30 @@ export const AUDIT_ACTION = 'account.temporary_password_retired'
 export const ACTIONS = {
   sendSetPasswordLink: 'send_set_password_link',
   replacePasswordAndNotify: 'replace_password_and_notify',
+  replacePasswordNoEmail: 'replace_password_no_email',
   skipSuperAdmin: 'skip_super_admin',
   skipDeactivated: 'skip_deactivated',
 } as const
 export type PlannedAction = (typeof ACTIONS)[keyof typeof ACTIONS]
-const RUNNABLE: ReadonlySet<PlannedAction> = new Set([ACTIONS.sendSetPasswordLink, ACTIONS.replacePasswordAndNotify])
+const RUNNABLE: ReadonlySet<PlannedAction> = new Set([
+  ACTIONS.sendSetPasswordLink, ACTIONS.replacePasswordAndNotify, ACTIONS.replacePasswordNoEmail,
+])
+const SENDS_EMAIL: ReadonlySet<PlannedAction> = new Set([ACTIONS.sendSetPasswordLink, ACTIONS.replacePasswordAndNotify])
+
+// Reserved for examples and testing (RFC 2606 / 6761): no real inbox exists.
+const RESERVED_DOMAINS = new Set(['example.com', 'example.net', 'example.org'])
+const RESERVED_ENDINGS = ['.example', '.test', '.invalid', '.localhost']
+
+/** True when an email to this address can only bounce (made-up or missing). */
+export function isUndeliverableEmail(email: string | null | undefined): boolean {
+  const domain = (email ?? '').trim().toLowerCase().split('@')[1]
+  if (!domain) return true
+  return RESERVED_DOMAINS.has(domain) || RESERVED_ENDINGS.some(end => domain.endsWith(end))
+}
+
+export function sendsEmail(action: PlannedAction): boolean {
+  return SENDS_EMAIL.has(action)
+}
 
 export type FlaggedProfile = {
   id: string
@@ -54,6 +77,7 @@ export type Outcome =
   | 'password_replaced_notice_sent'
   | 'password_replaced_notice_failed'
   | 'password_replaced_sessions_not_ended'
+  | 'password_replaced_no_email'
   | 'failed'
   | 'skipped_not_on_list'
   | 'skipped_changed_since_dry_run'
@@ -94,8 +118,9 @@ export async function buildPlan(deps: ResetDeps): Promise<PlanRow[]> {
     const action: PlannedAction =
       p.role === 'super_admin' ? ACTIONS.skipSuperAdmin
         : !p.is_active ? ACTIONS.skipDeactivated
-          : signedIn === 'never' ? ACTIONS.sendSetPasswordLink
-            : ACTIONS.replacePasswordAndNotify
+          : isUndeliverableEmail(p.email) ? ACTIONS.replacePasswordNoEmail
+            : signedIn === 'never' ? ACTIONS.sendSetPasswordLink
+              : ACTIONS.replacePasswordAndNotify
     rows.push({
       id: p.id,
       email: p.email ?? '',
@@ -121,6 +146,7 @@ export function formatApprovalFile(plan: PlanRow[], createdAt: Date): string {
   return [
     `# Fix B dry run, ${createdAt.toISOString()}: ${runnable.length} account(s).`,
     '# Delete the line of any account you do NOT approve. Lines starting with # are ignored.',
+    `# To retire a password WITHOUT sending an email, change that line's action to ${ACTIONS.replacePasswordNoEmail}.`,
     ...runnable.map(r => `${r.id} ${r.action}  # ${r.email} (${r.role}, ${r.club})`),
     '',
   ].join('\n')
@@ -167,8 +193,10 @@ export async function prepareLiveRun(
   for (const [id, action] of approved) {
     const row = byId.get(id)
     if (!row) notOnList.push(id)
-    else if (row.action !== action) changed.push(row)
-    else matching.push(row)
+    else if (row.action === action) matching.push(row)
+    // Switching an approved account to "no email" is always allowed (it only sends less).
+    else if (action === ACTIONS.replacePasswordNoEmail && isRunnable(row.action)) matching.push({ ...row, action })
+    else changed.push(row)
   }
   const notApproved = plan.filter(r => isRunnable(r.action) && !approved.has(r.id))
   return { batch: matching.slice(0, limit), deferred: matching.slice(limit), changed, notOnList, notApproved }
@@ -220,11 +248,14 @@ async function handleOne(row: PlanRow, actorId: string, deps: ResetDeps): Promis
     return 'ok' in res ? { ...base, outcome: 'link_sent' } : { ...base, outcome: 'failed', note: res.error }
   }
 
-  // Signed in before: kill the temporary password first, then sessions, then tell them.
+  // Kill the temporary password first, then sessions, then (unless "no email") tell them.
   if (!(await deps.replacePassword(row.id))) {
     return { ...base, outcome: 'failed', note: 'password could not be replaced (nothing changed)' }
   }
   const sessionsEnded = await deps.revokeSessions(row.id)
+  if (row.action === ACTIONS.replacePasswordNoEmail) {
+    return { ...base, outcome: sessionsEnded ? 'password_replaced_no_email' : 'password_replaced_sessions_not_ended' }
+  }
   const to = (await deps.authEmail(row.id)) ?? row.email
   const sent = to ? await deps.sendNotice({ to, fullName: row.fullName, role: row.role }) : { error: 'no email address' }
   if (!sessionsEnded) return { ...base, outcome: 'password_replaced_sessions_not_ended', note: sent.error ? 'notice email also failed' : undefined }

@@ -8,12 +8,18 @@
 //   npx tsx --conditions=react-server --env-file=<env file> scripts/reset-temporary-password-accounts.ts \
 //     --live --approved approved.txt --actor <Super Admin account id> [--limit 50] [--delay-seconds 5] [--confirm <count>]
 //
-// The live run first prints how many emails it would send and stops; run it
-// again with --confirm <that count> to go ahead. Passwords are never printed.
+// The live run first prints how many accounts it would change (and how many
+// of them get an email) and stops; run it again with --confirm <that count> to
+// go ahead. Passwords are never printed.
+//
+// Made-up addresses (example.com, .test, ...) are planned as "no email": the
+// password is replaced and sessions ended, but nothing is sent. To do the same
+// for any other approved account, change its line's action in the approval
+// file to replace_password_no_email.
 import fs from 'fs'
 import { parseArgs } from 'util'
 import {
-  ACTIONS, buildPlan, formatApprovalFile, isRunnable, parseApprovalFile, prepareLiveRun, realDeps, runLive,
+  ACTIONS, buildPlan, formatApprovalFile, isRunnable, parseApprovalFile, prepareLiveRun, realDeps, runLive, sendsEmail,
   type PlanRow, type RunResult,
 } from '@/lib/temporary-password-reset.server'
 
@@ -23,6 +29,7 @@ const DEFAULT_DELAY_SECONDS = 5
 const ACTION_TEXT: Record<string, string> = {
   [ACTIONS.sendSetPasswordLink]: 'send new set-password link',
   [ACTIONS.replacePasswordAndNotify]: 'replace password, sign out, send notice',
+  [ACTIONS.replacePasswordNoEmail]: 'replace password, sign out, NO email',
   [ACTIONS.skipSuperAdmin]: 'SKIP (Super Admin)',
   [ACTIONS.skipDeactivated]: 'SKIP (deactivated)',
 }
@@ -52,6 +59,7 @@ const OUTCOME_TEXT: Record<RunResult['outcome'], string> = {
   password_replaced_notice_sent: 'OK: password replaced, signed out, notice sent',
   password_replaced_notice_failed: 'CHECK: password replaced and signed out, but the notice email FAILED',
   password_replaced_sessions_not_ended: 'CHECK: password replaced, but sessions could NOT be ended',
+  password_replaced_no_email: 'OK: password replaced, signed out, no email (as planned)',
   failed: 'FAILED',
   skipped_not_on_list: 'skipped',
   skipped_changed_since_dry_run: 'skipped',
@@ -128,7 +136,8 @@ async function main() {
   const count = prepared.batch.length
   if (!count) { console.log('\nNothing to do. Nothing was changed. Nothing was sent.'); return }
   if (values.confirm !== String(count)) {
-    console.log(`\n${count} account(s) would be changed and get an email, about ${Math.ceil((count - 1) * delaySeconds / 60)} min at one every ${delaySeconds}s.`)
+    const emails = prepared.batch.filter(r => sendsEmail(r.action)).length
+    console.log(`\n${count} account(s) would be changed; ${emails} of them get an email (${count - emails} without). About ${Math.ceil((count - 1) * delaySeconds / 60)} min at one every ${delaySeconds}s.`)
     console.log(`Nothing was changed. To go ahead, run the same command again with: --confirm ${count}`)
     process.exitCode = 2
     return
@@ -143,7 +152,8 @@ async function main() {
     onResult: (r, i) => console.log(`  ${String(i + 1).padStart(3)}/${count} ${r.email}: ${OUTCOME_TEXT[r.outcome]}${r.note ? ` (${r.note})` : ''}`),
   })
 
-  const ok = results.filter(r => r.outcome === 'link_sent' || r.outcome === 'password_replaced_notice_sent').length
+  const OK_OUTCOMES = new Set<RunResult['outcome']>(['link_sent', 'password_replaced_notice_sent', 'password_replaced_no_email'])
+  const ok = results.filter(r => OK_OUTCOMES.has(r.outcome)).length
   const failed = results.filter(r => r.outcome === 'failed').length
   console.log(`\nDone: ${ok} OK, ${results.length - ok - failed} need a check, ${failed} failed.`)
   if (failed) console.log('Failed: see the reason above. Any account still on a temporary password is retried by the next run (new dry run first).')
